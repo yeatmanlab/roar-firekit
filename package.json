@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "test": "jest --config jestconfig.json",
+    "test": "jest --config jestconfig.json --verbose --detectOpenHandles",
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\" \"lib/**/*.js\"",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -36,6 +36,7 @@
   },
   "homepage": "https://github.com/richford/roar-firekit#readme",
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^2.0.2",
     "@types/jest": "^27.4.1",
     "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^5.13.0",

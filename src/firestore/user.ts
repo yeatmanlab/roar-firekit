@@ -59,8 +59,6 @@ export class RoarUser {
    * @param {string} studyId - The study ID of the user
    * @param {string} userCategory - The user type. Must be either "student," "educator," or "researcher"
    */
-  isPushedToFirestore: boolean;
-  userRef: DocumentReference | undefined;
   id: string;
   firebaseUid: string;
   taskId: string;
@@ -72,6 +70,8 @@ export class RoarUser {
   districtId: string | null;
   studyId: string | null;
   userCategory: userCategoryType;
+  isPushedToFirestore: boolean;
+  userRef: DocumentReference | undefined;
   constructor({
     id,
     firebaseUid,
@@ -83,11 +83,11 @@ export class RoarUser {
     schoolId = null,
     districtId = null,
     studyId = null,
-    userCategory = 'student',
+    userCategory = 'student' as const,
   }: UserInput) {
     const allowedUserCategories: string[] = ['student', 'educator', 'researcher'];
     if (!allowedUserCategories.includes(userCategory)) {
-      throw new Error(`User type must be one of ${allowedUserCategories.join(', ')}.`);
+      throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
     }
 
     this.id = id;
@@ -100,7 +100,7 @@ export class RoarUser {
     this.schoolId = schoolId;
     this.districtId = districtId;
     this.studyId = studyId;
-    this.userCategory = userCategory;
+    this.userCategory = userCategory as userCategoryType;
 
     this.userRef = undefined;
     this.isPushedToFirestore = false;
@@ -145,14 +145,14 @@ export class RoarUser {
       if (this.taskId) userData.tasks = arrayUnion(this.taskId);
       if (this.variantId) userData.variants = arrayUnion(this.variantId);
 
-      updateDoc(this.userRef, removeNull(userData))
+      return updateDoc(this.userRef, removeNull(userData))
         .catch((error: FirestoreError) => {
           const errorCode = error.code;
           if (errorCode === 'permission-denied') {
             // The ROAR Firestore rules are written such that if we get here, the
             // user does not currently exist in Firestore. So create them.
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            setDoc(this.userRef!, {
+            return setDoc(this.userRef!, {
               ...userData,
               createdAt: serverTimestamp(),
             });

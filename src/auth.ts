@@ -23,7 +23,7 @@ import { v5 as uuidv5 } from 'uuid';
  * @returns {string} - The email address
  */
 export const roarEmail = (roarUid: string): string => {
-  return `${roarUid}@dispotable.com`;
+  return `${roarUid}@dispostable.com`;
 };
 
 const roarUuidv5Namespace = uuidv5('https://reading.stanford.edu/', uuidv5.URL);
@@ -47,21 +47,22 @@ export const roarPassword = (roarUid: string): string => {
 export const firebaseSignIn = async (roarUid: string) => {
   const auth = getAuth();
 
-  console.log(`Creating user with email ${roarEmail(roarUid)}`);
+  // console.log(`Creating user with email ${roarEmail(roarUid)}`);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const userCredential: UserCredential = await createUserWithEmailAndPassword(
     auth,
     roarEmail(roarUid),
     roarPassword(roarUid),
   ).catch((error) => {
     if (error.code === 'auth/email-already-in-use') {
-      console.log('Email already in use');
+      // console.log('Email already in use');
       return signInWithEmailAndPassword(auth, roarEmail(roarUid), roarPassword(roarUid));
     } else {
       throw error;
     }
   });
-  console.log(`Signed in as ${userCredential.user.email}`);
-  console.log(`Firebase UID: ${userCredential.user.uid}`);
+  // console.log(`Signed in as ${userCredential.user.email}`);
+  // console.log(`Firebase UID: ${userCredential.user.uid}`);
   return auth;
 };
 
