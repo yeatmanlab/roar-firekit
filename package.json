@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "test": "jest --config jestconfig.json --verbose --detectOpenHandles",
+    "test": "jest --config jestconfig.json --verbose",
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\" \"lib/**/*.js\"",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

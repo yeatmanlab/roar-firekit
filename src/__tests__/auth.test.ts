@@ -35,6 +35,13 @@ describe('roarPassword', () => {
   });
 });
 
+describe('firebaseSignIn', () => {
+  it('does not swallow authentication errors', async () => {
+    const uid = '';
+    await expect(async () => await firebaseSignIn(uid)).rejects.toThrow('auth/invalid-email');
+  });
+});
+
 describe('New users', () => {
   test('are created if they do not exist', async () => {
     const uid = `roar-ci-user-${uuidv4()}`;

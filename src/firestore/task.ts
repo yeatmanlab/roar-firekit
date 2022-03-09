@@ -105,7 +105,7 @@ export class RoarTaskVariant {
    */
   async toFirestore() {
     if (this.taskRef === undefined || this.variantsCollectionRef === undefined) {
-      throw new Error('User refs not set. Please use the setRefs method first.');
+      throw new Error('Task refs not set. Please use the setRefs method first.');
     } else {
       // Push/update the task using the user provided task ID
       const taskData: FirestoreTaskData = {
@@ -115,6 +115,9 @@ export class RoarTaskVariant {
         lastUpdated: serverTimestamp(),
       };
       await setDoc(this.taskRef, taskData);
+
+      // Need to push an empty variant first in order to query the (potentially
+      // non-existent) variants collection
       const emptyVariantRef: DocumentReference = doc(this.taskRef, 'variants', 'empty');
       await setDoc(emptyVariantRef, {
         name: 'empty',
