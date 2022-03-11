@@ -10,12 +10,6 @@ import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser
 
 const auth = getAuth(firebaseApp);
 
-const deleteDocs = async (docArray: (DocumentReference | null)[]) => {
-  docArray.forEach(async (docRef) => {
-    if (docRef) await deleteDoc(docRef);
-  });
-};
-
 const getRandomUserInput = async (withSignIn = false) => {
   const uid = `ci-user-${uuidv4()}`;
   const userInput = {
@@ -193,18 +187,16 @@ describe('RoarRun', () => {
       );
     } finally {
       // Delete all created docs
-      await deleteDocs([
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        doc(run.task.variantsCollectionRef!, 'empty'),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.variantRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.taskRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.runRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.user.userRef!,
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.variantRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.taskRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.runRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.user.userRef!);
     }
   });
 
@@ -238,18 +230,16 @@ describe('RoarRun', () => {
       );
     } finally {
       // Delete all created docs
-      await deleteDocs([
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        doc(run.task.variantsCollectionRef!, 'empty'),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.variantRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.taskRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.runRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.user.userRef!,
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.variantRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.taskRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.runRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.user.userRef!);
     }
   });
 
@@ -287,7 +277,6 @@ describe('RoarRun', () => {
     task.setRefs(rootDoc);
     const run = new RoarRun({ user, task });
 
-    let trialDocRef: DocumentReference | null = null;
     try {
       await run.startRun();
 
@@ -316,27 +305,24 @@ describe('RoarRun', () => {
       const trialDocsSnap = await getDocs(trialsCollectionRef);
       expect(trialDocsSnap.empty).toBe(false);
       expect(trialDocsSnap.size).toBe(1);
-      expect(trialDocsSnap.docs[0].data({ serverTimestamps: 'estimate' })).toEqual(
-        expect.objectContaining(convertTrialToFirestore(trialData)),
-      );
-
-      trialDocRef = trialDocsSnap.docs[0].ref;
+      trialDocsSnap.forEach(async (docSnap) => {
+        expect(docSnap.data({ serverTimestamps: 'estimate' })).toEqual(
+          expect.objectContaining(convertTrialToFirestore(trialData)),
+        );
+        await deleteDoc(docSnap.ref);
+      });
     } finally {
       // Delete all created docs
-      await deleteDocs([
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        trialDocRef,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        doc(run.task.variantsCollectionRef!, 'empty'),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.variantRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.task.taskRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.runRef!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        run.user.userRef!,
-      ]);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.variantRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.taskRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.runRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.user.userRef!);
     }
   });
 });

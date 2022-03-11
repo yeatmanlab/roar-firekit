@@ -1,0 +1,37 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['lts/*', '17']
+    name: Node ${{ matrix.node }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+      - name: Upgrade npm
+        run: npm i -g npm@latest
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test
+        env:
+          ROAR_CI_USER_EMAIL: ${{ secrets.ROAR_CI_USER_EMAIL }}
+          ROAR_CI_USER_PASSWORD: ${{ secrets.ROAR_CI_USER_PASSWORD }}
+          ROAR_FIREBASE_API_KEY: ${{ secrets.ROAR_FIREBASE_API_KEY }}
+          ROAR_FIREBASE_APP_ID: ${{ secrets.ROAR_FIREBASE_APP_ID }}
+          ROAR_FIREBASE_MEASUREMENT_ID: ${{ secrets.ROAR_FIREBASE_MEASUREMENT_ID }}
+          ROAR_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.ROAR_FIREBASE_MESSAGING_SENDER_ID }}
+          ROAR_FIREBASE_AUTH_DOMAIN: ${{ secrets.ROAR_FIREBASE_AUTH_DOMAIN }}
+          ROAR_FIREBASE_PROJECT_ID: ${{ secrets.ROAR_FIREBASE_PROJECT_ID }}
+          ROAR_FIREBASE_STORAGE_BUCKET: ${{ secrets.ROAR_FIREBASE_STORAGE_BUCKET }}
+      - name: Lint
+        run: npm run lint

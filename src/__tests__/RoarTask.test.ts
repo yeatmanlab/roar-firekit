@@ -11,7 +11,7 @@ import {
   orderBy,
   Timestamp,
 } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { firebaseSignIn } from '../auth';
 import { RoarTaskVariant } from '../firestore/task';
@@ -37,6 +37,10 @@ const taskInput = {
 };
 
 describe('RoarTaskVariant', () => {
+  afterAll(async () => {
+    await signOut(auth);
+  });
+
   it('constructs a task', () => {
     const task = new RoarTaskVariant(taskInput);
     expect(task.taskId).toBe(taskInput.taskId);

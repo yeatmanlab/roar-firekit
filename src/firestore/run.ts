@@ -111,11 +111,11 @@ export class RoarRun {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
-    updateDoc(this.runRef, {
+    return updateDoc(this.runRef, {
       completed: true,
       timeFinished: serverTimestamp(),
     }).then(() => {
-      this.user.updateFirestoreTimestamp();
+      return this.user.updateFirestoreTimestamp();
     });
   }
 
@@ -134,7 +134,7 @@ export class RoarRun {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
     const trialRef = doc(collection(this.runRef, 'trials'));
-    setDoc(trialRef, convertTrialToFirestore(trialData)).then(() => {
+    return setDoc(trialRef, convertTrialToFirestore(trialData)).then(() => {
       this.user.updateFirestoreTimestamp();
     });
   }

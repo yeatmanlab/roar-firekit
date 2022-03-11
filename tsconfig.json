@@ -12,5 +12,15 @@
     "exclude": [
         "node_modules",
         "**/__tests__/*"
-    ]
+    ],
+    "typedocOptions": {
+        "entryPoints": [
+            "src"
+        ],
+        "entryPointStrategy": "expand",
+        "exclude": [
+            "src/__tests__/"
+        ],
+        "out": "docs"
+    }
 }
