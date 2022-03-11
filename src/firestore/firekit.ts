@@ -29,8 +29,6 @@ export class RoarFireKit {
   createUser({
     id,
     firebaseUid,
-    taskId,
-    variantId,
     birthMonth = null,
     birthYear = null,
     classId = null,
@@ -42,8 +40,6 @@ export class RoarFireKit {
     const user = new RoarUser({
       id,
       firebaseUid,
-      taskId,
-      variantId,
       birthMonth,
       birthYear,
       classId,
@@ -86,11 +82,10 @@ export class RoarFireKit {
 
   /** Create a ROAR run
    * @param {RoarUser} user - The user running the task
-   * @param {string} taskId - The ID of the task.
-   * @param {string} variantId - The ID of the task variant.
+   * @param {RoarTaskVariant} task - The task variant being run
    */
-  createRun({ user, taskId, variantId }: RunInput) {
-    return new RoarRun({ user, taskId, variantId });
+  createRun({ user, task }: RunInput) {
+    return new RoarRun({ user, task });
   }
 }
 

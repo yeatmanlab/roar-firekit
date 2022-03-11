@@ -13,8 +13,6 @@ const getRandomUserInput = async (withSignIn = false) => {
   const userInput = {
     id: uid,
     firebaseUid: '',
-    taskId: 'test-task-id',
-    variantId: 'test-variant-id',
     birthMonth: 1,
     birthYear: 1983,
     classId: 'test-class-id',
@@ -35,18 +33,16 @@ const getRandomUserInput = async (withSignIn = false) => {
   return userInput;
 };
 
-afterEach(async () => {
-  await signOut(auth);
-});
-
 describe('RoarUser', () => {
+  afterEach(async () => {
+    await signOut(auth);
+  });
+
   it('constructs a user', async () => {
     const userInput = await getRandomUserInput();
     const user = new RoarUser(userInput);
     expect(user.id).toBe(userInput.id);
     expect(user.firebaseUid).toBe(userInput.firebaseUid);
-    expect(user.taskId).toBe(userInput.taskId);
-    expect(user.variantId).toBe(userInput.variantId);
     expect(user.birthMonth).toBe(userInput.birthMonth);
     expect(user.birthYear).toBe(userInput.birthYear);
     expect(user.classId).toBe(userInput.classId);
@@ -55,7 +51,7 @@ describe('RoarUser', () => {
     expect(user.studyId).toBe(userInput.studyId);
     expect(user.userCategory).toBe(userInput.userCategory);
     expect(user.isPushedToFirestore).toBe(false);
-    expect(user.userRef).toBe(undefined);
+    expect(user.userRef).toBeUndefined();
   });
 
   it('validates userCategory input', async () => {
@@ -125,9 +121,8 @@ describe('RoarUser', () => {
           districts: [user.districtId],
           schools: [user.schoolId],
           classes: [user.classId],
-          tasks: [user.taskId],
-          variants: [user.variantId],
           lastUpdated: expect.any(Timestamp),
+          createdAt: expect.any(Timestamp),
         }),
       );
     } finally {
@@ -176,8 +171,6 @@ describe('RoarUser', () => {
           districts: [user.districtId],
           schools: [user.schoolId],
           classes: [user.classId],
-          tasks: [user.taskId],
-          variants: [user.variantId],
           lastUpdated: expect.any(Timestamp),
         }),
       );

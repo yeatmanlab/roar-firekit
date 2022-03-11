@@ -14,8 +14,6 @@ type userCategoryType = 'student' | 'educator' | 'researcher';
 export interface UserInput {
   id: string;
   firebaseUid: string;
-  taskId: string;
-  variantId: string;
   birthMonth?: number | null;
   birthYear?: number | null;
   classId?: string | null;
@@ -40,8 +38,6 @@ interface FirestoreUserData {
   districts?: ReturnType<typeof arrayUnion>;
   schools?: ReturnType<typeof arrayUnion>;
   classes?: ReturnType<typeof arrayUnion>;
-  tasks?: ReturnType<typeof arrayUnion>;
-  variants?: ReturnType<typeof arrayUnion>;
 }
 
 /** Class representing a ROAR user */
@@ -49,8 +45,6 @@ export class RoarUser {
   /** Create a ROAR user
    * @param {string} id - The ROAR ID of the user
    * @param {string} firebaseUid - The firebase UID of the user
-   * @param {string} taskId - The ID of the task the user is currently working on
-   * @param {string} variantId - The ID of the task variant the user is currently working on
    * @param {number} birthMonth - The birth month of the user
    * @param {number} birthYear - The birth year of the user
    * @param {string} classId - The class ID of the user
@@ -61,8 +55,6 @@ export class RoarUser {
    */
   id: string;
   firebaseUid: string;
-  taskId: string;
-  variantId: string;
   birthMonth: number | null;
   birthYear: number | null;
   classId: string | null;
@@ -75,8 +67,6 @@ export class RoarUser {
   constructor({
     id,
     firebaseUid,
-    taskId,
-    variantId,
     birthMonth = null,
     birthYear = null,
     classId = null,
@@ -92,8 +82,6 @@ export class RoarUser {
 
     this.id = id;
     this.firebaseUid = firebaseUid;
-    this.taskId = taskId;
-    this.variantId = variantId;
     this.birthMonth = birthMonth;
     this.birthYear = birthYear;
     this.classId = classId;
@@ -142,8 +130,6 @@ export class RoarUser {
       if (this.districtId) userData.districts = arrayUnion(this.districtId);
       if (this.schoolId) userData.schools = arrayUnion(this.schoolId);
       if (this.classId) userData.classes = arrayUnion(this.classId);
-      if (this.taskId) userData.tasks = arrayUnion(this.taskId);
-      if (this.variantId) userData.variants = arrayUnion(this.variantId);
 
       return updateDoc(this.userRef, removeNull(userData))
         .catch((error: FirestoreError) => {

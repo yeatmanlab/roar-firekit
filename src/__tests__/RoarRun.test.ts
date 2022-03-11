@@ -1,10 +1,12 @@
-import { getAuth } from 'firebase/auth';
-import { DocumentReference } from 'firebase/firestore';
+import { getAuth, deleteUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { DocumentReference, doc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { RoarUser } from '../firestore/user';
-import { RoarRun } from '../firestore/run';
+import { convertTrialToFirestore, RoarRun } from '../firestore/run';
 import { firebaseSignIn } from '../auth';
 import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
+import { RoarTaskVariant } from '../firestore/task';
+import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
 
 const auth = getAuth(firebaseApp);
 
@@ -35,17 +37,66 @@ const getRandomUserInput = async (withSignIn = false) => {
   return userInput;
 };
 
+const taskInput = {
+  taskId: `ci-task-${uuidv4()}`,
+  taskName: 'test-task-name',
+  variantName: 'a-test-variant-name',
+  taskDescription: 'test-task-description',
+  variantDescription: 'test-variant-description',
+  blocks: [
+    {
+      blockNumber: 0,
+      trialMethod: 'random',
+      corpus: 'test-corpus',
+    },
+  ],
+};
+
+describe('convertTrialToFirestore', () => {
+  it('converts URL objects to strings', () => {
+    const input = {
+      a: 1,
+      b: 'foo',
+      c: null,
+      d: new URL('https://example.com'),
+      e: {
+        f: new URL('https://example.com'),
+        g: 1,
+        h: 'foo',
+        i: null,
+      },
+    };
+    const expected = {
+      a: 1,
+      b: 'foo',
+      c: null,
+      d: 'https://example.com/',
+      e: {
+        f: 'https://example.com/',
+        g: 1,
+        h: 'foo',
+        i: null,
+      },
+    };
+
+    expect(convertTrialToFirestore(input)).toEqual(expected);
+  });
+});
+
 describe('RoarRun', () => {
+  afterEach(async () => {
+    await signOut(auth);
+  });
+
   it('constructs a run', async () => {
     const userInput = await getRandomUserInput();
     const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
     user.setRefs(rootDoc);
-    const taskId = 'test-task-id';
-    const variantId = 'test-variant-id';
-    const run = new RoarRun({ user, taskId, variantId });
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
     expect(run.user).toBe(user);
-    expect(run.taskId).toBe(taskId);
-    expect(run.variantId).toBe(variantId);
+    expect(run.task).toBe(task);
     expect(run.runRef).toBeInstanceOf(DocumentReference);
     expect(run.started).toBe(false);
   });
@@ -53,19 +104,159 @@ describe('RoarRun', () => {
   it('throws an error if user is not a student', async () => {
     const userInput = await getRandomUserInput();
     const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
     user.userCategory = 'educator';
-    const taskId = 'test-task-id';
-    const variantId = 'test-variant-id';
-    expect(() => new RoarRun({ user, taskId, variantId })).toThrow('Only students can start a run.');
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    expect(() => new RoarRun({ user, task })).toThrow('Only students can start a run.');
   });
 
   it('throws an error if user refs not set', async () => {
     const userInput = await getRandomUserInput();
     const user = new RoarUser(userInput);
-    const taskId = 'test-task-id';
-    const variantId = 'test-variant-id';
-    expect(() => new RoarRun({ user, taskId, variantId })).toThrow(
-      'User refs not set. Please use the user.setRefs method first.',
+    const task = new RoarTaskVariant(taskInput);
+    task.setRefs(rootDoc);
+    expect(() => new RoarRun({ user, task })).toThrow('User refs not set. Please use the user.setRefs method first.');
+  });
+
+  it('throws an error if task refs not set', async () => {
+    const userInput = await getRandomUserInput();
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    expect(() => new RoarRun({ user, task })).toThrow('Task refs not set. Please use the task.setRefs method first.');
+  });
+
+  it('starts a run', async () => {
+    const userInput = await getRandomUserInput(true);
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
+
+    // Confirm that user and task are not intially pushed to Firestore
+    expect(run.user.isPushedToFirestore).toBe(false);
+    expect(run.task.variantRef).toBeUndefined();
+
+    try {
+      await run.startRun();
+
+      // Confirm that user and task are now pushed to Firestore
+      expect(run.user.userRef).toBeInstanceOf(DocumentReference);
+      expect(run.task.taskRef).toBeInstanceOf(DocumentReference);
+      expect(run.task.variantRef).toBeInstanceOf(DocumentReference);
+      expect(run.started).toBe(true);
+
+      // Sign out this user and sign in the roar-ci-user,
+      // which has special permissions to read and delete user data
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteUser(auth.currentUser!);
+      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+
+      // Expect that the task was added to the user doc
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const userdocSnap = await getDoc(user.userRef!);
+      expect(userdocSnap.exists()).toBe(true);
+      expect(userdocSnap.data()).toEqual(
+        expect.objectContaining({
+          tasks: [run.task.taskId],
+          variants: [run.task.variantId],
+          lastUpdated: expect.any(Timestamp),
+        }),
+      );
+
+      // Expect contents of the run document to match
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const runDocSnap = await getDoc(run.runRef!);
+      expect(runDocSnap.exists()).toBe(true);
+      expect(runDocSnap.data()).toEqual(
+        expect.objectContaining({
+          districtId: run.user.districtId,
+          schoolId: run.user.schoolId,
+          classId: run.user.classId,
+          studyId: run.user.studyId,
+          taskId: run.task.taskId,
+          variantId: run.task.variantId,
+          taskRef: expect.any(DocumentReference),
+          variantRef: expect.any(DocumentReference),
+          completed: false,
+          timeStarted: expect.any(Timestamp),
+          timeFinished: null,
+        }),
+      );
+    } finally {
+      // Delete all created docs
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.variantRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.taskRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.runRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.user.userRef!);
+    }
+  });
+
+  it('finishes a run', async () => {
+    const userInput = await getRandomUserInput(true);
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
+
+    try {
+      await run.startRun();
+      await run.finishRun();
+
+      // Sign out this user and sign in the roar-ci-user,
+      // which has special permissions to read and delete user data
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteUser(auth.currentUser!);
+      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+
+      // Expect contents of the run document to match
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const runDocSnap = await getDoc(run.runRef!);
+      expect(runDocSnap.exists()).toBe(true);
+      expect(runDocSnap.data()).toEqual(
+        expect.objectContaining({
+          completed: true,
+          timeFinished: expect.any(Timestamp),
+        }),
+      );
+    } finally {
+      // Delete all created docs
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.variantRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.task.taskRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.runRef!);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteDoc(run.user.userRef!);
+    }
+  });
+
+  it('throws if trying to finish a run that has not started', async () => {
+    const userInput = await getRandomUserInput();
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
+
+    await expect(async () => await run.finishRun()).rejects.toThrow(
+      'Run has not been started yet. Use the startRun method first.',
     );
+  });
+
+  it('writes a trial', async () => {
+    console.log('test');
   });
 });
