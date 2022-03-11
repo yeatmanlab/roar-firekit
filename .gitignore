@@ -177,4 +177,3 @@ node_modules/
 firebase.json
 firestore.rules
 firestore.indexes.json
-src/__tests__/__utils__/
