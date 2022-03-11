@@ -1,5 +1,5 @@
 import { getAuth, deleteUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { DocumentReference, doc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, DocumentReference, doc, getDoc, getDocs, Timestamp, deleteDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { RoarUser } from '../firestore/user';
 import { convertTrialToFirestore, RoarRun } from '../firestore/run';
@@ -9,6 +9,12 @@ import { RoarTaskVariant } from '../firestore/task';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
 
 const auth = getAuth(firebaseApp);
+
+const deleteDocs = async (docArray: (DocumentReference | null)[]) => {
+  docArray.forEach(async (docRef) => {
+    if (docRef) await deleteDoc(docRef);
+  });
+};
 
 const getRandomUserInput = async (withSignIn = false) => {
   const uid = `ci-user-${uuidv4()}`;
@@ -187,16 +193,18 @@ describe('RoarRun', () => {
       );
     } finally {
       // Delete all created docs
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.task.variantRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.task.taskRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.runRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.user.userRef!);
+      await deleteDocs([
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        doc(run.task.variantsCollectionRef!, 'empty'),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.variantRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.taskRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.runRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.user.userRef!,
+      ]);
     }
   });
 
@@ -230,16 +238,18 @@ describe('RoarRun', () => {
       );
     } finally {
       // Delete all created docs
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(doc(run.task.variantsCollectionRef!, 'empty'));
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.task.variantRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.task.taskRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.runRef!);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.user.userRef!);
+      await deleteDocs([
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        doc(run.task.variantsCollectionRef!, 'empty'),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.variantRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.taskRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.runRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.user.userRef!,
+      ]);
     }
   });
 
@@ -256,7 +266,77 @@ describe('RoarRun', () => {
     );
   });
 
+  it('throws if trying to write a trial to a run that has not started', async () => {
+    const userInput = await getRandomUserInput();
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
+
+    await expect(async () => await run.writeTrial({ a: 0 })).rejects.toThrow(
+      'Run has not been started yet. Use the startRun method first.',
+    );
+  });
+
   it('writes a trial', async () => {
-    console.log('test');
+    const userInput = await getRandomUserInput(true);
+    const user = new RoarUser(userInput);
+    const task = new RoarTaskVariant(taskInput);
+    user.setRefs(rootDoc);
+    task.setRefs(rootDoc);
+    const run = new RoarRun({ user, task });
+
+    let trialDocRef: DocumentReference | null = null;
+    try {
+      await run.startRun();
+
+      const trialData = {
+        correct: false,
+        response: 0,
+        rt: 1422,
+        saveToFireStore: true,
+        trial_index: 3,
+        trail_type: 'image-button-response',
+        stimulus: new URL('https://example.com/stimulus.png'),
+        internal_node_id: '0.0-2.0-1.0',
+      };
+
+      await run.writeTrial(trialData);
+
+      // Sign out this user and sign in the roar-ci-user,
+      // which has special permissions to read and delete user data
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await deleteUser(auth.currentUser!);
+      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+
+      // Expect contents of the run document to match
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const trialsCollectionRef = collection(run.runRef, 'trials');
+      const trialDocsSnap = await getDocs(trialsCollectionRef);
+      expect(trialDocsSnap.empty).toBe(false);
+      expect(trialDocsSnap.size).toBe(1);
+      expect(trialDocsSnap.docs[0].data({ serverTimestamps: 'estimate' })).toEqual(
+        expect.objectContaining(convertTrialToFirestore(trialData)),
+      );
+
+      trialDocRef = trialDocsSnap.docs[0].ref;
+    } finally {
+      // Delete all created docs
+      await deleteDocs([
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        trialDocRef,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        doc(run.task.variantsCollectionRef!, 'empty'),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.variantRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.task.taskRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.runRef!,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        run.user.userRef!,
+      ]);
+    }
   });
 });
