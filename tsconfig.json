@@ -19,8 +19,11 @@
         ],
         "entryPointStrategy": "expand",
         "exclude": [
-            "src/__tests__/"
+            "**/*+(spec|test).+(ts|js)",
+            "**/__tests__/**/*.+(ts|js)"
         ],
-        "out": "docs"
+        "out": "docs",
+        "includeVersion": true,
+        "readme": "README.md"
     }
 }

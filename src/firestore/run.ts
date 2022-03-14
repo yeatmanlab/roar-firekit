@@ -2,7 +2,8 @@ import { arrayUnion, collection, doc, DocumentReference, serverTimestamp, setDoc
 import { RoarTaskVariant } from './task';
 import { RoarUser } from './user';
 
-/** Convert a trial data to allow storage on Cloud Firestore
+/**
+ * Convert a trial data to allow storage on Cloud Firestore.
  *
  * This function leaves all other trial data intact but converts
  * any URL object to a string.
@@ -30,7 +31,9 @@ export interface RunInput {
   task: RoarTaskVariant;
 }
 
-/** Class representing a ROAR run
+/**
+ * Class representing a ROAR run.
+ *
  * A run is a globally unique collection of successive trials that constitute
  * one user "running" through a single task one time.
  */
@@ -121,10 +124,6 @@ export class RoarRun {
 
   /**
    * Add a new trial to this run on Firestore
-   *
-   * This method expects a trialData object with at least the following keys:
-   * [block, corpusId, correct, difficulty, startTime, stimulusRule, trial_type,
-   * trial_index, time_elapsed, internal_node_id, response, rt, stimulus]
    * @method
    * @async
    * @param {*} trialData - An object containing trial data.

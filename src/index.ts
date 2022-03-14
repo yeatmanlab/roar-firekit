@@ -1,2 +1,1 @@
-export * from './auth';
-export * from './firestore/firekit';
+export { RoarFirekit } from './firestore/firekit';

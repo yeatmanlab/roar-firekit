@@ -9,11 +9,10 @@ import {
 } from 'firebase/firestore';
 import { removeNull } from './util';
 
-type userCategoryType = 'student' | 'educator' | 'researcher';
+export type userCategoryType = 'student' | 'educator' | 'researcher';
 
-export interface UserInput {
+export interface UserData {
   id: string;
-  firebaseUid: string;
   birthMonth?: number | null;
   birthYear?: number | null;
   classId?: string | null;
@@ -21,6 +20,10 @@ export interface UserInput {
   districtId?: string | null;
   studyId?: string | null;
   userCategory?: userCategoryType;
+}
+
+export interface UserInput extends UserData {
+  firebaseUid: string;
 }
 
 interface FirestoreUserData {

@@ -1,94 +1,158 @@
 import { DocumentReference } from 'firebase/firestore';
-import { UserInput, RoarUser } from './user';
+import { UserData, RoarUser } from './user';
 import { TaskVariantInput, RoarTaskVariant } from './task';
-import { RunInput, RoarRun } from './run';
+import { RoarRun } from './run';
+import { firebaseSignIn, firebaseSignOut } from '../auth';
 
-/** Class with factory methods to produce ROAR objects with root Doc already set */
-export class RoarFireKit {
+/**
+ * The RoarFirekit class is the main entry point for the ROAR Firestore API.
+ * It represents multiple linked Firestore documents and provides methods
+ * for interacting with them.
+ */
+export class RoarFirekit {
   rootDoc: DocumentReference;
-  /** Create a ROAR run
-   * @param {DocumentReference} rootDoc - The root document reference
+  userInfo: UserData;
+  taskInfo: TaskVariantInput;
+  user: RoarUser | undefined;
+  task: RoarTaskVariant | undefined;
+  run: RoarRun | undefined;
+  /**
+   * Create a RoarFirekit. This expects an object with keys `rootDoc`,
+   * `userInfo`, and `taskInfo`, where `rootDoc` is a [[DocumentReference |
+   * Firestore document reference]] pointing to the document under which all
+   * ROAR data will be stored, `userInfo` is a [[UserData]] object, and
+   * `taskInfo` is a [[TaskVariantInput]] object.
+   * @param {{rootDoc: DocumentReference, userInfo: UserData, taskInfo: TaskVariantInput}=} destructuredParam
+   *     rootDoc: The Firestore root document reference
+   *     userInfo: The user input object
+   *     taskInfo: The task input object
    */
-  constructor(rootDoc: DocumentReference) {
+  constructor({
+    rootDoc,
+    userInfo,
+    taskInfo,
+  }: {
+    rootDoc: DocumentReference;
+    userInfo: UserData;
+    taskInfo: TaskVariantInput;
+  }) {
     this.rootDoc = rootDoc;
+    this.userInfo = userInfo;
+    this.taskInfo = taskInfo;
+    this.user = undefined;
+    this.task = undefined;
+    this.run = undefined;
   }
 
-  /** Create a ROAR user
-   * @param {string} id - The ROAR ID of the user
-   * @param {string} firebaseUid - The firebase UID of the user
-   * @param {string} taskId - The ID of the task the user is currently working on
-   * @param {string} variantId - The ID of the task variant the user is currently working on
-   * @param {number} birthMonth - The birth month of the user
-   * @param {number} birthYear - The birth year of the user
-   * @param {string} classId - The class ID of the user
-   * @param {string} schoolId - The school ID of the user
-   * @param {string} districtId - The district ID of the user
-   * @param {string} studyId - The study ID of the user
-   * @param {string} userCategory - The user type. Must be either "student," "educator," or "researcher"
+  /**
+   * Start the ROAR run. Push the task, user, and run info to Firestore
+   * Call this method before starting the jsPsych experiment.
+   * @method
+   * @async
    */
-  createUser({
-    id,
-    firebaseUid,
-    birthMonth = null,
-    birthYear = null,
-    classId = null,
-    schoolId = null,
-    districtId = null,
-    studyId = null,
-    userCategory = 'student',
-  }: UserInput) {
-    const user = new RoarUser({
-      id,
-      firebaseUid,
-      birthMonth,
-      birthYear,
-      classId,
-      schoolId,
-      districtId,
-      studyId,
-      userCategory,
+  async startRun() {
+    const auth = await firebaseSignIn(this.userInfo.id);
+    this.user = new RoarUser({
+      ...this.userInfo,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      firebaseUid: auth.currentUser!.uid,
     });
-    user.setRefs(this.rootDoc);
-    return user;
+    this.user.setRefs(this.rootDoc);
+
+    this.task = new RoarTaskVariant(this.taskInfo);
+    this.task.setRefs(this.rootDoc);
+
+    this.run = new RoarRun({ user: this.user, task: this.task });
+
+    return (
+      this.task
+        .toFirestore()
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        .then(() => this.user!.toFirestore())
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        .then(() => this.run!.startRun())
+    );
   }
 
-  /** Create a ROAR task
-   * @param {string} taskId - The ID of the parent task. Should be a short initialism, e.g. "swr" or "srf"
-   * @param {string} taskName - The name of the parent task
-   * @param {string} taskDescription - The description of the task
-   * @param {string} variantName - The name of the task variant
-   * @param {string} variantDescription - The description of the variant
-   * @param {Array} blocks - The blocks of this task variant
+  /**
+   * Finish the ROAR run by marking it as finished in Firestore.
+   * Call this method after the jsPsych experiment finishes. For example:
+   *
+   * ```javascript
+   * jsPsych.init({
+   *   timeline: exp,
+   *   on_finish: function(data) {
+   *     firekit.finishRun();
+   *   }
+   * });
+   * ```
+   * @method
+   * @async
    */
-  createTask({
-    taskId,
-    taskName,
-    variantName,
-    taskDescription = null,
-    variantDescription = null,
-    blocks = [],
-  }: TaskVariantInput) {
-    const taskVariant = new RoarTaskVariant({
-      taskId,
-      taskName,
-      variantName,
-      taskDescription,
-      variantDescription,
-      blocks,
-    });
-    taskVariant.setRefs(this.rootDoc);
-    return taskVariant;
+  async finishRun() {
+    if (this.run) {
+      return this.run.finishRun().then(() => firebaseSignOut());
+    } else {
+      throw new Error('Run is undefined. Use the startRun method first.');
+    }
   }
 
-  /** Create a ROAR run
-   * @param {RoarUser} user - The user running the task
-   * @param {RoarTaskVariant} task - The task variant being run
+  /**
+   * Add new trial data to this run on Firestore.
+   *
+   * This method can be added to individual jsPsych trials by calling it from
+   * the `on_finish` function, like so:
+   *
+   * ```javascript
+   * var trial = {
+   *   type: 'image-keyboard-response',
+   *   stimulus: 'imgA.png',
+   *   on_finish: function(data) {
+   *     firekit.addTrialData(data);
+   *   }
+   * };
+   * ```
+   *
+   * Or you can call it from all trials in a jsPsych
+   * timeline by calling it from the `on_data_update` callback. In the latter
+   * case, you can avoid saving extraneous trials by conditionally calling
+   * this method based on the data. For example:
+   *
+   * ```javascript
+   * const timeline = [
+   *   // A fixation trial; don't save to Firestore
+   *   {
+   *     type: htmlKeyboardResponse,
+   *     stimulus: '<div style="font-size:60px;">+</div>',
+   *     choices: "NO_KEYS",
+   *     trial_duration: 500,
+   *   },
+   *   // A stimulus and response trial; save to Firestore
+   *   {
+   *     type: imageKeyboardResponse,
+   *     stimulus: 'imgA.png',
+   *     data: { saveToFirestore: true },
+   *   }
+   * ]
+   * jsPsych.init({
+   *   timeline: timeline,
+   *   on_data_update: function(data) {
+   *     if (data.saveToFirestore) {
+   *       firekit.addTrialData(data);
+   *     }
+   *   }
+   * });
+   * ```
+   *
+   * @method
+   * @async
+   * @param {*} trialData - An object containing trial data.
    */
-  createRun({ user, task }: RunInput) {
-    return new RoarRun({ user, task });
+  async writeTrial(trialData: Record<string, unknown>) {
+    if (this.run) {
+      return this.run.writeTrial(trialData);
+    } else {
+      throw new Error('Run is undefined. Use the startRun method first.');
+    }
   }
 }
-
-export const initRoarFireKit = (rootDoc: DocumentReference) => {
-  return new RoarFireKit(rootDoc);
-};

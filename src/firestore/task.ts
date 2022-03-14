@@ -14,7 +14,8 @@ import {
 } from 'firebase/firestore';
 import { removeNull } from './util';
 
-interface Block {
+/** Tasks may be decomposed into blocks of trials */
+export interface Block {
   blockNumber: number;
   trialMethod: string;
   corpus: string;
