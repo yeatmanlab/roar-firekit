@@ -83,7 +83,7 @@ Information about the current task is encapsulated in a [[`TaskVariantInput`]] o
 ```javascript
 const taskInfo = {
   taskId: 'nhd',
-  taskName: 'Not Hotdog';
+  taskName: 'Not Hotdog',
   variantName: 'Not Hotdog, one block',
   taskDescription: 'A demonstration task using the hot dog / not hot dog problem',
   variantDescription: 'One block, random order',
