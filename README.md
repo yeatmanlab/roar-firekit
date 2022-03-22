@@ -151,7 +151,7 @@ var trial = {
   type: 'image-keyboard-response',
   stimulus: 'imgA.png',
   on_finish: function(data) {
-   firekit.addTrialData(data);
+   firekit.writeTrial(data);
   }
 };
 ```
@@ -241,7 +241,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   const jsPsych = initJsPsych({
     on_data_update: function (data) {
       if (data.saveToFirestore) {
-        firekit.addTrialData(data);
+        firekit.writeTrial(data);
       }
     },
     on_finish: function () {
