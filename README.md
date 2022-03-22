@@ -67,7 +67,7 @@ But you can supply other information about the user if you know it:
 const fullUserInfo = {
   id: 'roar-user-id',
   birthMonth: 7,
-  birthYear: 2014
+  birthYear: 2014,
   classId: 'roar-class-id',
   schoolId: 'roar-school-id',
   districtId: 'roar-district-id',
@@ -106,7 +106,7 @@ import { RoarFirekit } from '@bdelab/roar-firekit';
 
 // Insert input definition code from above
 
-const firekit = RoarFirekit({
+const firekit = new RoarFirekit({
   rootDoc,
   userInfo: minimalUserInfo,
   taskInfo,
@@ -230,7 +230,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
 
   const minimalUserInfo = { id: 'roar-user-id' };
 
-  const firekit = RoarFirekit({
+  const firekit = new RoarFirekit({
     rootDoc,
     userInfo: minimalUserInfo,
     taskInfo,
