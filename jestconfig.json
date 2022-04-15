@@ -7,9 +7,11 @@
     "/__tests__/"
   ],
   "transform": {
-    "^.+\\.(t|j)sx?$": "ts-jest"
+    "^.+\\.ts?$": "ts-jest",
+    "^.+\\.(js|jsx)$": "babel-jest"
   },
   "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "moduleDirectories": ["node_modules"],
   "testPathIgnorePatterns": ["/__fixtures__/", "/__utils__/"]
 }

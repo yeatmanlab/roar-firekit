@@ -1,8 +1,35 @@
-import { DocumentReference } from 'firebase/firestore';
 import { UserData, RoarUser } from './user';
 import { TaskVariantInput, RoarTaskVariant } from './task';
 import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
+import { readConfig } from '../configReader';
+import { initializeApp } from 'firebase/app';
+import { enableIndexedDbPersistence, getFirestore, collection, doc } from 'firebase/firestore';
+
+const config = readConfig();
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+const firebaseApp = initializeApp(config!.firebaseConfig);
+const db = getFirestore(firebaseApp);
+
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code == 'failed-precondition') {
+    console.log(
+      "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
+    );
+    // Multiple tabs open, persistence can only be enabled
+    // in one tab at a a time.
+    // ...
+  } else if (err.code == 'unimplemented') {
+    console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
+    // The current browser does not support all of the
+    // features required to enable persistence
+    // ...
+  }
+});
+// Subsequent queries will use persistence, if it was enabled successfully
+
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+export const rootDoc = doc(collection(db, config!.rootDoc[0]), ...config!.rootDoc.slice(1));
 
 /**
  * The RoarFirekit class is the main entry point for the ROAR Firestore API.
@@ -10,33 +37,20 @@ import { firebaseSignIn, firebaseSignOut } from '../auth';
  * for interacting with them.
  */
 export class RoarFirekit {
-  rootDoc: DocumentReference;
   userInfo: UserData;
   taskInfo: TaskVariantInput;
   user: RoarUser | undefined;
   task: RoarTaskVariant | undefined;
   run: RoarRun | undefined;
   /**
-   * Create a RoarFirekit. This expects an object with keys `rootDoc`,
-   * `userInfo`, and `taskInfo`, where `rootDoc` is a [[DocumentReference |
-   * Firestore document reference]] pointing to the document under which all
-   * ROAR data will be stored, `userInfo` is a [[UserData]] object, and
-   * `taskInfo` is a [[TaskVariantInput]] object.
-   * @param {{rootDoc: DocumentReference, userInfo: UserData, taskInfo: TaskVariantInput}=} destructuredParam
-   *     rootDoc: The Firestore root document reference
+   * Create a RoarFirekit. This expects an object with keys `userInfo`, and
+   * `taskInfo`, where `userInfo` is a [[UserData]] object, and `taskInfo` is a
+   * [[TaskVariantInput]] object.
+   * @param {{userInfo: UserData, taskInfo: TaskVariantInput}=} destructuredParam
    *     userInfo: The user input object
    *     taskInfo: The task input object
    */
-  constructor({
-    rootDoc,
-    userInfo,
-    taskInfo,
-  }: {
-    rootDoc: DocumentReference;
-    userInfo: UserData;
-    taskInfo: TaskVariantInput;
-  }) {
-    this.rootDoc = rootDoc;
+  constructor({ userInfo, taskInfo }: { userInfo: UserData; taskInfo: TaskVariantInput }) {
     this.userInfo = userInfo;
     this.taskInfo = taskInfo;
     this.user = undefined;
@@ -57,10 +71,10 @@ export class RoarFirekit {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       firebaseUid: auth.currentUser!.uid,
     });
-    this.user.setRefs(this.rootDoc);
+    this.user.setRefs(rootDoc);
 
     this.task = new RoarTaskVariant(this.taskInfo);
-    this.task.setRefs(this.rootDoc);
+    this.task.setRefs(rootDoc);
 
     this.run = new RoarRun({ user: this.user, task: this.task });
 

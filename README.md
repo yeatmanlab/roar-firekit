@@ -10,47 +10,50 @@ You can install [roar-firekit from npm](https://www.npmjs.com/package/@bdelab/ro
 npm i @bdelab/roar-firekit
 ```
 
+## Firebase Configuration
+
+Roar-firekit expects to find a file named `roarconfig.json` in the root of your project folder. A template is provided below
+
+<details>
+  <summary>Click to expand!</summary>
+
+  ```json
+  {
+    "firebaseConfig": {
+      "apiKey": "insert your firebase API key here",
+      "authDomain": "insert your firebase auth domain here",
+      "projectId": "insert your firebase project ID here",
+      "storageBucket": "insert your firebase storage bucket here",
+      "messagingSenderId": "insert your firebase messaging sender ID here",
+      "appId": "insert your firebase app ID here",
+      "measurementId": "insert your firebase measurement ID here"
+    },
+    "rootDoc": ["some collection name", "some document name"]
+  }
+  ```
+
+</details>
+
+### `firebaseConfig`
+
+To get the `firebaseConfig` fields, see [this article](https://support.google.com/firebase/answer/7015592#zippy=%2Cin-this-article) on how to retrieve your firebase config. TLDR: go directly to [your project's settings](https://console.firebase.google.com/project/_/settings/general/), scroll down to "SDK setup and configuration," click the "Config" radio button, and copy the snippet for your app's Firebase config object.
+
+### `rootDoc`
+
+The `rootDoc` is an array of strings representing the document under which all
+ROAR data will be stored.  Note that `rootDoc` does not have to be in the actual
+root of your Cloud Firestore database.
+
 ## Usage
 
 Roar-firekit is agnostic about where your data comes from, but I anticipate most users will use roar-firekit with their experiments written in [jsPsych](https://www.jspsych.org/).
 
 The main entrypoint to roar-firekit's API is the [[`RoarFirekit`]] class.  Its
-constructor expects an object with keys `rootDoc`, `userInfo`, and `taskInfo`,
-where `rootDoc` is a [Firestore document
-reference](https://firebase.google.com/docs/reference/js/v8/firebase.firestore.DocumentReference)
-pointing to the document under which all ROAR data will be stored, `userInfo` is
-a [[`UserData`]] object, and `taskInfo` is a [[`TaskVariantInput`]] object.
+constructor expects an object with keys `userInfo` and `taskInfo`, where
+`userInfo` is a [[`UserData`]] object, and `taskInfo` is a
+[[`TaskVariantInput`]] object.
 
 ### Constructor inputs
-
-#### `rootDoc`
-
-The `rootDoc` is the Firestore document under which all of your assessment data
-will be stored. Typically, your app will store its firebase configuration in a
-separate file and you would export `rootDoc` from there. For example, you might
-have a file named `firebaseConfig.js`, with the following contents:
-
-```javascript
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc } from 'firebase/firestore';
-
-// TODO: Replace the following with your app's Firebase project configuration
-const firebaseConfig = {
-  //...
-};
-
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
-export const rootDoc = doc(db, 'prod', 'prod-root-doc');
-```
-
-Note that `rootDoc` does not have to be in the actual root of your Cloud Firestore
-database. With `rootDoc` defined as above in a `firebaseConfig.js` file, you can then
-import it in a jsPsych experiment file using
-
-```javascript
-import { rootDoc } from '../path/to/firebaseConfig.js';
-```
 
 ### `userInfo`
 
@@ -107,7 +110,6 @@ import { RoarFirekit } from '@bdelab/roar-firekit';
 // Insert input definition code from above
 
 const firekit = new RoarFirekit({
-  rootDoc,
   userInfo: minimalUserInfo,
   taskInfo,
 })
@@ -211,7 +213,6 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   import htmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
   import imageButtonResponse from '@jspsych/plugin-image-button-response';
   import { RoarFirekit } from '@bdelab/roar-firekit';
-  import { rootDoc } from '../path/to/firebaseConfig.js';
 
   const taskInfo = {
     taskId: 'nhd',
@@ -231,7 +232,6 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   const minimalUserInfo = { id: 'roar-user-id' };
 
   const firekit = new RoarFirekit({
-    rootDoc,
     userInfo: minimalUserInfo,
     taskInfo,
   });
