@@ -1,7 +1,6 @@
 import { load } from 'js-yaml';
 import decomment from 'decomment';
-import caller from 'caller';
-import { readFileSync, statSync } from 'fs';
+import { realpathSync, readFileSync, statSync } from 'fs';
 import { dirname, join, extname } from 'path';
 
 /**
@@ -110,6 +109,6 @@ const findStartingWith = (start: string, rel: string): string => {
 // Find the rc file path
 export const readConfig = (): ConfigData | undefined => {
   const rel = 'roarconfig.json';
-  const configPath: string = findStartingWith(caller(), rel);
+  const configPath: string = findStartingWith(realpathSync('.'), rel);
   return loadConfigFile(configPath);
 };
