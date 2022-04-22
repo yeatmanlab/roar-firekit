@@ -6,6 +6,28 @@ import { readConfig } from '../configReader';
 import { initializeApp } from 'firebase/app';
 import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
 
+const config = readConfig();
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+const firebaseApp = initializeApp(config!.firebaseConfig);
+export const db = getFirestore(firebaseApp);
+
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code == 'failed-precondition') {
+    console.log(
+      "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
+    );
+    // Multiple tabs open, persistence can only be enabled
+    // in one tab at a a time.
+    // ...
+  } else if (err.code == 'unimplemented') {
+    console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
+    // The current browser does not support all of the
+    // features required to enable persistence
+    // ...
+  }
+});
+// Subsequent queries will use persistence, if it was enabled successfully
+
 /**
  * The RoarFirekit class is the main entry point for the ROAR Firestore API.
  * It represents multiple linked Firestore documents and provides methods
@@ -43,28 +65,6 @@ export class RoarFirekit {
     this.user = undefined;
     this.task = undefined;
     this.run = undefined;
-
-    const config = readConfig();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const firebaseApp = initializeApp(config!.firebaseConfig);
-    const db = getFirestore(firebaseApp);
-
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code == 'failed-precondition') {
-        console.log(
-          "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-        );
-        // Multiple tabs open, persistence can only be enabled
-        // in one tab at a a time.
-        // ...
-      } else if (err.code == 'unimplemented') {
-        console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-        // The current browser does not support all of the
-        // features required to enable persistence
-        // ...
-      }
-    });
-    // Subsequent queries will use persistence, if it was enabled successfully
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.rootDoc = rootDoc || doc(collection(db, config!.rootDoc[0]), ...config!.rootDoc.slice(1));

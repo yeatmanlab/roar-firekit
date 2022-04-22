@@ -100,12 +100,13 @@ const taskInfo = {
 }
 ```
 
-#### `rootDoc`
+#### Optional `rootDoc` specification
 
 Optionally, you may override the `rootDoc` specified in your `roarconfig.json` file by providing a Firestore document reference as a constructor argument. For example,
 
 ```javascript
 import { collection, doc } from "firebase/firestore";
+import { db } from "@bdelab/roar-firekit";
 const rootDoc = doc(collection(db, "aCollectionName"), "aDocumentName");
 const constructorArgs = {
   userInfo: minimalUserInfo, // defined above
