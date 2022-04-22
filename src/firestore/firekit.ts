@@ -4,32 +4,7 @@ import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
 import { readConfig } from '../configReader';
 import { initializeApp } from 'firebase/app';
-import { enableIndexedDbPersistence, getFirestore, collection, doc } from 'firebase/firestore';
-
-const config = readConfig();
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-const firebaseApp = initializeApp(config!.firebaseConfig);
-const db = getFirestore(firebaseApp);
-
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code == 'failed-precondition') {
-    console.log(
-      "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-    );
-    // Multiple tabs open, persistence can only be enabled
-    // in one tab at a a time.
-    // ...
-  } else if (err.code == 'unimplemented') {
-    console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-    // The current browser does not support all of the
-    // features required to enable persistence
-    // ...
-  }
-});
-// Subsequent queries will use persistence, if it was enabled successfully
-
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-export const rootDoc = doc(collection(db, config!.rootDoc[0]), ...config!.rootDoc.slice(1));
+import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
 
 /**
  * The RoarFirekit class is the main entry point for the ROAR Firestore API.
@@ -42,20 +17,57 @@ export class RoarFirekit {
   user: RoarUser | undefined;
   task: RoarTaskVariant | undefined;
   run: RoarRun | undefined;
+  rootDoc: DocumentReference;
   /**
    * Create a RoarFirekit. This expects an object with keys `userInfo`, and
    * `taskInfo`, where `userInfo` is a [[UserData]] object, and `taskInfo` is a
-   * [[TaskVariantInput]] object.
-   * @param {{userInfo: UserData, taskInfo: TaskVariantInput}=} destructuredParam
+   * [[TaskVariantInput]] object. It optionally accepts a `rootDoc` key, which
+   * should be a Firestore document reference. If not provided, it will use the
+   * rootDoc specified in roarconfig.json.
+   * @param {{userInfo: UserData, taskInfo: TaskVariantInput, rootDoc?: DocumentReference}=} destructuredParam
    *     userInfo: The user input object
    *     taskInfo: The task input object
+   *     rootDoc: Optional, the Firestore document to use as the root for all Firestore writes. If not provided, will use the rootDoc provided in roarconfig.json
    */
-  constructor({ userInfo, taskInfo }: { userInfo: UserData; taskInfo: TaskVariantInput }) {
+  constructor({
+    userInfo,
+    taskInfo,
+    rootDoc,
+  }: {
+    userInfo: UserData;
+    taskInfo: TaskVariantInput;
+    rootDoc?: DocumentReference;
+  }) {
     this.userInfo = userInfo;
     this.taskInfo = taskInfo;
     this.user = undefined;
     this.task = undefined;
     this.run = undefined;
+
+    const config = readConfig();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const firebaseApp = initializeApp(config!.firebaseConfig);
+    const db = getFirestore(firebaseApp);
+
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code == 'failed-precondition') {
+        console.log(
+          "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
+        );
+        // Multiple tabs open, persistence can only be enabled
+        // in one tab at a a time.
+        // ...
+      } else if (err.code == 'unimplemented') {
+        console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
+        // The current browser does not support all of the
+        // features required to enable persistence
+        // ...
+      }
+    });
+    // Subsequent queries will use persistence, if it was enabled successfully
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    this.rootDoc = rootDoc || doc(collection(db, config!.rootDoc[0]), ...config!.rootDoc.slice(1));
   }
 
   /**
@@ -71,10 +83,10 @@ export class RoarFirekit {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       firebaseUid: auth.currentUser!.uid,
     });
-    this.user.setRefs(rootDoc);
+    this.user.setRefs(this.rootDoc);
 
     this.task = new RoarTaskVariant(this.taskInfo);
-    this.task.setRefs(rootDoc);
+    this.task.setRefs(this.rootDoc);
 
     this.run = new RoarRun({ user: this.user, task: this.task });
 

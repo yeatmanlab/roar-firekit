@@ -3,7 +3,7 @@ import { readConfig } from '../configReader';
 
 describe('configReader', () => {
   it('reads a roarconfig.json file', () => {
-    const config = readConfig();
+    const config = readConfig('roarconfig.test.json');
     expect(config!.firebaseConfig.apiKey).toBe('roarApiKey');
     expect(config!.firebaseConfig.authDomain).toBe('roarAuthDomain');
     expect(config!.firebaseConfig.projectId).toBe('roarProjectId');

@@ -55,7 +55,7 @@ constructor expects an object with keys `userInfo` and `taskInfo`, where
 
 ### Constructor inputs
 
-### `userInfo`
+#### `userInfo`
 
 User information is encapsulated in a [[`UserData`]] object. Its only required
 key is `id`, which should be the current user's ROAR UID, which is also sometimes called the ROAR PID:
@@ -79,7 +79,7 @@ const fullUserInfo = {
 }
 ```
 
-### `taskInfo`
+#### `taskInfo`
 
 Information about the current task is encapsulated in a [[`TaskVariantInput`]] object. Here is the task information for a fictitious "Not Hotdog" task:
 
@@ -97,6 +97,20 @@ const taskInfo = {
       corpus: "pointer-to-location-of-stimulus-corpus",
     },
   ]
+}
+```
+
+#### `rootDoc`
+
+Optionally, you may override the `rootDoc` specified in your `roarconfig.json` file by providing a Firestore document reference as a constructor argument. For example,
+
+```javascript
+import { collection, doc } from "firebase/firestore";
+const rootDoc = doc(collection(db, "aCollectionName"), "aDocumentName");
+const constructorArgs = {
+  userInfo: minimalUserInfo, // defined above
+  taskInfo, // defined above
+  rootDoc,
 }
 ```
 
