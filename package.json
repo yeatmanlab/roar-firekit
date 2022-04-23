@@ -58,6 +58,7 @@
     "lib/**/*"
   ],
   "dependencies": {
+    "caller": "^1.1.0",
     "decomment": "^0.9.5",
     "firebase": "^9.6.8",
     "js-yaml": "^4.1.0",

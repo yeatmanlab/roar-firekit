@@ -2,6 +2,7 @@ import { load } from 'js-yaml';
 import decomment from 'decomment';
 import { readFileSync, statSync } from 'fs';
 import { dirname, join, extname } from 'path';
+import caller from 'caller';
 
 /**
  * Convenience wrapper for synchronously reading file contents.
@@ -108,7 +109,7 @@ const findStartingWith = (start: string, rel: string): string => {
 
 // Find the rc file path
 export const readConfig = (basename = 'roarconfig.json'): ConfigData | undefined => {
-  const start = process.cwd();
+  const start = dirname(caller() || '.');
   const configPath: string = findStartingWith(start, basename);
   return loadConfigFile(configPath);
 };
