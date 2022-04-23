@@ -5,7 +5,7 @@ import { firebaseSignIn, firebaseSignOut } from '../auth';
 import { initializeApp } from 'firebase/app';
 import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
 
-interface ConfigData {
+export interface ConfigData {
   firebaseConfig: {
     apiKey: string;
     authDomain: string;
