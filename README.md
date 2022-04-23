@@ -10,48 +10,14 @@ You can install [roar-firekit from npm](https://www.npmjs.com/package/@bdelab/ro
 npm i @bdelab/roar-firekit
 ```
 
-## Firebase Configuration
-
-Roar-firekit expects to find a file named `roarconfig.json` in the root of your project folder. A template is provided below
-
-<details>
-  <summary>Click to expand!</summary>
-
-  ```json
-  {
-    "firebaseConfig": {
-      "apiKey": "insert your firebase API key here",
-      "authDomain": "insert your firebase auth domain here",
-      "projectId": "insert your firebase project ID here",
-      "storageBucket": "insert your firebase storage bucket here",
-      "messagingSenderId": "insert your firebase messaging sender ID here",
-      "appId": "insert your firebase app ID here",
-      "measurementId": "insert your firebase measurement ID here"
-    },
-    "rootDoc": ["some collection name", "some document name"]
-  }
-  ```
-
-</details>
-
-### `firebaseConfig`
-
-To get the `firebaseConfig` fields, see [this article](https://support.google.com/firebase/answer/7015592#zippy=%2Cin-this-article) on how to retrieve your firebase config. TLDR: go directly to [your project's settings](https://console.firebase.google.com/project/_/settings/general/), scroll down to "SDK setup and configuration," click the "Config" radio button, and copy the snippet for your app's Firebase config object.
-
-### `rootDoc`
-
-The `rootDoc` is an array of strings representing the document under which all
-ROAR data will be stored.  Note that `rootDoc` does not have to be in the actual
-root of your Cloud Firestore database.
-
 ## Usage
 
 Roar-firekit is agnostic about where your data comes from, but I anticipate most users will use roar-firekit with their experiments written in [jsPsych](https://www.jspsych.org/).
 
 The main entrypoint to roar-firekit's API is the [[`RoarFirekit`]] class.  Its
-constructor expects an object with keys `userInfo` and `taskInfo`, where
-`userInfo` is a [[`UserData`]] object, and `taskInfo` is a
-[[`TaskVariantInput`]] object.
+constructor expects an object with keys `userInfo`, `taskInfo`, and `config`, where
+`userInfo` is a [[`UserData`]] object, `taskInfo` is a
+[[`TaskVariantInput`]] object, and `config` is a [[`ConfigData`]] object.
 
 ### Constructor inputs
 
@@ -100,20 +66,37 @@ const taskInfo = {
 }
 ```
 
-#### Optional `rootDoc` specification
+#### `config`
 
-Optionally, you may override the `rootDoc` specified in your `roarconfig.json` file by providing a Firestore document reference as a constructor argument. For example,
+The config object contains configuration information for your Firebase project. You may want to store your config object in separate javascript file (named "roarConfig.js" for this documentation). A template is provided below
 
-```javascript
-import { collection, doc } from "firebase/firestore";
-import { db } from "@bdelab/roar-firekit";
-const rootDoc = doc(collection(db, "aCollectionName"), "aDocumentName");
-const constructorArgs = {
-  userInfo: minimalUserInfo, // defined above
-  taskInfo, // defined above
-  rootDoc,
-}
-```
+<details>
+  <summary>Click to expand!</summary>
+
+  ```javascript
+  export const roarConfig = {
+    "firebaseConfig": {
+      "apiKey": "insert your firebase API key here",
+      "authDomain": "insert your firebase auth domain here",
+      "projectId": "insert your firebase project ID here",
+      "storageBucket": "insert your firebase storage bucket here",
+      "messagingSenderId": "insert your firebase messaging sender ID here",
+      "appId": "insert your firebase app ID here",
+      "measurementId": "insert your firebase measurement ID here",
+    },
+    "rootDoc": ["some collection name", "some document name"],
+  }
+  ```
+
+</details>
+
+##### `firebaseConfig`
+
+To get the `firebaseConfig` fields, see [this article](https://support.google.com/firebase/answer/7015592#zippy=%2Cin-this-article) on how to retrieve your firebase config. TLDR: go directly to [your project's settings](https://console.firebase.google.com/project/_/settings/general/), scroll down to "SDK setup and configuration," click the "Config" radio button, and copy the snippet for your app's Firebase config object.
+
+##### `rootDoc`
+
+The `rootDoc` is an array of strings representing the document under which all ROAR data will be stored.  Note that `rootDoc` does not have to be in the actual root of your Cloud Firestore database.
 
 ### Constructing the firekit
 
@@ -121,12 +104,14 @@ With the above defined input, you would construct a firekit using
 
 ```javascript
 import { RoarFirekit } from '@bdelab/roar-firekit';
+import { roarConfig } from './roarConfig.js';
 
 // Insert input definition code from above
 
 const firekit = new RoarFirekit({
   userInfo: minimalUserInfo,
   taskInfo,
+  config: roarConfig,
 })
 ```
 
@@ -228,6 +213,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   import htmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
   import imageButtonResponse from '@jspsych/plugin-image-button-response';
   import { RoarFirekit } from '@bdelab/roar-firekit';
+  import { roarConfig } from "./roarConfig.js";
 
   const taskInfo = {
     taskId: 'nhd',
@@ -249,6 +235,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   const firekit = new RoarFirekit({
     userInfo: minimalUserInfo,
     taskInfo,
+    config: roarConfig,
   });
 
   await firekit.startRun();

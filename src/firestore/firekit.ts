@@ -2,31 +2,21 @@ import { UserData, RoarUser } from './user';
 import { TaskVariantInput, RoarTaskVariant } from './task';
 import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
-import { readConfig } from '../configReader';
 import { initializeApp } from 'firebase/app';
 import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
 
-const config = readConfig();
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-const firebaseApp = initializeApp(config!.firebaseConfig);
-export const db = getFirestore(firebaseApp);
-
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code == 'failed-precondition') {
-    console.log(
-      "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-    );
-    // Multiple tabs open, persistence can only be enabled
-    // in one tab at a a time.
-    // ...
-  } else if (err.code == 'unimplemented') {
-    console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-    // The current browser does not support all of the
-    // features required to enable persistence
-    // ...
-  }
-});
-// Subsequent queries will use persistence, if it was enabled successfully
+interface ConfigData {
+  firebaseConfig: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+    measurementId: string;
+  };
+  rootDoc: string[];
+}
 
 /**
  * The RoarFirekit class is the main entry point for the ROAR Firestore API.
@@ -41,33 +31,43 @@ export class RoarFirekit {
   run: RoarRun | undefined;
   rootDoc: DocumentReference;
   /**
-   * Create a RoarFirekit. This expects an object with keys `userInfo`, and
-   * `taskInfo`, where `userInfo` is a [[UserData]] object, and `taskInfo` is a
-   * [[TaskVariantInput]] object. It optionally accepts a `rootDoc` key, which
-   * should be a Firestore document reference. If not provided, it will use the
-   * rootDoc specified in roarconfig.json.
-   * @param {{userInfo: UserData, taskInfo: TaskVariantInput, rootDoc?: DocumentReference}=} destructuredParam
+   * Create a RoarFirekit. This expects an object with keys `userInfo`,
+   * `taskInfo`, and `confg` where `userInfo` is a [[UserData]] object,
+   * `taskInfo` is a [[TaskVariantInput]] object and `config` is a
+   * [[ConfigData]] object.
+   * @param {{userInfo: UserData, taskInfo: TaskVariantInput, config: ConfigData}=} destructuredParam
    *     userInfo: The user input object
    *     taskInfo: The task input object
-   *     rootDoc: Optional, the Firestore document to use as the root for all Firestore writes. If not provided, will use the rootDoc provided in roarconfig.json
+   *     config: Firebase configuration object
    */
-  constructor({
-    userInfo,
-    taskInfo,
-    rootDoc,
-  }: {
-    userInfo: UserData;
-    taskInfo: TaskVariantInput;
-    rootDoc?: DocumentReference;
-  }) {
+  constructor({ userInfo, taskInfo, config }: { userInfo: UserData; taskInfo: TaskVariantInput; config: ConfigData }) {
     this.userInfo = userInfo;
     this.taskInfo = taskInfo;
     this.user = undefined;
     this.task = undefined;
     this.run = undefined;
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    this.rootDoc = rootDoc || doc(collection(db, config!.rootDoc[0]), ...config!.rootDoc.slice(1));
+    const firebaseApp = initializeApp(config.firebaseConfig);
+    const db = getFirestore(firebaseApp);
+
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code == 'failed-precondition') {
+        console.log(
+          "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
+        );
+        // Multiple tabs open, persistence can only be enabled
+        // in one tab at a a time.
+        // ...
+      } else if (err.code == 'unimplemented') {
+        console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
+        // The current browser does not support all of the
+        // features required to enable persistence
+        // ...
+      }
+    });
+    // Subsequent queries will use persistence, if it was enabled successfully
+
+    this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
   }
 
   /**
