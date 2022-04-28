@@ -14,5 +14,5 @@
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "moduleDirectories": ["node_modules"],
   "testPathIgnorePatterns": ["/__fixtures__/", "/__utils__/"],
-  "testTimeout": 10000
+  "testTimeout": 20000
 }
