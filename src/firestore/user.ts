@@ -20,6 +20,7 @@ export interface UserData {
   districtId?: string | null;
   studyId?: string | null;
   userCategory?: userCategoryType;
+  userMetadata?: Record<string, unknown>;
 }
 
 export interface UserInput extends UserData {
@@ -55,6 +56,7 @@ export class RoarUser {
    * @param {string} districtId - The district ID of the user
    * @param {string} studyId - The study ID of the user
    * @param {string} userCategory - The user type. Must be either "student," "educator," or "researcher"
+   * @param {*} userMetadata - An object containing additional user metadata
    */
   id: string;
   firebaseUid: string;
@@ -67,6 +69,7 @@ export class RoarUser {
   userCategory: userCategoryType;
   isPushedToFirestore: boolean;
   userRef: DocumentReference | undefined;
+  userMetadata: Record<string, unknown>;
   constructor({
     id,
     firebaseUid,
@@ -77,6 +80,7 @@ export class RoarUser {
     districtId = null,
     studyId = null,
     userCategory = 'student' as const,
+    userMetadata = {},
   }: UserInput) {
     const allowedUserCategories: string[] = ['student', 'educator', 'researcher'];
     if (!allowedUserCategories.includes(userCategory)) {
@@ -92,6 +96,7 @@ export class RoarUser {
     this.districtId = districtId;
     this.studyId = studyId;
     this.userCategory = userCategory as userCategoryType;
+    this.userMetadata = userMetadata;
 
     this.userRef = undefined;
     this.isPushedToFirestore = false;
@@ -143,6 +148,7 @@ export class RoarUser {
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             return setDoc(this.userRef!, {
               ...userData,
+              ...this.userMetadata,
               createdAt: serverTimestamp(),
             });
           } else {
