@@ -28,6 +28,7 @@ export interface TaskVariantInput {
   taskDescription?: string | null;
   variantDescription?: string | null;
   blocks?: Block[];
+  srcHash?: string | null;
 }
 
 interface FirestoreTaskData {
@@ -56,6 +57,7 @@ export class RoarTaskVariant {
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference | undefined;
   blocks: Block[];
+  srcHash: string | null;
   constructor({
     taskId,
     taskName,
@@ -63,6 +65,7 @@ export class RoarTaskVariant {
     taskDescription = null,
     variantDescription = null,
     blocks = [],
+    srcHash = null,
   }: TaskVariantInput) {
     this.taskId = taskId;
     this.taskName = taskName;
@@ -70,6 +73,7 @@ export class RoarTaskVariant {
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.blocks = blocks;
+    this.srcHash = srcHash;
 
     this.taskRef = undefined;
     this.variantsCollectionRef = undefined;
@@ -126,11 +130,12 @@ export class RoarTaskVariant {
       });
 
       // Check to see if variant exists already by querying for a match on the
-      // name and the blocks.
+      // name, srcHash, and the blocks.
       const q = query(
         this.variantsCollectionRef,
         where('name', '==', this.variantName),
         where('blocksString', '==', JSON.stringify(this.blocks)),
+        where('srcHash', '==', this.srcHash),
         orderBy('lastPlayed', 'desc'),
         limit(1),
       );
@@ -158,6 +163,7 @@ export class RoarTaskVariant {
           description: this.variantDescription,
           blocks: this.blocks,
           blocksString: JSON.stringify(this.blocks),
+          srcHash: this.srcHash,
           lastPlayed: serverTimestamp(),
         };
         this.variantRef = doc(this.variantsCollectionRef);
