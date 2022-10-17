@@ -127,6 +127,7 @@ export class RoarTaskVariant {
       await setDoc(emptyVariantRef, {
         name: 'empty',
         blocksString: 'empty',
+        srcHash: 'empty',
       });
 
       // Check to see if variant exists already by querying for a match on the
@@ -135,27 +136,60 @@ export class RoarTaskVariant {
         this.variantsCollectionRef,
         where('name', '==', this.variantName),
         where('blocksString', '==', JSON.stringify(this.blocks)),
-        where('srcHash', '==', this.srcHash),
         orderBy('lastPlayed', 'desc'),
+        orderBy('srcHash'),
         limit(1),
       );
       const querySnapshot = await getDocs(q);
 
-      // If so use the Firestore generated id for the variant and update timestamp.
+      // If this query snapshot yielded results, then we can use it and
+      // update the timestamp
       querySnapshot.forEach((docRef) => {
-        this.variantId = docRef.id;
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        this.variantRef = doc(this.variantsCollectionRef!, this.variantId);
-        updateDoc(
-          this.variantRef,
-          removeNull({
-            description: this.variantDescription,
-            lastPlayed: serverTimestamp(),
-          }),
-        );
+        if (docRef.get('srcHash') === this.srcHash) {
+          this.variantId = docRef.id;
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          this.variantRef = doc(this.variantsCollectionRef!, this.variantId);
+          updateDoc(
+            this.variantRef,
+            removeNull({
+              description: this.variantDescription,
+              lastPlayed: serverTimestamp(),
+            }),
+          );
+        }
       });
 
-      // If no match, ask Firestore to generate a new document id for the variant
+      // If this.variantId is still undefined, then there was no match, We query
+      // again, but this time allow the old variant style without a 'srcHash'
+      // field
+      if (this.variantId === undefined) {
+        const q = query(
+          this.variantsCollectionRef,
+          where('name', '==', this.variantName),
+          where('blocksString', '==', JSON.stringify(this.blocks)),
+          orderBy('lastPlayed', 'desc'),
+          limit(1),
+        );
+        const querySnapshot = await getDocs(q);
+
+        // If this query snapshot is yielded results, then we can use it and
+        // update the timestamp and add a srcHash for next time.
+        querySnapshot.forEach((docRef) => {
+          this.variantId = docRef.id;
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          this.variantRef = doc(this.variantsCollectionRef!, this.variantId);
+          updateDoc(
+            this.variantRef,
+            removeNull({
+              description: this.variantDescription,
+              lastPlayed: serverTimestamp(),
+              srcHash: this.srcHash,
+            }),
+          );
+        });
+      }
+
+      // no match, ask Firestore to generate a new document id for the variant
       // and push it to Firestore.
       if (this.variantId === undefined) {
         const variantData = {

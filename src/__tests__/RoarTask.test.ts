@@ -27,6 +27,7 @@ const taskInput = {
   variantName: 'a-test-variant-name',
   taskDescription: 'test-task-description',
   variantDescription: 'test-variant-description',
+  srcHash: 'abcdefg',
   blocks: [
     {
       blockNumber: 0,
@@ -125,6 +126,7 @@ describe('RoarTaskVariant', () => {
           description: task.variantDescription,
           blocks: task.blocks,
           blocksString: JSON.stringify(task.blocks),
+          srcHash: task.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
       );
@@ -176,6 +178,7 @@ describe('RoarTaskVariant', () => {
           description: task1.variantDescription,
           blocks: task1.blocks,
           blocksString: JSON.stringify(task1.blocks),
+          srcHash: task1.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
       );
@@ -185,6 +188,7 @@ describe('RoarTaskVariant', () => {
           description: task2.variantDescription,
           blocks: task2.blocks,
           blocksString: JSON.stringify(task2.blocks),
+          srcHash: task2.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
       );
