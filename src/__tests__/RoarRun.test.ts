@@ -224,8 +224,6 @@ describe('RoarRun', () => {
       // Expect contents of the run document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const runDocSnap = await getDoc(run.runRef!);
-      console.log('runDocSnap.data()');
-      console.log(runDocSnap.data());
       expect(runDocSnap.exists()).toBe(true);
 
       const runData = runDocSnap.data();
