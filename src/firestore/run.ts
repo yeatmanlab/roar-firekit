@@ -58,15 +58,13 @@ export const calculateRunScores = async (runRef: DocumentReference): Promise<obj
 
   // Get the last trial
   query_ = query(trialsCollection, orderBy('serverTimestamp', 'desc'), limit(1));
-  // query_ = query(trialsCollection, orderBy('serverTimestamp', 'desc'), limit(1));
-  // query_ = query(trialsCollection, where('theta', '!=', null), limit(1));
   const querySnapshot = await getDocs(query_);
 
   let theta = null;
   let thetaSE = null;
   querySnapshot.forEach((doc) => {
     theta = doc.data().theta || null;
-    thetaSE = doc.data().theta || null;
+    thetaSE = doc.data().thetaSE || null;
   });
 
   return {
