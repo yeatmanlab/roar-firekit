@@ -1,4 +1,18 @@
-import { arrayUnion, collection, doc, DocumentReference, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  arrayUnion,
+  collection,
+  doc,
+  DocumentReference,
+  getCountFromServer,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { RoarTaskVariant } from './task';
 import { RoarUser } from './user';
 
@@ -24,6 +38,42 @@ export const convertTrialToFirestore = (trialData: object): object => {
       }
     }),
   );
+};
+
+export const calculateRunScores = async (runRef: DocumentReference): Promise<object> => {
+  // First get a count of all trials for this run
+  const trialsCollection = collection(runRef, 'trials');
+  let countSnapshot = await getCountFromServer(trialsCollection);
+  const numAttempted = countSnapshot.data().count;
+
+  // Get a count of all correct trials for this run
+  let query_ = query(trialsCollection, where('correct', '==', true));
+  countSnapshot = await getCountFromServer(query_);
+  const numCorrect = countSnapshot.data().count;
+
+  // Get a count of all incorrect trials for this run
+  query_ = query(trialsCollection, where('correct', '==', false));
+  countSnapshot = await getCountFromServer(query_);
+  const numIncorrect = countSnapshot.data().count;
+
+  // Get the last trial
+  query_ = query(trialsCollection, orderBy('serverTimestamp', 'desc'), limit(1));
+  const querySnapshot = await getDocs(query_);
+
+  let theta = null;
+  let thetaSE = null;
+  querySnapshot.forEach((doc) => {
+    theta = doc.data().theta || null;
+    thetaSE = doc.data().thetaSE || null;
+  });
+
+  return {
+    numAttempted,
+    numCorrect,
+    numIncorrect,
+    theta,
+    thetaSE,
+  };
 };
 
 export interface RunInput {
@@ -114,9 +164,13 @@ export class RoarRun {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
+
+    const runScores = await calculateRunScores(this.runRef);
+
     return updateDoc(this.runRef, {
       completed: true,
       timeFinished: serverTimestamp(),
+      ...runScores,
     }).then(() => {
       return this.user.updateFirestoreTimestamp();
     });
@@ -133,7 +187,10 @@ export class RoarRun {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
     const trialRef = doc(collection(this.runRef, 'trials'));
-    return setDoc(trialRef, convertTrialToFirestore(trialData)).then(() => {
+    return setDoc(trialRef, {
+      ...convertTrialToFirestore(trialData),
+      serverTimestamp: serverTimestamp(),
+    }).then(() => {
       this.user.updateFirestoreTimestamp();
     });
   }

@@ -210,6 +210,9 @@ describe('RoarRun', () => {
 
     try {
       await run.startRun();
+      await run.writeTrial({ theta: 1, thetaSE: 2 });
+      await run.writeTrial({ theta: 3, thetaSE: 4, correct: true });
+      await run.writeTrial({ theta: 5, thetaSE: 6, correct: false });
       await run.finishRun();
 
       // Sign out this user and sign in the roar-ci-user,
@@ -222,9 +225,16 @@ describe('RoarRun', () => {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const runDocSnap = await getDoc(run.runRef!);
       expect(runDocSnap.exists()).toBe(true);
-      expect(runDocSnap.data()).toEqual(
+
+      const runData = runDocSnap.data();
+      expect(runData).toEqual(
         expect.objectContaining({
           completed: true,
+          numCorrect: 1,
+          numIncorrect: 1,
+          numAttempted: 3,
+          theta: 5,
+          thetaSE: 6,
           timeFinished: expect.any(Timestamp),
         }),
       );
