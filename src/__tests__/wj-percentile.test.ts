@@ -1,10 +1,5 @@
 import { WJPercentile } from './../functions/wj-percentile';
-import * as admin from 'firebase-admin/app';
 
-// initialize 'default' app on Google cloud platform
-admin.initializeApp({
-  credential: admin.applicationDefault(),
-});
 const wjPercentileClient = new WJPercentile();
 const SWR_LOOKUP_TABLE_TEST_VERSION = 0.1;
 
