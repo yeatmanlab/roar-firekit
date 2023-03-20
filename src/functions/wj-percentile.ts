@@ -34,6 +34,8 @@ export class WJPercentile {
     // return null scores if age is not valid
     if (age === "Adult") {
       return adultAge;
+    } else if (age === "") {
+      return null;
     }
 
     // remove the trailing '+' if it exists, 10+ => 10
@@ -95,18 +97,20 @@ export class WJPercentile {
     return percentileScore;
   }
   
-  private async getWJPercentileScore(
+  public async getWJPercentileScore(
     data: Array<DocumentData>,
     users: Record<string, string>,
+    tableVersion: Number = SWR_LOOKUP_TABLE_VERSION
   ) {
     // read table
     const swrTablePath = this.getLookupTablePath(
       TASK_ID_SWR,
-      SWR_LOOKUP_TABLE_VERSION.toString()
+      tableVersion.toString()
     );
     const swrTable = await this.clientCloudStorage.readFile(swrTablePath);
     
-    for (let runData of data) {
+    for (let i = 0; i < data.length; i++) {
+      let runData = data[i];
       const firestorePid = runData.firestorePid;
       // TODO: check if age is in months
       runData.age = users[firestorePid];
@@ -114,10 +118,12 @@ export class WJPercentile {
         runData,
         swrTable
       );
-      runData = {
+      data[i] = {
         ...percentileScores,
         ...runData,
       };
     }
+    
+    return data;
   }
 };

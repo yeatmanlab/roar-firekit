@@ -1,13 +1,14 @@
-import { logger } from "firebase-functions/v2";
 import { backOff, IBackOffOptions } from "exponential-backoff";
 import { Storage, UploadResponse } from "@google-cloud/storage";
 import { FIREBASE_COLLECTIONS } from "./config";
+import { logger } from "firebase-functions/v2";
 
 export class QueryCloudStorage {
   private bucket;
   private bucketName = "gse-yeatmanlab-export-csv"; // to export csv data
 
   constructor() {
+    
     this.bucket = new Storage().bucket(this.bucketName); // to access bucket in gcp
   }
 
