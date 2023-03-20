@@ -11,7 +11,6 @@ export class WJPercentile {
     this.clientCloudStorage = new QueryCloudStorage(); // to query cloud storage
   }
 
-  // TODO: remove this function from firebase-functions
   // the lookup tables are stored in the root folder "/lookup-tables"
   // the file name follows the convention [TASK ID]-theta-table-[VERSION ID].csv
   public getLookupTablePath(taskId: string, version: string) {
@@ -42,13 +41,10 @@ export class WJPercentile {
     }
 
     // convert age to a Number and then convert to months
-    // TODO: check if these are in months or years
-    // TODO: if age is in months then this conversion should not happen
     return Number(age) * 12;
   }
 
   private async getWJPercentileScoreForRun(runData: DocumentData, table: Array<DocumentData>) {
-    // TODO: check if age is in months or years
     const ageInMonths = this.cleanAge(runData.age);
 
     const percentileScore = {
@@ -56,7 +52,6 @@ export class WJPercentile {
       wjPercentile: null,
       roarScore: null,
       ageInMonths: ageInMonths,
-      // TODO: call it rawAgeInMonths or rawAge depending on age being in months or years
       age: runData.age,
     };
 
@@ -102,7 +97,6 @@ export class WJPercentile {
     for (let i = 0; i < data.length; i++) {
       let runData = data[i];
       const firestorePid = runData.firestorePid;
-      // TODO: check if age is in months
       runData.age = users[firestorePid];
       const percentileScores = await this.getWJPercentileScoreForRun(runData, swrTable);
       data[i] = {
