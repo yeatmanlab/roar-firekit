@@ -1,14 +1,13 @@
-import { backOff, IBackOffOptions } from "exponential-backoff";
-import { Storage, UploadResponse } from "@google-cloud/storage";
-import { FIREBASE_COLLECTIONS } from "./config";
-import { logger } from "firebase-functions/v2";
+import { backOff, IBackOffOptions } from 'exponential-backoff';
+import { Storage, UploadResponse } from '@google-cloud/storage';
+import { FIREBASE_COLLECTIONS } from './config';
+import { logger } from 'firebase-functions/v2';
 
 export class QueryCloudStorage {
   private bucket;
-  private bucketName = "gse-yeatmanlab-export-csv"; // to export csv data
+  private bucketName = 'gse-yeatmanlab-export-csv'; // to export csv data
 
   constructor() {
-    
     this.bucket = new Storage().bucket(this.bucketName); // to access bucket in gcp
   }
 
@@ -21,28 +20,24 @@ export class QueryCloudStorage {
     try {
       const response: UploadResponse = await backOff(
         () => this.bucket.upload(localFilePath, { destination: cloudFilePath }),
-        <IBackOffOptions>{ numOfAttempts: 3 }
+        <IBackOffOptions>{ numOfAttempts: 3 },
       );
       logger.debug(`File uploaded to path: ${response[0].publicUrl()}`);
-      logger.debug("File uploaded successfully!");
+      logger.debug('File uploaded successfully!');
     } catch (err: unknown) {
-      logger.error("File upload failed.");
-      logger.error(
-        `Local file path: ${localFilePath}, Cloud file path: ${cloudFilePath}.`
-      );
+      logger.error('File upload failed.');
+      logger.error(`Local file path: ${localFilePath}, Cloud file path: ${cloudFilePath}.`);
       if (err instanceof Error) {
-        logger.error("Error message:", err.message);
+        logger.error('Error message:', err.message);
       }
     }
   }
 
   public async readFile(filePath: string) {
-    logger.debug(
-      `Reading file from GCP bucket ${this.bucketName} at path ${filePath}...`
-    );
+    logger.debug(`Reading file from GCP bucket ${this.bucketName} at path ${filePath}...`);
     const buffer = await this.bucket.file(filePath).download();
-    const data = buffer[0].toString("utf8");
-    logger.debug("File read successfully!");
+    const data = buffer[0].toString('utf8');
+    logger.debug('File read successfully!');
     return data;
   }
 
@@ -56,7 +51,7 @@ export class QueryCloudStorage {
       });
 
       for (const file of files) {
-        labs.add(file.name.split("/").slice(0, 2).join("/"));
+        labs.add(file.name.split('/').slice(0, 2).join('/'));
       }
     }
 
