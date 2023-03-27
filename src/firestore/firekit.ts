@@ -1,5 +1,5 @@
 import { FirebaseConfigData, RoarAppFirekit } from './appfirekit';
-import { ITaskVariantInput, RoarTaskVariant } from './task';
+// import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { roarEnableIndexedDbPersistence } from './util';
 import { initializeApp, FirebaseApp, getApp, FirebaseError } from 'firebase/app';
 import {
@@ -56,7 +56,7 @@ const safeInitializeApp = (config: FirebaseConfigData, name: string) => {
       throw new Error(`There is an existing firebase app named ${name} with different configuration options.`);
     }
     return app;
-  } catch (error) {
+  } catch (error: any) {
     if (error.code === 'app/no-app') {
       return initializeApp(config, name);
     } else {
