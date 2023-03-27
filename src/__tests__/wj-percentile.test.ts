@@ -1,4 +1,4 @@
-import { MockStorage } from './mock-storage';
+import { MockStorage } from './__mocks__/mock-storage';
 
 const SWR_LOOKUP_TABLE_TEST_VERSION = 0.1;
 jest.doMock('@google-cloud/storage', () => ({

@@ -70,7 +70,7 @@ export class MockFile {
   
   public download(): any {
     // download returns a buffer array where the data is stored in the first element
-    const filePath = path.resolve(__dirname, 'mock-data', this.name);
+    const filePath = path.resolve(__dirname, this.name);
     const buffer = fs.readFileSync(filePath);
     return [buffer];
   }
