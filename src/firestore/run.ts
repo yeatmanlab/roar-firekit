@@ -103,8 +103,8 @@ export class RoarRun {
 
     this.user = user;
     this.task = task;
-    if (this.user.assessmentDocRef) {
-      this.runRef = doc(collection(this.user.assessmentDocRef, 'runs'));
+    if (this.user.userRef) {
+      this.runRef = doc(collection(this.user.userRef, 'runs'));
     } else {
       throw new Error('User refs not set. Please use the user.setRefs method first.');
     }
@@ -143,7 +143,7 @@ export class RoarRun {
     await setDoc(this.runRef, runData)
       .then(() => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        return updateDoc(this.user.assessmentDocRef!, {
+        return updateDoc(this.user.userRef!, {
           tasks: arrayUnion(this.task.taskId),
           variants: arrayUnion(this.task.variantId),
           taskRefs: arrayUnion(this.task.taskRef),

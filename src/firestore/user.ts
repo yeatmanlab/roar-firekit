@@ -68,8 +68,7 @@ export class RoarUser {
   studyId: string | null;
   userCategory: userCategoryType;
   isPushedToFirestore: boolean;
-  assessmentDocRef: DocumentReference | undefined;
-  adminDocRef: DocumentReference | undefined;
+  userRef: DocumentReference | undefined;
   userMetadata: Record<string, unknown>;
   constructor({
     id,
@@ -99,8 +98,7 @@ export class RoarUser {
     this.userCategory = userCategory as userCategoryType;
     this.userMetadata = userMetadata;
 
-    this.assessmentDocRef = undefined;
-    this.adminDocRef = undefined;
+    this.userRef = undefined;
     this.isPushedToFirestore = false;
   }
 
@@ -108,8 +106,7 @@ export class RoarUser {
    * @param {DocumentReference} rootDoc - The root document reference
    */
   setRefs(rootDoc: DocumentReference) {
-    this.assessmentDocRef = doc(rootDoc, 'users', this.id);
-    this.adminDocRef = doc('users', this.id);
+    this.userRef = doc(rootDoc, 'users', this.id);
   }
 
   /**
@@ -118,7 +115,7 @@ export class RoarUser {
    * @async
    */
   async toFirestore() {
-    if (this.assessmentDocRef === undefined) {
+    if (this.userRef === undefined) {
       throw new Error('User refs not set. Please use the setRefs method first.');
     } else {
       const userData: IFirestoreUserData = {
@@ -142,14 +139,14 @@ export class RoarUser {
       if (this.schoolId) userData.schools = arrayUnion(this.schoolId);
       if (this.classId) userData.classes = arrayUnion(this.classId);
 
-      return updateDoc(this.assessmentDocRef, removeNull(userData))
+      return updateDoc(this.userRef, removeNull(userData))
         .catch((error: FirestoreError) => {
           const errorCode = error.code;
           if (errorCode === 'permission-denied') {
             // The ROAR Firestore rules are written such that if we get here, the
             // user does not currently exist in Firestore. So create them.
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            return setDoc(this.assessmentDocRef!, {
+            return setDoc(this.userRef!, {
               ...userData,
               ...this.userMetadata,
               createdAt: serverTimestamp(),
@@ -170,10 +167,10 @@ export class RoarUser {
    * @async
    */
   async updateFirestoreTimestamp() {
-    if (this.assessmentDocRef === undefined) {
+    if (this.userRef === undefined) {
       throw new Error('User refs not set. Please use the setRefs method first.');
     } else {
-      updateDoc(this.assessmentDocRef, {
+      updateDoc(this.userRef, {
         lastUpdated: serverTimestamp(),
       });
     }

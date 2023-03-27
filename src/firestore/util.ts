@@ -1,4 +1,4 @@
-import { enableIndexedDbPersistence } from 'firebase/firestore';
+import { enableIndexedDbPersistence, Firestore } from 'firebase/firestore';
 
 /** Remove null attributes from an object
  * @function
@@ -10,7 +10,7 @@ export const removeNull = (obj: object): object => {
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null));
 };
 
-export const roarEnableIndexedDbPersistence = (db) => {
+export const roarEnableIndexedDbPersistence = (db: Firestore) => {
   enableIndexedDbPersistence(db).catch((err) => {
     if (err.code == 'failed-precondition') {
       console.log(

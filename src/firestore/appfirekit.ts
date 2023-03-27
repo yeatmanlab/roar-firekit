@@ -1,5 +1,5 @@
-import { UserData, RoarUser } from './user';
-import { TaskVariantInput, RoarTaskVariant } from './task';
+import { IUserData, RoarUser } from './user';
+import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
 import { initializeApp } from 'firebase/app';
@@ -26,18 +26,18 @@ export interface AssessmentConfigData {
  * for interacting with them.
  */
 export class RoarAppFirekit {
-  userInfo: UserData;
-  taskInfo: TaskVariantInput;
+  userInfo: IUserData;
+  taskInfo: ITaskVariantInput;
   user: RoarUser | undefined;
   task: RoarTaskVariant | undefined;
   run: RoarRun | undefined;
   rootDoc: DocumentReference;
   /**
    * Create a RoarAppFirekit. This expects an object with keys `userInfo`,
-   * `taskInfo`, and `confg` where `userInfo` is a [[UserData]] object,
-   * `taskInfo` is a [[TaskVariantInput]] object and `config` is a
+   * `taskInfo`, and `confg` where `userInfo` is a [[IUserData]] object,
+   * `taskInfo` is a [[ITaskVariantInput]] object and `config` is a
    * [[AssessmentConfigData]] object.
-   * @param {{userInfo: UserData, taskInfo: TaskVariantInput, config: AssessmentConfigData}=} destructuredParam
+   * @param {{userInfo: IUserData, taskInfo: ITaskVariantInput, config: AssessmentConfigData}=} destructuredParam
    *     userInfo: The user input object
    *     taskInfo: The task input object
    *     config: Firebase configuration object
@@ -47,8 +47,8 @@ export class RoarAppFirekit {
     taskInfo,
     config,
   }: {
-    userInfo: UserData;
-    taskInfo: TaskVariantInput;
+    userInfo: IUserData;
+    taskInfo: ITaskVariantInput;
     config: AssessmentConfigData;
   }) {
     this.userInfo = userInfo;
