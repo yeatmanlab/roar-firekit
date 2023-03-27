@@ -44,7 +44,7 @@ export class WJPercentile {
     return Number(age) * 12;
   }
 
-  private async getWJPercentileScoreForRun(runData: DocumentData, table: Array<DocumentData>) {
+  public async getWJPercentileScoreForRun(runData: DocumentData, table: Array<DocumentData>) {
     const ageInMonths = this.cleanAge(runData.age);
 
     const percentileScore = {
