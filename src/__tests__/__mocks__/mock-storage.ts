@@ -67,7 +67,7 @@ export class MockFile {
     this.contents = Buffer.alloc(0);
     this.metadata = {};
   }
-  
+
   public download(): any {
     // download returns a buffer array where the data is stored in the first element
     const filePath = path.resolve(__dirname, this.name);

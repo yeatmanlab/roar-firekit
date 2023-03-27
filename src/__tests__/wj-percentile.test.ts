@@ -2,7 +2,7 @@ import { MockStorage } from './__mocks__/mock-storage';
 
 const SWR_LOOKUP_TABLE_TEST_VERSION = 0.1;
 jest.doMock('@google-cloud/storage', () => ({
-  Storage: MockStorage
+  Storage: MockStorage,
 }));
 
 import { WJPercentile } from './../functions/wj-percentile';
@@ -118,8 +118,6 @@ describe('WJPercentile class', () => {
         wjPercentile: null,
       },
     ];
-    
-    
 
     const actual = await wjPercentileClient.getWJPercentileScore(data, users);
 

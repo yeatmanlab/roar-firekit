@@ -88,14 +88,14 @@ export class WJPercentile {
   public async getWJPercentileScore(
     data: Array<DocumentData>,
     users: Record<string, string>,
-    tableVersion: Number = SWR_LOOKUP_TABLE_VERSION,
+    tableVersion: number = SWR_LOOKUP_TABLE_VERSION,
   ) {
     // read table
     const swrTablePath = WJPercentile.getLookupTablePath(TASK_ID_SWR, tableVersion.toString());
     const swrTable = await this.clientCloudStorage.readFile(swrTablePath);
 
     for (let i = 0; i < data.length; i++) {
-      let runData = data[i];
+      const runData = data[i];
       const firestorePid = runData.firestorePid;
       runData.age = users[firestorePid];
       const percentileScores = await this.getWJPercentileScoreForRun(runData, swrTable);
