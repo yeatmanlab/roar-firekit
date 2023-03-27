@@ -63,7 +63,7 @@ export class RoarFirekit {
   constructor({ roarConfig }: { roarConfig: IRoarConfigData }) {
     this.roarConfig = roarConfig;
 
-    const assessmentFirebaseApp = initializeApp(roarConfig.app, { name: 'app' });
+    const assessmentFirebaseApp = initializeApp(roarConfig.app, 'app');
     this.app = {
       firebaseApp: assessmentFirebaseApp,
       auth: getAuth(assessmentFirebaseApp),
@@ -80,7 +80,7 @@ export class RoarFirekit {
     // when the device is offline.
     roarEnableIndexedDbPersistence(this.app.db);
 
-    const adminFirebaseApp = initializeApp(roarConfig.admin, { name: 'admin' });
+    const adminFirebaseApp = initializeApp(roarConfig.admin, 'admin');
     this.admin = {
       firebaseApp: adminFirebaseApp,
       auth: getAuth(adminFirebaseApp),
