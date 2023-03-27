@@ -15,23 +15,23 @@ import {
 import { removeNull } from './util';
 
 /** Tasks may be decomposed into blocks of trials */
-export interface Block {
+export interface IBlock {
   blockNumber: number;
   trialMethod: string;
   corpus: string;
 }
 
-export interface TaskVariantInput {
+export interface ITaskVariantInput {
   taskId: string;
   taskName: string;
   variantName: string;
   taskDescription?: string | null;
   variantDescription?: string | null;
-  blocks?: Block[];
+  blocks?: IBlock[];
   srcHash?: string | null;
 }
 
-interface FirestoreTaskData {
+interface IFirestoreTaskData {
   id: string;
   name: string;
   description?: string | null;
@@ -56,7 +56,7 @@ export class RoarTaskVariant {
   variantDescription: string | null;
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference | undefined;
-  blocks: Block[];
+  blocks: IBlock[];
   srcHash: string | null;
   constructor({
     taskId,
@@ -66,7 +66,7 @@ export class RoarTaskVariant {
     variantDescription = null,
     blocks = [],
     srcHash = null,
-  }: TaskVariantInput) {
+  }: ITaskVariantInput) {
     this.taskId = taskId;
     this.taskName = taskName;
     this.taskDescription = taskDescription;
@@ -95,7 +95,7 @@ export class RoarTaskVariant {
    * @param {string} trialMethod - The trial sampling method
    * @param {string} corpus - The corpus from which stimuli are drawn
    */
-  addBlock({ blockNumber = 0, trialMethod = 'practice', corpus = 'practiceCorpusId' }: Block) {
+  addBlock({ blockNumber = 0, trialMethod = 'practice', corpus = 'practiceCorpusId' }: IBlock) {
     this.blocks.push({
       blockNumber,
       trialMethod,
@@ -113,7 +113,7 @@ export class RoarTaskVariant {
       throw new Error('Task refs not set. Please use the setRefs method first.');
     } else {
       // Push/update the task using the user provided task ID
-      const taskData: FirestoreTaskData = {
+      const taskData: IFirestoreTaskData = {
         id: this.taskId,
         name: this.taskName,
         description: this.taskDescription,

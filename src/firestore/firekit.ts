@@ -1,184 +1,221 @@
-import { UserData, RoarUser } from './user';
-import { TaskVariantInput, RoarTaskVariant } from './task';
-import { RoarRun } from './run';
-import { firebaseSignIn, firebaseSignOut } from '../auth';
-import { initializeApp } from 'firebase/app';
-import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
+import { FirebaseConfigData, RoarAppFirekit } from './appfirekit';
+import { roarEnableIndexedDbPersistence } from './util';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import {
+  Auth,
+  AuthError,
+  inMemoryPersistence,
+  GoogleAuthProvider,
+  User,
+  createUserWithEmailAndPassword,
+  getAuth,
+  getRedirectResult,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+} from 'firebase/auth';
+import { collection, doc, DocumentData, Firestore, getDoc, getDocs, getFirestore } from 'firebase/firestore';
 
-export interface ConfigData {
-  firebaseConfig: {
-    apiKey: string;
-    authDomain: string;
-    projectId: string;
-    storageBucket: string;
-    messagingSenderId: string;
-    appId: string;
-    measurementId: string;
-  };
-  rootDoc: string[];
+interface IRoarConfigData {
+  app: FirebaseConfigData;
+  admin: FirebaseConfigData;
 }
 
-/**
- * The RoarFirekit class is the main entry point for the ROAR Firestore API.
- * It represents multiple linked Firestore documents and provides methods
- * for interacting with them.
- */
+interface IFirekit {
+  firebaseApp: FirebaseApp;
+  db: Firestore;
+  auth: Auth;
+  user?: User;
+}
+
+enum supplementalDataType {
+  admin = 'adminData',
+  educator = 'educatorData',
+  student = 'studentData',
+  caregiver = 'caregiverData',
+}
+
+interface IRoarUserData extends DocumentData {
+  adminData?: DocumentData;
+  educatorData?: DocumentData;
+  studentData?: DocumentData;
+  caregiverData?: DocumentData;
+  // Allow for data from external resources like clever or state-wide tests
+  externalData?: {
+    [x: string]: unknown;
+  };
+}
+
 export class RoarFirekit {
-  userInfo: UserData;
-  taskInfo: TaskVariantInput;
-  user: RoarUser | undefined;
-  task: RoarTaskVariant | undefined;
-  run: RoarRun | undefined;
-  rootDoc: DocumentReference;
+  roarConfig: IRoarConfigData;
+  app: IFirekit;
+  admin: IFirekit;
+  appFirekit?: RoarAppFirekit;
+  userData?: IRoarUserData;
   /**
-   * Create a RoarFirekit. This expects an object with keys `userInfo`,
-   * `taskInfo`, and `confg` where `userInfo` is a [[UserData]] object,
-   * `taskInfo` is a [[TaskVariantInput]] object and `config` is a
-   * [[ConfigData]] object.
-   * @param {{userInfo: UserData, taskInfo: TaskVariantInput, config: ConfigData}=} destructuredParam
-   *     userInfo: The user input object
-   *     taskInfo: The task input object
-   *     config: Firebase configuration object
+   * Create a RoarFirekit. This expects an object with keys `roarConfig`,
+   * where `roarConfig` is a [[IRoarConfigData]] object.
+   * @param {{roarConfig: IRoarConfigData }=} destructuredParam
+   *     roarConfig: The ROAR firebase config object
    */
-  constructor({ userInfo, taskInfo, config }: { userInfo: UserData; taskInfo: TaskVariantInput; config: ConfigData }) {
-    this.userInfo = userInfo;
-    this.taskInfo = taskInfo;
-    this.user = undefined;
-    this.task = undefined;
-    this.run = undefined;
+  constructor({ roarConfig }: { roarConfig: IRoarConfigData }) {
+    this.roarConfig = roarConfig;
 
-    const firebaseApp = initializeApp(config.firebaseConfig);
-    const db = getFirestore(firebaseApp);
+    const assessmentFirebaseApp = initializeApp(roarConfig.app);
+    this.app = {
+      firebaseApp: assessmentFirebaseApp,
+      auth: getAuth(assessmentFirebaseApp),
+      db: getFirestore(assessmentFirebaseApp),
+    };
 
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code == 'failed-precondition') {
-        console.log(
-          "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-        );
-        // Multiple tabs open, persistence can only be enabled
-        // in one tab at a a time.
-        // ...
-      } else if (err.code == 'unimplemented') {
-        console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-        // The current browser does not support all of the
-        // features required to enable persistence
-        // ...
+    // Auth state persistence is set with ``setPersistence`` and specifies how a
+    // user session is persisted on a device. We choose in memory persistence by
+    // default because many students will access the ROAR on shared devices in
+    // the classroom.
+    setPersistence(this.app.auth, inMemoryPersistence);
+
+    // Firestore offline data persistence enables Cloud Firestore data caching
+    // when the device is offline.
+    roarEnableIndexedDbPersistence(this.app.db);
+
+    const adminFirebaseApp = initializeApp(roarConfig.admin);
+    this.admin = {
+      firebaseApp: adminFirebaseApp,
+      auth: getAuth(adminFirebaseApp),
+      db: getFirestore(adminFirebaseApp),
+    };
+
+    // See above comments about the two types of persistence here.
+    setPersistence(this.admin.auth, inMemoryPersistence);
+    roarEnableIndexedDbPersistence(this.admin.db);
+  }
+
+  //           +------------------------------+
+  // ----------| Begin Authentication Methods |----------
+  //           +------------------------------+
+  async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
+    return createUserWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
+      this.admin.user = adminUserCredential.user;
+      createUserWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
+        this.app.user = appUserCredential.user;
+      });
+    });
+  }
+
+  async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
+    return signInWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
+      this.admin.user = adminUserCredential.user;
+      signInWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
+        this.app.user = appUserCredential.user;
+      });
+    });
+  }
+
+  async signInWithGooglePopup() {
+    const provider = new GoogleAuthProvider();
+    const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
+    const swallowAllowedErrors = (error: AuthError) => {
+      if (!allowedErrors.includes(error.code)) {
+        throw error;
       }
-    });
-    // Subsequent queries will use persistence, if it was enabled successfully
-
-    this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
+    };
+    signInWithPopup(this.admin.auth, provider)
+      .then((adminUserCredential) => {
+        // This gives you a Google Access Token. You can use it to access the Google API.
+        // let credential = GoogleAuthProvider.credentialFromResult(result);
+        this.admin.user = adminUserCredential.user;
+      })
+      .catch(swallowAllowedErrors)
+      .then(() => {
+        signInWithPopup(this.app.auth, provider)
+          .then((appUserCredential) => {
+            // credential = GoogleAuthProvider.credentialFromResult(result);
+            this.app.user = appUserCredential.user;
+          })
+          .catch(swallowAllowedErrors);
+      });
   }
 
-  /**
-   * Start the ROAR run. Push the task, user, and run info to Firestore
-   * Call this method before starting the jsPsych experiment.
-   * @method
-   * @async
-   */
-  async startRun() {
-    const auth = await firebaseSignIn(this.userInfo.id);
-    this.user = new RoarUser({
-      ...this.userInfo,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      firebaseUid: auth.currentUser!.uid,
-    });
-    this.user.setRefs(this.rootDoc);
-
-    this.task = new RoarTaskVariant(this.taskInfo);
-    this.task.setRefs(this.rootDoc);
-
-    this.run = new RoarRun({ user: this.user, task: this.task });
-
-    return (
-      this.task
-        .toFirestore()
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .then(() => this.user!.toFirestore())
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .then(() => this.run!.startRun())
-    );
+  async initiateGoogleRedirect() {
+    const provider = new GoogleAuthProvider();
+    return signInWithRedirect(this.admin.auth, provider);
   }
 
-  /**
-   * Finish the ROAR run by marking it as finished in Firestore.
-   * Call this method after the jsPsych experiment finishes. For example:
-   *
-   * ```javascript
-   * jsPsych.init({
-   *   timeline: exp,
-   *   on_finish: function(data) {
-   *     firekit.finishRun();
-   *   }
-   * });
-   * ```
-   * @method
-   * @async
-   */
-  async finishRun() {
-    if (this.run) {
-      return this.run.finishRun().then(() => firebaseSignOut());
-    } else {
-      throw new Error('Run is undefined. Use the startRun method first.');
+  async signInFromRedirectResult(enableCookiesCallback: () => void) {
+    const catchEnableCookiesError = (error: AuthError) => {
+      if (error.code == 'auth/web-storage-unsupported') {
+        enableCookiesCallback();
+      } else {
+        throw error;
+      }
+    };
+
+    return getRedirectResult(this.admin.auth)
+      .then((adminUserCredential) => {
+        if (adminUserCredential !== null) {
+          // This gives you a Google Access Token. You can use it to access Google APIs.
+          // const credential = GoogleAuthProvider.credentialFromResult(result);
+          // const token = credential.accessToken;
+
+          // The signed-in user info.
+          this.admin.user = adminUserCredential.user;
+        }
+      })
+      .catch(catchEnableCookiesError)
+      .then(() => {
+        getRedirectResult(this.app.auth)
+          .then((appUserCredential) => {
+            if (appUserCredential !== null) {
+              this.app.user = appUserCredential.user;
+            }
+          })
+          .catch(catchEnableCookiesError);
+      });
+  }
+
+  async signOut() {
+    return this.app.auth.signOut().then(() => {
+      this.app.user = undefined;
+      this.admin.auth.signOut().then(() => {
+        this.admin.user = undefined;
+      });
+    });
+  }
+  //           +------------------------------+
+  // ----------|  End Authentication Methods  |----------
+  //           +------------------------------+
+
+  async getUserAdminData() {
+    if (this.admin.user == undefined) {
+      throw new Error('User is not authenticated.');
     }
-  }
 
-  /**
-   * Add new trial data to this run on Firestore.
-   *
-   * This method can be added to individual jsPsych trials by calling it from
-   * the `on_finish` function, like so:
-   *
-   * ```javascript
-   * var trial = {
-   *   type: 'image-keyboard-response',
-   *   stimulus: 'imgA.png',
-   *   on_finish: function(data) {
-   *     firekit.addTrialData(data);
-   *   }
-   * };
-   * ```
-   *
-   * Or you can call it from all trials in a jsPsych
-   * timeline by calling it from the `on_data_update` callback. In the latter
-   * case, you can avoid saving extraneous trials by conditionally calling
-   * this method based on the data. For example:
-   *
-   * ```javascript
-   * const timeline = [
-   *   // A fixation trial; don't save to Firestore
-   *   {
-   *     type: htmlKeyboardResponse,
-   *     stimulus: '<div style="font-size:60px;">+</div>',
-   *     choices: "NO_KEYS",
-   *     trial_duration: 500,
-   *   },
-   *   // A stimulus and response trial; save to Firestore
-   *   {
-   *     type: imageKeyboardResponse,
-   *     stimulus: 'imgA.png',
-   *     data: { saveToFirestore: true },
-   *   }
-   * ]
-   * jsPsych.init({
-   *   timeline: timeline,
-   *   on_data_update: function(data) {
-   *     if (data.saveToFirestore) {
-   *       firekit.addTrialData(data);
-   *     }
-   *   }
-   * });
-   * ```
-   *
-   * @method
-   * @async
-   * @param {*} trialData - An object containing trial data.
-   */
-  async writeTrial(trialData: Record<string, unknown>) {
-    if (this.run) {
-      return this.run.writeTrial(trialData);
-    } else {
-      throw new Error('Run is undefined. Use the startRun method first.');
+    const userDocRef = doc(this.admin.db, 'users', this.admin.user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+      this.userData = userDocSnap.data();
+      for (const dataType of Object.values(supplementalDataType)) {
+        const docRef = doc(userDocRef, dataType);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          this.userData[dataType] = docSnap.data();
+        }
+      }
+
+      // TODO: Retrieve externalData from sources like clever
+      const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
+      let externalData = {};
+      externalDataSnapshot.forEach((doc) => {
+        // doc.data() is never undefined for query doc snapshots returned by ``getDocs``
+        externalData = {
+          ...externalData,
+          [doc.id]: doc.data(),
+        };
+      });
+      this.userData.externalData = externalData;
     }
   }
 }

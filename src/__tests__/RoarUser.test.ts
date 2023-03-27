@@ -51,7 +51,7 @@ describe('RoarUser', () => {
     expect(user.studyId).toBe(userInput.studyId);
     expect(user.userCategory).toBe(userInput.userCategory);
     expect(user.isPushedToFirestore).toBe(false);
-    expect(user.userRef).toBeUndefined();
+    expect(user.assessmentDocRef).toBeUndefined();
   });
 
   it('validates userCategory input', async () => {
@@ -67,9 +67,9 @@ describe('RoarUser', () => {
     const userInput = await getRandomUserInput();
     const user = new RoarUser(userInput);
     user.setRefs(rootDoc);
-    expect(user.userRef).toBeInstanceOf(DocumentReference);
+    expect(user.assessmentDocRef).toBeInstanceOf(DocumentReference);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    expect(user.userRef!.id).toBe(doc(rootDoc, 'users', user.id).id);
+    expect(user.assessmentDocRef!.id).toBe(doc(rootDoc, 'users', user.id).id);
   });
 
   it('throws if trying to write to Firestore before setting refs', async () => {
@@ -104,7 +104,7 @@ describe('RoarUser', () => {
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const docSnap = await getDoc(user.userRef!);
+      const docSnap = await getDoc(user.assessmentDocRef!);
       expect(docSnap.exists()).toBe(true);
       expect(docSnap.data()).toEqual(
         expect.objectContaining({
@@ -128,7 +128,7 @@ describe('RoarUser', () => {
     } finally {
       // Delete the user document and sign out
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(user.userRef!);
+      await deleteDoc(user.assessmentDocRef!);
     }
   });
 
@@ -139,7 +139,7 @@ describe('RoarUser', () => {
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await setDoc(user.userRef!, {
+      await setDoc(user.assessmentDocRef!, {
         firebaseUid: userInput.firebaseUid,
       });
 
@@ -154,7 +154,7 @@ describe('RoarUser', () => {
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const docSnap = await getDoc(user.userRef!);
+      const docSnap = await getDoc(user.assessmentDocRef!);
       expect(docSnap.exists()).toBe(true);
       expect(docSnap.data()).toEqual(
         expect.objectContaining({
@@ -177,7 +177,7 @@ describe('RoarUser', () => {
     } finally {
       // Delete the user document and sign out
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(user.userRef!);
+      await deleteDoc(user.assessmentDocRef!);
     }
   });
 
@@ -188,7 +188,7 @@ describe('RoarUser', () => {
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await setDoc(user.userRef!, {
+      await setDoc(user.assessmentDocRef!, {
         firebaseUid: userInput.firebaseUid,
       });
       await user.updateFirestoreTimestamp();
@@ -201,7 +201,7 @@ describe('RoarUser', () => {
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const docSnap = await getDoc(user.userRef!);
+      const docSnap = await getDoc(user.assessmentDocRef!);
       expect(docSnap.exists()).toBe(true);
       expect(docSnap.data()).toEqual(
         expect.objectContaining({
@@ -212,7 +212,7 @@ describe('RoarUser', () => {
     } finally {
       // Delete the user document and sign out
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(user.userRef!);
+      await deleteDoc(user.assessmentDocRef!);
     }
   });
 

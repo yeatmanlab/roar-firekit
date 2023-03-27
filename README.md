@@ -14,16 +14,16 @@ npm i @bdelab/roar-firekit
 
 Roar-firekit is agnostic about where your data comes from, but I anticipate most users will use roar-firekit with their experiments written in [jsPsych](https://www.jspsych.org/).
 
-The main entrypoint to roar-firekit's API is the [[`RoarFirekit`]] class.  Its
+The main entrypoint to roar-firekit's API is the [[`RoarAppFirekit`]] class.  Its
 constructor expects an object with keys `userInfo`, `taskInfo`, and `config`, where
-`userInfo` is a [[`UserData`]] object, `taskInfo` is a
-[[`TaskVariantInput`]] object, and `config` is a [[`ConfigData`]] object.
+`userInfo` is a [[`IUserData`]] object, `taskInfo` is a
+[[`ITaskVariantInput`]] object, and `config` is a [[`AssessmentConfigData`]] object.
 
 ### Constructor inputs
 
 #### `userInfo`
 
-User information is encapsulated in a [[`UserData`]] object. Its only required
+User information is encapsulated in a [[`IUserData`]] object. Its only required
 key is `id`, which should be the current user's ROAR UID, which is also sometimes called the ROAR PID:
 
 ```javascript
@@ -47,7 +47,7 @@ const fullUserInfo = {
 
 #### `taskInfo`
 
-Information about the current task is encapsulated in a [[`TaskVariantInput`]] object. Here is the task information for a fictitious "Not Hotdog" task:
+Information about the current task is encapsulated in a [[`ITaskVariantInput`]] object. Here is the task information for a fictitious "Not Hotdog" task:
 
 ```javascript
 const taskInfo = {
@@ -103,12 +103,12 @@ The `rootDoc` is an array of strings representing the document under which all R
 With the above defined input, you would construct a firekit using
 
 ```javascript
-import { RoarFirekit } from '@bdelab/roar-firekit';
+import { RoarAppFirekit } from '@bdelab/roar-firekit';
 import { roarConfig } from './roarConfig.js';
 
 // Insert input definition code from above
 
-const firekit = new RoarFirekit({
+const firekit = new RoarAppFirekit({
   userInfo: minimalUserInfo,
   taskInfo,
   config: roarConfig,
@@ -212,7 +212,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
   import preload from '@jspsych/plugin-preload';
   import htmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
   import imageButtonResponse from '@jspsych/plugin-image-button-response';
-  import { RoarFirekit } from '@bdelab/roar-firekit';
+  import { RoarAppFirekit } from '@bdelab/roar-firekit';
   import { roarConfig } from "./roarConfig.js";
 
   const taskInfo = {
@@ -232,7 +232,7 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
 
   const minimalUserInfo = { id: 'roar-user-id' };
 
-  const firekit = new RoarFirekit({
+  const firekit = new RoarAppFirekit({
     userInfo: minimalUserInfo,
     taskInfo,
     config: roarConfig,

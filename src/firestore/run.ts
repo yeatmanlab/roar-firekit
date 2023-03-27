@@ -76,7 +76,7 @@ export const calculateRunScores = async (runRef: DocumentReference): Promise<obj
   };
 };
 
-export interface RunInput {
+export interface IRunInput {
   user: RoarUser;
   task: RoarTaskVariant;
 }
@@ -96,15 +96,15 @@ export class RoarRun {
    * @param {RoarUser} user - The user running the task
    * @param {RoarTaskVariant} task - The task variant being run
    */
-  constructor({ user, task }: RunInput) {
+  constructor({ user, task }: IRunInput) {
     if (!(user.userCategory === 'student')) {
       throw new Error('Only students can start a run.');
     }
 
     this.user = user;
     this.task = task;
-    if (this.user.userRef) {
-      this.runRef = doc(collection(this.user.userRef, 'runs'));
+    if (this.user.assessmentDocRef) {
+      this.runRef = doc(collection(this.user.assessmentDocRef, 'runs'));
     } else {
       throw new Error('User refs not set. Please use the user.setRefs method first.');
     }
@@ -143,7 +143,7 @@ export class RoarRun {
     await setDoc(this.runRef, runData)
       .then(() => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        return updateDoc(this.user.userRef!, {
+        return updateDoc(this.user.assessmentDocRef!, {
           tasks: arrayUnion(this.task.taskId),
           variants: arrayUnion(this.task.variantId),
           taskRefs: arrayUnion(this.task.taskRef),

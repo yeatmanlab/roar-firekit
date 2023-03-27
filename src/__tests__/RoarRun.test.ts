@@ -143,7 +143,7 @@ describe('RoarRun', () => {
       await run.startRun();
 
       // Confirm that user and task are now pushed to Firestore
-      expect(run.user.userRef).toBeInstanceOf(DocumentReference);
+      expect(run.user.assessmentDocRef).toBeInstanceOf(DocumentReference);
       expect(run.task.taskRef).toBeInstanceOf(DocumentReference);
       expect(run.task.variantRef).toBeInstanceOf(DocumentReference);
       expect(run.started).toBe(true);
@@ -156,7 +156,7 @@ describe('RoarRun', () => {
 
       // Expect that the task was added to the user doc
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const userdocSnap = await getDoc(user.userRef!);
+      const userdocSnap = await getDoc(user.assessmentDocRef!);
       expect(userdocSnap.exists()).toBe(true);
       expect(userdocSnap.data()).toEqual(
         expect.objectContaining({
@@ -196,7 +196,7 @@ describe('RoarRun', () => {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await deleteDoc(run.runRef!);
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.user.userRef!);
+      await deleteDoc(run.user.assessmentDocRef!);
     }
   });
 
@@ -249,7 +249,7 @@ describe('RoarRun', () => {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await deleteDoc(run.runRef!);
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.user.userRef!);
+      await deleteDoc(run.user.assessmentDocRef!);
     }
   });
 
@@ -332,7 +332,7 @@ describe('RoarRun', () => {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await deleteDoc(run.runRef!);
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteDoc(run.user.userRef!);
+      await deleteDoc(run.user.assessmentDocRef!);
     }
   });
 });

@@ -9,9 +9,9 @@ import {
 } from 'firebase/firestore';
 import { removeNull } from './util';
 
-export type userCategoryType = 'student' | 'educator' | 'researcher';
+export type userCategoryType = 'student' | 'educator' | 'researcher' | 'admin' | 'caregiver';
 
-export interface UserData {
+export interface IUserData {
   id: string;
   birthMonth?: number | null;
   birthYear?: number | null;
@@ -23,11 +23,11 @@ export interface UserData {
   userMetadata?: Record<string, unknown>;
 }
 
-export interface UserInput extends UserData {
+export interface IUserInput extends IUserData {
   firebaseUid: string;
 }
 
-interface FirestoreUserData {
+interface IFirestoreUserData {
   id: string;
   firebaseUid: string;
   birthMonth?: number | null;
@@ -68,7 +68,8 @@ export class RoarUser {
   studyId: string | null;
   userCategory: userCategoryType;
   isPushedToFirestore: boolean;
-  userRef: DocumentReference | undefined;
+  assessmentDocRef: DocumentReference | undefined;
+  adminDocRef: DocumentReference | undefined;
   userMetadata: Record<string, unknown>;
   constructor({
     id,
@@ -81,8 +82,8 @@ export class RoarUser {
     studyId = null,
     userCategory = 'student' as const,
     userMetadata = {},
-  }: UserInput) {
-    const allowedUserCategories: string[] = ['student', 'educator', 'researcher'];
+  }: IUserInput) {
+    const allowedUserCategories: string[] = ['student', 'educator', 'researcher', 'admin', 'caregiver'];
     if (!allowedUserCategories.includes(userCategory)) {
       throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
     }
@@ -98,7 +99,8 @@ export class RoarUser {
     this.userCategory = userCategory as userCategoryType;
     this.userMetadata = userMetadata;
 
-    this.userRef = undefined;
+    this.assessmentDocRef = undefined;
+    this.adminDocRef = undefined;
     this.isPushedToFirestore = false;
   }
 
@@ -106,7 +108,8 @@ export class RoarUser {
    * @param {DocumentReference} rootDoc - The root document reference
    */
   setRefs(rootDoc: DocumentReference) {
-    this.userRef = doc(rootDoc, 'users', this.id);
+    this.assessmentDocRef = doc(rootDoc, 'users', this.id);
+    this.adminDocRef = doc('users', this.id);
   }
 
   /**
@@ -115,10 +118,10 @@ export class RoarUser {
    * @async
    */
   async toFirestore() {
-    if (this.userRef === undefined) {
+    if (this.assessmentDocRef === undefined) {
       throw new Error('User refs not set. Please use the setRefs method first.');
     } else {
-      const userData: FirestoreUserData = {
+      const userData: IFirestoreUserData = {
         id: this.id,
         firebaseUid: this.firebaseUid,
         birthMonth: this.birthMonth,
@@ -139,14 +142,14 @@ export class RoarUser {
       if (this.schoolId) userData.schools = arrayUnion(this.schoolId);
       if (this.classId) userData.classes = arrayUnion(this.classId);
 
-      return updateDoc(this.userRef, removeNull(userData))
+      return updateDoc(this.assessmentDocRef, removeNull(userData))
         .catch((error: FirestoreError) => {
           const errorCode = error.code;
           if (errorCode === 'permission-denied') {
             // The ROAR Firestore rules are written such that if we get here, the
             // user does not currently exist in Firestore. So create them.
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            return setDoc(this.userRef!, {
+            return setDoc(this.assessmentDocRef!, {
               ...userData,
               ...this.userMetadata,
               createdAt: serverTimestamp(),
@@ -167,10 +170,10 @@ export class RoarUser {
    * @async
    */
   async updateFirestoreTimestamp() {
-    if (this.userRef === undefined) {
+    if (this.assessmentDocRef === undefined) {
       throw new Error('User refs not set. Please use the setRefs method first.');
     } else {
-      updateDoc(this.userRef, {
+      updateDoc(this.assessmentDocRef, {
         lastUpdated: serverTimestamp(),
       });
     }
