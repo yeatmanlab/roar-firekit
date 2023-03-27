@@ -60,7 +60,7 @@ describe('RoarUser', () => {
       const invalidInput = Object.create(userInput);
       invalidInput.userCategory = 'superhero';
       new RoarUser(invalidInput);
-    }).rejects.toThrow('User category must be one of student, educator, researcher.');
+    }).rejects.toThrow('User category must be one of student, educator, researcher, admin, caregiver.');
   });
 
   it('sets Firestore document references', async () => {
