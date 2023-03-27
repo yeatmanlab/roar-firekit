@@ -57,7 +57,7 @@ export class RoarAppFirekit {
     this.task = undefined;
     this.run = undefined;
 
-    const firebaseApp = initializeApp(config.firebaseConfig);
+    const firebaseApp = initializeApp(config.firebaseConfig, 'app-firestore');
     const db = getFirestore(firebaseApp);
 
     enableIndexedDbPersistence(db).catch((err) => {
