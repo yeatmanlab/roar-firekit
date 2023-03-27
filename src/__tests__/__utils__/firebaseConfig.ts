@@ -13,6 +13,6 @@ const firebaseConfig = {
   measurementId: process.env.ROAR_FIREBASE_MEASUREMENT_ID || '',
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
+export const firebaseApp = initializeApp(firebaseConfig, 'unittest');
 const db = getFirestore(firebaseApp);
 export const rootDoc = doc(collection(db, 'ci'), 'test-root-doc');

@@ -2,18 +2,8 @@ import { IUserData, RoarUser } from './user';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
-import { initializeApp } from 'firebase/app';
-import { enableIndexedDbPersistence, getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
-
-export interface FirebaseConfigData {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-  measurementId: string;
-}
+import { getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
+import { FirebaseConfigData, roarEnableIndexedDbPersistence, safeInitializeApp } from './util';
 
 export interface AssessmentConfigData {
   firebaseConfig: FirebaseConfigData;
@@ -57,25 +47,9 @@ export class RoarAppFirekit {
     this.task = undefined;
     this.run = undefined;
 
-    const firebaseApp = initializeApp(config.firebaseConfig, 'app-firestore');
+    const firebaseApp = safeInitializeApp(config.firebaseConfig, 'app-firestore');
     const db = getFirestore(firebaseApp);
-
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code == 'failed-precondition') {
-        console.log(
-          "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-        );
-        // Multiple tabs open, persistence can only be enabled
-        // in one tab at a a time.
-        // ...
-      } else if (err.code == 'unimplemented') {
-        console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-        // The current browser does not support all of the
-        // features required to enable persistence
-        // ...
-      }
-    });
-    // Subsequent queries will use persistence, if it was enabled successfully
+    roarEnableIndexedDbPersistence(db);
 
     this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
   }
