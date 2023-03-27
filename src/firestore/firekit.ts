@@ -1,4 +1,5 @@
 import { FirebaseConfigData, RoarAppFirekit } from './appfirekit';
+import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { roarEnableIndexedDbPersistence } from './util';
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import {
@@ -62,7 +63,7 @@ export class RoarFirekit {
   constructor({ roarConfig }: { roarConfig: IRoarConfigData }) {
     this.roarConfig = roarConfig;
 
-    const assessmentFirebaseApp = initializeApp(roarConfig.app);
+    const assessmentFirebaseApp = initializeApp(roarConfig.app, 'app');
     this.app = {
       firebaseApp: assessmentFirebaseApp,
       auth: getAuth(assessmentFirebaseApp),
@@ -79,7 +80,7 @@ export class RoarFirekit {
     // when the device is offline.
     roarEnableIndexedDbPersistence(this.app.db);
 
-    const adminFirebaseApp = initializeApp(roarConfig.admin);
+    const adminFirebaseApp = initializeApp(roarConfig.admin, 'admin');
     this.admin = {
       firebaseApp: adminFirebaseApp,
       auth: getAuth(adminFirebaseApp),
@@ -218,4 +219,6 @@ export class RoarFirekit {
       this.userData.externalData = externalData;
     }
   }
+
+  // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
 }
