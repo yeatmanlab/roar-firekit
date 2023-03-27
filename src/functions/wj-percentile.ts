@@ -13,7 +13,7 @@ export class WJPercentile {
 
   // the lookup tables are stored in the root folder "/lookup-tables"
   // the file name follows the convention [TASK ID]-theta-table-[VERSION ID].csv
-  public getLookupTablePath(taskId: string, version: string) {
+  public static getLookupTablePath(taskId: string, version: string) {
     return path.join('lookup-tables', `${taskId}-theta-table-${version}.csv`);
   }
 
@@ -30,7 +30,7 @@ export class WJPercentile {
 
     // return null scores if age is not valid
     if (age === 'Adult') {
-      return adultAge;
+      return adultAge * 12;
     } else if (age === '') {
       return null;
     }
@@ -91,7 +91,7 @@ export class WJPercentile {
     tableVersion: Number = SWR_LOOKUP_TABLE_VERSION,
   ) {
     // read table
-    const swrTablePath = this.getLookupTablePath(TASK_ID_SWR, tableVersion.toString());
+    const swrTablePath = WJPercentile.getLookupTablePath(TASK_ID_SWR, tableVersion.toString());
     const swrTable = await this.clientCloudStorage.readFile(swrTablePath);
 
     for (let i = 0; i < data.length; i++) {
