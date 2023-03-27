@@ -1,7 +1,7 @@
 import { FirebaseConfigData, RoarAppFirekit } from './appfirekit';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { roarEnableIndexedDbPersistence } from './util';
-import { initializeApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, FirebaseApp, getApp, FirebaseError } from 'firebase/app';
 import {
   Auth,
   AuthError,
@@ -17,6 +17,7 @@ import {
   signInWithRedirect,
 } from 'firebase/auth';
 import { collection, doc, DocumentData, Firestore, getDoc, getDocs, getFirestore } from 'firebase/firestore';
+import _isEqual from 'lodash/isEqual';
 
 interface IRoarConfigData {
   app: FirebaseConfigData;
@@ -48,6 +49,22 @@ interface IRoarUserData extends DocumentData {
   };
 }
 
+const safeInitializeApp = (config: FirebaseConfigData, name: string) => {
+  try {
+    const app = getApp(name);
+    if (!_isEqual(app.options, config)) {
+      throw new Error(`There is an existing firebase app named ${name} with different configuration options.`);
+    }
+    return app;
+  } catch (error) {
+    if (error.code === 'app/no-app') {
+      return initializeApp(config, name);
+    } else {
+      throw error;
+    }
+  }
+};
+
 export class RoarFirekit {
   roarConfig: IRoarConfigData;
   app: IFirekit;
@@ -63,7 +80,7 @@ export class RoarFirekit {
   constructor({ roarConfig }: { roarConfig: IRoarConfigData }) {
     this.roarConfig = roarConfig;
 
-    const assessmentFirebaseApp = initializeApp(roarConfig.app, 'app');
+    const assessmentFirebaseApp = safeInitializeApp(roarConfig.app, 'app');
     this.app = {
       firebaseApp: assessmentFirebaseApp,
       auth: getAuth(assessmentFirebaseApp),
@@ -80,7 +97,7 @@ export class RoarFirekit {
     // when the device is offline.
     roarEnableIndexedDbPersistence(this.app.db);
 
-    const adminFirebaseApp = initializeApp(roarConfig.admin, 'admin');
+    const adminFirebaseApp = safeInitializeApp(roarConfig.admin, 'admin');
     this.admin = {
       firebaseApp: adminFirebaseApp,
       auth: getAuth(adminFirebaseApp),
