@@ -1,17 +1,14 @@
 import { initializeProjectFirekit } from './util';
 // import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { FirebaseConfigData, roarEnableIndexedDbPersistence, safeInitializeApp } from './util';
+import { FirebaseConfigData } from './util';
 import { FirebaseApp } from 'firebase/app';
 import {
   Auth,
   AuthError,
-  inMemoryPersistence,
   GoogleAuthProvider,
   User,
   createUserWithEmailAndPassword,
-  getAuth,
   getRedirectResult,
-  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
