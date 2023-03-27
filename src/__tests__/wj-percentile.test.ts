@@ -1,7 +1,12 @@
-import { WJPercentile } from './../functions/wj-percentile';
+import { MockStorage } from './mock-storage';
 
-const wjPercentileClient = new WJPercentile();
 const SWR_LOOKUP_TABLE_TEST_VERSION = 0.1;
+jest.doMock('@google-cloud/storage', () => ({
+  Storage: MockStorage
+}));
+
+import { WJPercentile } from './../functions/wj-percentile';
+const wjPercentileClient = new WJPercentile();
 
 describe('WJPercentile class', () => {
   test('test the getLookupTablePath function', () => {
@@ -9,7 +14,7 @@ describe('WJPercentile class', () => {
 
     for (const taskId of taskIds) {
       const expected = `lookup-tables/${taskId}-theta-table-${SWR_LOOKUP_TABLE_TEST_VERSION}.csv`;
-      expect(wjPercentileClient.getLookupTablePath(taskId, SWR_LOOKUP_TABLE_TEST_VERSION.toString())).toBe(expected);
+      expect(WJPercentile.getLookupTablePath(taskId, SWR_LOOKUP_TABLE_TEST_VERSION.toString())).toBe(expected);
     }
   });
 
@@ -17,7 +22,7 @@ describe('WJPercentile class', () => {
     const values = [
       [undefined, null],
       [null, null],
-      ['Adult', 18],
+      ['Adult', 216],
       ['10+', 120],
       ['     12       ', 144],
     ];
@@ -113,6 +118,8 @@ describe('WJPercentile class', () => {
         wjPercentile: null,
       },
     ];
+    
+    
 
     const actual = await wjPercentileClient.getWJPercentileScore(data, users);
 
