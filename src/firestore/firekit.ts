@@ -11,7 +11,17 @@ import {
   signInWithRedirect,
   signInWithCredential,
 } from 'firebase/auth';
-import { collection, doc, DocumentData, Firestore, getDoc, getDocs, getFirestore } from 'firebase/firestore';
+import {
+  DocumentData,
+  Firestore,
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+} from 'firebase/firestore';
 import { FirebaseConfigData, initializeProjectFirekit } from './util';
 // import { ITaskVariantInput, RoarTaskVariant } from './task';
 
@@ -161,7 +171,7 @@ export class RoarFirekit {
   //           +------------------------------+
 
   async getUserAdminData() {
-    if (this.admin.user == undefined) {
+    if (this.admin.user === undefined) {
       throw new Error('User is not authenticated.');
     }
 
@@ -179,7 +189,6 @@ export class RoarFirekit {
         }
       }
 
-      // TODO: Retrieve externalData from sources like clever
       const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
       let externalData = {};
       externalDataSnapshot.forEach((doc) => {
@@ -191,6 +200,31 @@ export class RoarFirekit {
       });
       this.userData.externalData = externalData;
     }
+  }
+
+  async getAdminRoles() {
+    if (this.admin.user === undefined) {
+      throw new Error('User is not authenticated.');
+    }
+
+    const adminCollection = collection(this.app.db, 'admin');
+    const q = query(adminCollection);
+    const querySnapshot = await getDocs(q);
+
+    const roles: { [x: string]: boolean } = {};
+    querySnapshot.forEach((doc) => {
+      roles[doc.id.replace(/s$/, '')] = doc.data().users.includes(this.app.user?.uid);
+    });
+    return roles;
+  }
+
+  async addUserToAdminRequests() {
+    const adminCollection = collection(this.app.db, 'admin');
+    const requestsRef = doc(adminCollection, 'requests');
+
+    await updateDoc(requestsRef, {
+      users: arrayUnion(this.app.user?.uid),
+    });
   }
 
   // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
