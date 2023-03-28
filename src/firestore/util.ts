@@ -70,7 +70,7 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
   // user session is persisted on a device. We choose in memory persistence by
   // default because many students will access the ROAR on shared devices in the
   // classroom.
-  setPersistence(kit.auth, inMemoryPersistence);
+  // setPersistence(kit.auth, inMemoryPersistence);
 
   // Firestore offline data persistence enables Cloud Firestore data caching
   // when the device is offline.

@@ -1,12 +1,8 @@
 import {
-  GoogleAuthProvider,
   UserCredential,
   createUserWithEmailAndPassword,
   getAuth,
-  getRedirectResult,
   signInWithEmailAndPassword,
-  signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from 'firebase/auth';
 import { v5 as uuidv5 } from 'uuid';

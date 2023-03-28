@@ -1,6 +1,3 @@
-import { initializeProjectFirekit } from './util';
-// import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { FirebaseConfigData } from './util';
 import { FirebaseApp } from 'firebase/app';
 import {
   Auth,
@@ -12,8 +9,11 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
 } from 'firebase/auth';
 import { collection, doc, DocumentData, Firestore, getDoc, getDocs, getFirestore } from 'firebase/firestore';
+import { FirebaseConfigData, initializeProjectFirekit } from './util';
+// import { ITaskVariantInput, RoarTaskVariant } from './task';
 
 interface IRoarConfigData {
   app: FirebaseConfigData;
@@ -69,7 +69,7 @@ export class RoarFirekit {
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     return createUserWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
       this.admin.user = adminUserCredential.user;
-      createUserWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
+      return createUserWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
         this.app.user = appUserCredential.user;
       });
     });
@@ -78,7 +78,7 @@ export class RoarFirekit {
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     return signInWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
       this.admin.user = adminUserCredential.user;
-      signInWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
+      return signInWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
         this.app.user = appUserCredential.user;
       });
     });
@@ -92,20 +92,22 @@ export class RoarFirekit {
         throw error;
       }
     };
-    signInWithPopup(this.admin.auth, provider)
-      .then((adminUserCredential) => {
+    return signInWithPopup(this.app.auth, provider)
+      .then((appUserCredential) => {
         // This gives you a Google Access Token. You can use it to access the Google API.
-        // let credential = GoogleAuthProvider.credentialFromResult(result);
-        this.admin.user = adminUserCredential.user;
+        this.app.user = appUserCredential.user;
+        return GoogleAuthProvider.credentialFromResult(appUserCredential);
       })
       .catch(swallowAllowedErrors)
-      .then(() => {
-        signInWithPopup(this.app.auth, provider)
-          .then((appUserCredential) => {
-            // credential = GoogleAuthProvider.credentialFromResult(result);
-            this.app.user = appUserCredential.user;
-          })
-          .catch(swallowAllowedErrors);
+      .then((credential) => {
+        if (credential) {
+          return signInWithCredential(this.admin.auth, credential)
+            .then((adminUserCredential) => {
+              // credential = GoogleAuthProvider.credentialFromResult(result);
+              this.admin.user = adminUserCredential.user;
+            })
+            .catch(swallowAllowedErrors);
+        }
       });
   }
 
@@ -126,30 +128,30 @@ export class RoarFirekit {
     return getRedirectResult(this.admin.auth)
       .then((adminUserCredential) => {
         if (adminUserCredential !== null) {
+          this.admin.user = adminUserCredential.user;
+
           // This gives you a Google Access Token. You can use it to access Google APIs.
           // const credential = GoogleAuthProvider.credentialFromResult(result);
           // const token = credential.accessToken;
-
-          // The signed-in user info.
-          this.admin.user = adminUserCredential.user;
+          return GoogleAuthProvider.credentialFromResult(adminUserCredential);
         }
       })
       .catch(catchEnableCookiesError)
-      .then(() => {
-        getRedirectResult(this.app.auth)
-          .then((appUserCredential) => {
+      .then((credential) => {
+        if (credential) {
+          return signInWithCredential(this.app.auth, credential).then((appUserCredential) => {
             if (appUserCredential !== null) {
               this.app.user = appUserCredential.user;
             }
-          })
-          .catch(catchEnableCookiesError);
+          });
+        }
       });
   }
 
   async signOut() {
     return this.app.auth.signOut().then(() => {
       this.app.user = undefined;
-      this.admin.auth.signOut().then(() => {
+      return this.admin.auth.signOut().then(() => {
         this.admin.user = undefined;
       });
     });
