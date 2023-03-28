@@ -13,7 +13,7 @@ import {
 } from 'firebase/auth';
 import { collection, doc, DocumentData, Firestore, getDoc, getDocs, getFirestore } from 'firebase/firestore';
 import { FirebaseConfigData, initializeProjectFirekit } from './util';
-// import { ITaskVariantInput, RoarTaskVariant } from './task';
+import { ITaskVariantInput, RoarTaskVariant } from './task';
 
 interface IRoarConfigData {
   app: FirebaseConfigData;
@@ -193,5 +193,9 @@ export class RoarFirekit {
     }
   }
 
-  // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
+  createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]) {
+    const appConfig = null;
+    const userInfo = null;
+    return { appConfig, userInfo };
+  }
 }
