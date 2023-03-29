@@ -66,11 +66,11 @@ export class RoarFirekit {
    * @param {{roarConfig: IRoarConfigData }=} destructuredParam
    *     roarConfig: The ROAR firebase config object
    */
-  constructor({ roarConfig }: { roarConfig: IRoarConfigData }) {
+  constructor({ roarConfig, enableDbPersistence }: { roarConfig: IRoarConfigData; enableDbPersistence: boolean }) {
     this.roarConfig = roarConfig;
 
-    this.app = initializeProjectFirekit(roarConfig.app, 'app');
-    this.admin = initializeProjectFirekit(roarConfig.admin, 'admin');
+    this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence);
+    this.admin = initializeProjectFirekit(roarConfig.admin, 'admin', enableDbPersistence);
   }
 
   //           +------------------------------+
@@ -202,7 +202,7 @@ export class RoarFirekit {
     }
   }
 
-  async getAdminRoles() {
+  async getUserAdminRoles() {
     if (this.admin.user === undefined) {
       throw new Error('User is not authenticated.');
     }

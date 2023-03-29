@@ -58,7 +58,7 @@ export const safeInitializeApp = (config: FirebaseConfigData, name: string) => {
   }
 };
 
-export const initializeProjectFirekit = (config: FirebaseConfigData, name: string) => {
+export const initializeProjectFirekit = (config: FirebaseConfigData, name: string, enableDbPersistence = true) => {
   const app = safeInitializeApp(config, name);
   const kit = {
     firebaseApp: app,
@@ -72,9 +72,60 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
   // classroom.
   // setPersistence(kit.auth, inMemoryPersistence);
 
-  // Firestore offline data persistence enables Cloud Firestore data caching
-  // when the device is offline.
-  roarEnableIndexedDbPersistence(kit.db);
+  if (enableDbPersistence) {
+    // Firestore offline data persistence enables Cloud Firestore data caching
+    // when the device is offline.
+    roarEnableIndexedDbPersistence(kit.db);
+  }
 
   return kit;
+};
+
+/** Get unique entries from a single id string and an array of id strings
+ *
+ *
+ * @function
+ * @param {string} id - a single id string
+ * @param {string[]} idArray - an array of id strings
+ * @returns {string[]} the merged array of unique ids
+ */
+export const mergeIds = (id: string | undefined, idArray: string[] | undefined) => {
+  const resultIds: string[] = [];
+  if (id) resultIds.push(id);
+  if (idArray && idArray.length) resultIds.push(...idArray);
+
+  return [...new Set(resultIds)];
+};
+
+export interface IUserDocument {
+  districtId?: string;
+  schoolId?: string;
+  schools?: string[];
+  classId?: string;
+  classes?: string[];
+  studyId?: string;
+  studies?: string[];
+}
+
+export const getOrgs = (docData: IUserDocument) => {
+  const { districtId, schoolId, schools, classId, classes, studyId, studies } = docData;
+  const districtIds = mergeIds(districtId, undefined);
+  const schoolIds = mergeIds(schoolId, schools);
+  const classIds = mergeIds(classId, classes);
+  const studyIds = mergeIds(studyId, studies);
+
+  return {
+    districtIds,
+    schoolIds,
+    classIds,
+    studyIds,
+  };
+};
+
+export const userHasSelectedOrgs = (usersOrgs: string[], selectedOrgs: string[]) => {
+  // If the selected org list is empty, assume that the user wants all users
+  if (selectedOrgs.length === 0) {
+    return true;
+  }
+  return Boolean(usersOrgs.filter((value) => selectedOrgs.includes(value)).length);
 };
