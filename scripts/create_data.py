@@ -502,6 +502,13 @@ for group in randomGroup(classes, random.randint(5, 10)):
             admin_runIds["sre"]["variant"],
             admin_runIds["fakeTask"]["variant"]
         ]
+        gse_users[user]["taskRefs"] = ["/task/swr", "/task/pa", "/task/sre", "task/fakeTask"]
+        gse_users[user]["variantRefs"] = [
+            "/task/swr/variant/{}".format(admin_runIds["swr"]["variant"]), 
+            "/task/pa/variant/{}".format(admin_runIds["pa"]["variant"]), 
+            "/task/sre/variant/{}".format(admin_runIds["sre"]["variant"]), 
+            "/task/fakeTask/variant/{}".format(admin_runIds["fakeTask"]["variant"])
+        ]
         for run in assessments:
             gse_runId = randomAlphaNumericString(16)
             gse_user_class = students[user]["classId"]
