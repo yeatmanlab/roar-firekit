@@ -317,7 +317,6 @@ user_admins = {}
 users = {}
 
 gse_users = {}
-gse_runs = {}
 gse_tasks = {
     "swr": {
       "id": "swr",
@@ -344,7 +343,6 @@ gse_tasks = {
       "__collections__": { "variants": {} }
     }
 }
-gse_trials = {}
 #create variants of tasks
 gse_variants = {}
 for task in gse_tasks:
@@ -448,12 +446,8 @@ for student in students:
     caregivers[caregiverKey] = caregiverObj
     users[caregiverKey] = user_userId("caregiver", None, None, None, None, None, None, caregiverObj, None)
 
-total_admin_users = []
-total_user_admins = 0
-total_classes = 0
 # Create a few administrations based on group of classes
 for group in randomGroup(classes, random.randint(5, 10)):
-    total_classes += len(group)
     # need user, school, district, grade, assesments for administration
     admin_schools = []
     admin_districts = []
@@ -472,9 +466,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
     for run in admin_runIds:
         for _ in range(4):
             trialId = randomAlphaNumericString(16)
-            newTrial = gse_trial(trialId)
-            gse_trials[trialId] = newTrial
-            admin_trials[run] = newTrial
+            admin_trials[run] = gse_trial(trialId)
     swr_run = create_assessment("swr", True)
     pa_run = create_assessment("pa", True)
     sre_run = create_assessment("sre", False)
@@ -488,10 +480,8 @@ for group in randomGroup(classes, random.randint(5, 10)):
         admin_districts.append(admin_school["districtId"])
         admin_grades.append(classes[id]["grade"])
         admin_users.extend(student_by_classes[id])
-        total_admin_users.extend(student_by_classes[id])
     # Generate the user_administration record
     for user in admin_users:
-        total_user_admins += 1
         user_admins[user] = user_administrations(
             {"swr": swr_run, "pa": pa_run, "sre": sre_run, "fakeRun": fake_run}, False
         )
@@ -515,9 +505,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
             gse_user_school = classes[gse_user_class]["schoolId"]
             gse_user_district = schools[gse_user_school]["districtId"]
             gse_run_completed = (assessments[run]['completedOn'] is not None)
-            new_gse_run = gse_run(gse_runId, gse_run_completed, admin_trials[run], gse_user_class, gse_user_district, gse_user_school)
-            gse_runs[gse_runId] = new_gse_run
-            gse_users[user]["__collections__"]["runs"][gse_runId] = new_gse_run
+            gse_users[user]["__collections__"]["runs"][gse_runId] = gse_run(gse_runId, gse_run_completed, admin_trials[run], gse_user_class, gse_user_district, gse_user_school)
 
     # use list(set()) to make lists of unique items
     administrations[admin_id] = administrationId(
