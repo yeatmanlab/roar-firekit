@@ -86,9 +86,9 @@ def random_doc_id():
 ######################################
 
 #region
-def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignAdmin):
+def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignAdmin, studentData, educatorData, caregiverData, adminData):
     # random.choice(["student", "educator", "admin", "caregiver"])
-    return {
+    user_object = {
         "userType": userType,
         "firstName": fake.first_name(),
         "lastName": fake.last_name(),
@@ -98,7 +98,17 @@ def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignA
         "assessmentsAssigned": assignedAssess,
         "administrationsAssigned": completeAdmin,
         "administrationsCompleted": assignAdmin,
+        "__collections__": {}
     }
+    if(studentData is not None):
+        user_object["studentData"] = studentData
+    if(educatorData is not None):
+        user_object["educatorData"] = educatorData
+    if(caregiverData is not None):
+        user_object["caregiverData"] = caregiverData
+    if(adminData is not None):
+        user_object["adminData"] = adminData
+    return user_object
 
 
 def create_assessment(task_id, finished=True):
@@ -197,6 +207,7 @@ def school(districtId):
     return {
         "schoolName": "School-{}".format(randomAlphaNumericString(4)),
         "districtId": districtId,
+        "__collections__": {}
     }
 
 
@@ -286,13 +297,14 @@ def variant(varientId, description, name, blocks):
 #  Generate data  #
 ###################
 
+#region
 NUM_DISTRICTS = 3
 NUM_SCHOOLS_PER_LOW = 3
-NUM_SCHOOLS_PER_HIGH = 5
+NUM_SCHOOLS_PER_HIGH = 3
 NUM_EDUCATORS_PER_LOW = 2
-NUM_EDUCATORS_PER_HIGH = 5
-NUM_STUDENTS_PER_LOW = 2
-NUM_STUDENTS_PER_HIGH = 4
+NUM_EDUCATORS_PER_HIGH = 2
+NUM_STUDENTS_PER_LOW = 1
+NUM_STUDENTS_PER_HIGH = 1
 districts = {}
 schools = {}
 students = {}
@@ -332,7 +344,6 @@ gse_trials = {}
 #create varients of tasks
 gse_varients = {}
 for task in gse_tasks:
-    print(task)
     gse_varients[task] = []
     for _ in range(random.randint(1,3)):
         blocks = []
@@ -361,26 +372,27 @@ student_by_classes = {}
 # For each school, create educators, classes
 for school in schools:
     # Create educators
-    for _ in range(NUM_EDUCATORS_PER_LOW, NUM_EDUCATORS_PER_HIGH):
-        educatorKey = randomAlphaNumericString(10, 'educator-')
-        educators[educatorKey] = user_educatorData(
+    for _ in range(random.randint(NUM_EDUCATORS_PER_LOW, NUM_EDUCATORS_PER_HIGH)):
+        educatorKey = random_doc_id()
+        educatorObj = user_educatorData(
             school,
             schools[school]["districtId"],
             arrayOfNumberSelection(random.randint(0, 3), schools),
         )
-        users[educatorKey] = user_userId("educator", None, None, None, None)
+        educators[educatorKey] = educatorObj
+        users[educatorKey] = user_userId("educator", None, None, None, None, None, educatorObj, None, None)
 
     # For each educator, make a class
     classes_by_school[school] = []
     for educator in educators:
         newClass = classId(school)
-        newClassId = randomAlphaNumericString(16, 'class-')
+        newClassId = random_doc_id()
         classes[newClassId] = newClass
         classes_by_school[school].append(newClassId)
         # Create a list of 'previous classes' for this school
         finishedClasses = {}
         for _ in range(4):
-            finishedClasses[randomAlphaNumericString(16)] = classId(school)
+            finishedClasses[random_doc_id()] = classId(school)
         # save previous classes back to object, just in case we need it.
         prevClasses[school] = finishedClasses
 
@@ -389,7 +401,7 @@ for x in classes:
     student_by_classes[x] = []
     for _ in range(random.randint(NUM_STUDENTS_PER_LOW, NUM_STUDENTS_PER_HIGH)):
         #student id
-        studentKey = randomAlphaNumericString(8, 'student-')
+        studentKey = random_doc_id()
         # student obj for admin db
         newStudent = user_studentData(
             school,
@@ -405,7 +417,7 @@ for x in classes:
         # add student as a member of this class
         student_by_classes[x].append(studentKey)
         # create users object
-        users[studentKey] = user_userId("student", None, None, None, None)
+        users[studentKey] = user_userId("student", None, None, None, None, newStudent, None, None, None)
 
 # Create administrators for each district
 for district in districts:
@@ -414,17 +426,19 @@ for district in districts:
         admin_classes.extend(classes_by_school[school])
     for _ in range(4):
         adminKey = randomAlphaNumericString(16)
-        admins[adminKey] = user_adminData(
+        adminObj = user_adminData(
             district, districts[district]["schools"], admin_classes
         )
-        users[adminKey] = user_userId("admin", None, None, None, None)
+        admins[adminKey] = adminObj
+        users[adminKey] = user_userId("admin", None, None, None, None, None, None, None, adminObj)
 
 # Create caregivers for students
 caregivers = {}
 for student in students:
     caregiverKey = randomAlphaNumericString(16)
-    caregivers[caregiverKey] = user_careGiverData([student])
-    users[caregiverKey] = user_userId("caregiver", None, None, None, None)
+    caregiverObj = user_careGiverData([student])
+    caregivers[caregiverKey] = caregiverObj
+    users[caregiverKey] = user_userId("caregiver", None, None, None, None, None, None, caregiverObj, None)
 
 total_admin_users = []
 total_user_admins = 0
@@ -493,38 +507,36 @@ for group in randomGroup(classes, random.randint(5, 10)):
         list(set(admin_grades)),
         admin_runIds,
     )
-# print('classes total', len(classes.keys()))
-# print('classes in admins', total_classes)
-# print('GSE Users', len(gse_users.keys()))
-# print('Admin Users', len(students.keys()))
-# print("users with admins", len(total_admin_users))
-# writeToFile({"users": total_admin_users}, 'total_users.json')
-# writeToFile(students, 'students.json')
-# writeToFile(gse_users, 'gse_users.json')
-# writeToFile(student_by_classes, 'sbc.json')
-gse_db = {
-    "tasks": gse_tasks,
-    "variants": gse_varients,
-    "trials": gse_trials,
-    "runs": gse_runs,
-    "user": gse_users
-}
-writeToFile(gse_db, 'gse_out.json')
+
+#endregion
+
+# gse_db = {
+#     "tasks": gse_tasks,
+#     "variants": gse_varients,
+#     "trials": gse_trials,
+#     "runs": gse_runs,
+#     "user": gse_users
+# }
+# writeToFile(gse_db, 'gse_db.json')
+
+# Add completed administrations and classes objects to user & school respectively 
+for user in user_admins:
+    users[user]["__collections__"]["administrations"] = user_admins
+for school in classes_by_school:
+    classList = {}
+    for schoolId in classes_by_school:
+        for classId in classes_by_school[schoolId]:
+            classList[random_doc_id()] = classes[classId]
+    schools[school]["__collections__"]["classes"] = classList
 
 # Format the generated objects and write to file
 db = {
-    "districts": districts,
-    "schools": schools,
-    "educators": educators,
-    "classes": classes,
-    "students": students,
-    "careGivers": caregivers,
-    "admins": admins,
-    "administrations": administrations,
-    "user_administrations": user_admins,
+    "__collections__": {
+        "districts": districts,
+        "schools": schools,
+        "users": users,
+        "administrations": administrations,
+    }
 }
 
-writeToFile(db, "out.json")
-
-
-# should admin/districts be a string? I assume they only admin for one district
+writeToFile(db, "admin_db.json")
