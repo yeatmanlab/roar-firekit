@@ -261,7 +261,7 @@ def gse_run(runId, completed, trials, classId, districtId, schoolId):
     }
   }
 
-def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, varients):
+def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, variants):
   birthdayDatetime = datetime.strptime(birthday, "%d/%m/%Y")
   return {
     "id": userId,
@@ -275,16 +275,16 @@ def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, va
     "studies": studies,
     "tasks": tasks,
     "taskRefs": [],
-    "variants": varients,
+    "variants": variants,
     "variantRefs": [],
     "__collections__": {
       "runs": {}
     }
   }
 
-def variant(varientId, description, name, blocks):
+def variant(variantId, description, name, blocks):
     return {
-      "id": varientId,
+      "id": variantId,
       "description": description,
       "name": name,
       "scrHash": "",
@@ -345,10 +345,10 @@ gse_tasks = {
     }
 }
 gse_trials = {}
-#create varients of tasks
-gse_varients = {}
+#create variants of tasks
+gse_variants = {}
 for task in gse_tasks:
-    gse_varients[task] = []
+    gse_variants[task] = []
     for _ in range(random.randint(1,3)):
         blocks = []
         for index in range(random.randint(1,3)):
@@ -357,15 +357,15 @@ for task in gse_tasks:
                 "corpus": "randomCorpusId",
                 "trialMethod": "trialMethod"
             })
-        varientId = random_doc_id()
-        newVarient = variant(
-            varientId, 
+        variantId = random_doc_id()
+        newVariant = variant(
+            variantId, 
             "variant Description", 
-            randomAlphaNumericString(4, 'varient-'), 
+            randomAlphaNumericString(4, 'variant-'), 
             blocks)
-        gse_varients[task].append(newVarient)
+        gse_variants[task].append(newVariant)
         # print(gse_tasks[task]["__collections__"])
-        gse_tasks[task]["__collections__"]["variants"][varientId] = newVarient
+        gse_tasks[task]["__collections__"]["variants"][variantId] = newVariant
 
 # Create districts
 for _ in range(NUM_DISTRICTS):
@@ -463,10 +463,10 @@ for group in randomGroup(classes, random.randint(5, 10)):
     admin_trials = {}
     # define runs for this administration
     admin_runIds = {
-        "swr": {"taskId": "swr", "variant": random.choice(gse_varients["swr"])["id"]},
-        "pa": {"taskId": "pa", "variant": random.choice(gse_varients["pa"])["id"]},
-        "sre": {"taskId": "sre", "variant": random.choice(gse_varients["sre"])["id"]},
-        "fakeTask": {"taskId": "fakeTask", "variant": random.choice(gse_varients["fakeTask"])["id"]},
+        "swr": {"taskId": "swr", "variant": random.choice(gse_variants["swr"])["id"]},
+        "pa": {"taskId": "pa", "variant": random.choice(gse_variants["pa"])["id"]},
+        "sre": {"taskId": "sre", "variant": random.choice(gse_variants["sre"])["id"]},
+        "fakeTask": {"taskId": "fakeTask", "variant": random.choice(gse_variants["fakeTask"])["id"]},
     }
     admin_trials = {}
     for run in admin_runIds:
@@ -560,5 +560,3 @@ db = {
 }
 
 writeToFile(db, "admin_db.json")
-
-#TODO: add task/variant refs 
