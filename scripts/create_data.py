@@ -241,20 +241,14 @@ def administrationId(users, classes, schools, districts, grades, assessment):
 
 #region
 
-# doesn't need to be generated- defined below manually
-# def gse_task(id, description, name):
-#   return {
-#     "id": id,
-#     "description": description,
-#     "name": name
-#   }
-
 def gse_trial(trialId):
   return {
-    "id": trialId
+    random_doc_id(): {
+      "id": trialId 
+    }
   }
 
-def gse_run(runId, completed, classId, districtId, schoolId):
+def gse_run(runId, completed, trials, classId, districtId, schoolId):
   return {
     "id": runId,
     "completed": completed,
@@ -262,6 +256,9 @@ def gse_run(runId, completed, classId, districtId, schoolId):
     "districtId": districtId,
     "schoolId": schoolId,
     "studyId": "",
+    "__collections__": {
+      "trials": trials
+    }
   }
 
 def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, varients):
@@ -279,7 +276,10 @@ def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, va
     "tasks": tasks,
     "taskRefs": [],
     "variants": varients,
-    "variantRefs": []
+    "variantRefs": [],
+    "__collections__": {
+      "runs": {}
+    }
   }
 
 def variant(varientId, description, name, blocks):
@@ -322,22 +322,26 @@ gse_tasks = {
     "swr": {
       "id": "swr",
       "description": "SWR Description Text",
-      "name": "Single Word Recognition"
+      "name": "Single Word Recognition",
+      "__collections__": { "variants": {} }
     },
     "pa": {
       "id": "pa",
       "description": "PA Description Text",
-      "name": "PA Name"
+      "name": "PA Name",
+      "__collections__": { "variants": {} }
     },
     "sre": {
       "id": "sre",
       "description": "SRE Description Text",
-      "name": "Sentence Reading Efficiency"
+      "name": "Sentence Reading Efficiency",
+      "__collections__": { "variants": {} }
     },
     "fakeTask": {
       "id": "fakeTask",
       "description": "Fake Task Description Text",
-      "name": "Fake Task"
+      "name": "Fake Task",
+      "__collections__": { "variants": {} }
     }
 }
 gse_trials = {}
@@ -353,11 +357,15 @@ for task in gse_tasks:
                 "corpus": "randomCorpusId",
                 "trialMethod": "trialMethod"
             })
-        gse_varients[task].append(variant(
-            randomAlphaNumericString(16), 
+        varientId = random_doc_id()
+        newVarient = variant(
+            varientId, 
             "variant Description", 
             randomAlphaNumericString(4, 'varient-'), 
-            blocks))
+            blocks)
+        gse_varients[task].append(newVarient)
+        # print(gse_tasks[task]["__collections__"])
+        gse_tasks[task]["__collections__"]["variants"][varientId] = newVarient
 
 # Create districts
 for _ in range(NUM_DISTRICTS):
@@ -460,15 +468,19 @@ for group in randomGroup(classes, random.randint(5, 10)):
         "sre": {"taskId": "sre", "variant": random.choice(gse_varients["sre"])["id"]},
         "fakeTask": {"taskId": "fakeTask", "variant": random.choice(gse_varients["fakeTask"])["id"]},
     }
+    admin_trials = {}
+    for run in admin_runIds:
+        for _ in range(4):
+            trialId = randomAlphaNumericString(16)
+            newTrial = gse_trial(trialId)
+            gse_trials[trialId] = newTrial
+            admin_trials[run] = newTrial
     swr_run = create_assessment("swr", True)
     pa_run = create_assessment("pa", True)
     sre_run = create_assessment("sre", False)
     fake_run = create_assessment("fakeTask", True)
     assessments = {"swr": swr_run, "pa": pa_run, "sre": sre_run, "fakeTask": fake_run}
-    for run in admin_runIds:
-        for _ in range(4):
-            trialId = randomAlphaNumericString(16)
-            gse_trials[trialId] = gse_trial(trialId)
+            
     # Gather data for this administration
     for id in group:
         admin_school = schools[classes[id]["schoolId"]]
@@ -496,7 +508,9 @@ for group in randomGroup(classes, random.randint(5, 10)):
             gse_user_school = classes[gse_user_class]["schoolId"]
             gse_user_district = schools[gse_user_school]["districtId"]
             gse_run_completed = (assessments[run]['completedOn'] is not None)
-            gse_runs[gse_runId] = gse_run(gse_runId, gse_run_completed, gse_user_class, gse_user_district, gse_user_school)
+            new_gse_run = gse_run(gse_runId, gse_run_completed, admin_trials[run], gse_user_class, gse_user_district, gse_user_school)
+            gse_runs[gse_runId] = new_gse_run
+            gse_users[user]["__collections__"]["runs"][gse_runId] = new_gse_run
 
     # use list(set()) to make lists of unique items
     administrations[admin_id] = administrationId(
@@ -510,14 +524,13 @@ for group in randomGroup(classes, random.randint(5, 10)):
 
 #endregion
 
-# gse_db = {
-#     "tasks": gse_tasks,
-#     "variants": gse_varients,
-#     "trials": gse_trials,
-#     "runs": gse_runs,
-#     "user": gse_users
-# }
-# writeToFile(gse_db, 'gse_db.json')
+gse_db = {
+    "__collections__": {
+      "tasks": gse_tasks,
+      "user": gse_users
+    }
+}
+writeToFile(gse_db, 'gse_db.json')
 
 # Add completed administrations and classes objects to user & school respectively 
 for user in user_admins:
@@ -540,3 +553,5 @@ db = {
 }
 
 writeToFile(db, "admin_db.json")
+
+#TODO: add task/variant refs 
