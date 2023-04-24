@@ -86,7 +86,7 @@ def random_doc_id():
 ######################################
 
 #region
-def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignAdmin, studentData, educatorData, caregiverData, adminData):
+def user_userId(userType, completeAssess, assignedAssess, completeAdmin, startAdmin, assignAdmin, studentData, educatorData, caregiverData, adminData):
     # random.choice(["student", "educator", "admin", "caregiver"])
     user_object = {
         "userType": userType,
@@ -97,8 +97,13 @@ def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignA
         "assessmentsCompleted": completeAssess,
         "assessmentsAssigned": assignedAssess,
         "administrationsAssigned": completeAdmin,
+        "administrationsStarted": startAdmin,
         "administrationsCompleted": assignAdmin,
-        "__collections__": {}
+        "__collections__": {
+          "externalData": {
+            "clever": ['data1', 'data2']
+          }
+        }
     }
     if(studentData is not None):
         user_object["studentData"] = studentData
@@ -111,8 +116,8 @@ def user_userId(userType, completeAssess, assignedAssess, completeAdmin, assignA
     return user_object
 
 
-def create_assessment(task_id, finished=True):
-    start_date = fake.date_time()
+def create_assessment(task_id, start_date, finished=True):
+    # start_date = fake.date_time()
     if finished:
         return {
             "runId": random_doc_id(),
@@ -182,7 +187,7 @@ def user_careGiverData(studentIds):
     return {"students": studentIds}
 
 
-def user_adminData(districtId, schoolList, classList):
+def user_adminData(districtId, schoolList, classList, usersList):
     return {
         "administrationsCreated": [],
         "permissions": arrayOfStrings(random.randint(1, 4), 16),
@@ -191,6 +196,7 @@ def user_adminData(districtId, schoolList, classList):
         "districts": districtId,
         "schools": schoolList,
         "adminLevel": random.choice(["classes", "schools", "districts", "studies"]),
+        "users": usersList
     }
 
 
@@ -278,7 +284,10 @@ def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, va
     "variants": variants,
     "variantRefs": [],
     "__collections__": {
-      "runs": {}
+      "runs": {},
+      "externalData": {
+        "clever": ['data1', 'data2']
+      }
     }
   }
 
@@ -375,9 +384,11 @@ for district in districts:
         schools[schoolId] = school(district)
 classes_by_school = {}
 student_by_classes = {}
+educators_by_school = {}
 # For each school, create educators, classes
 for school in schools:
     # Create educators
+    educators_by_school[school] = []
     for _ in range(random.randint(NUM_EDUCATORS_PER_LOW, NUM_EDUCATORS_PER_HIGH)):
         educatorKey = random_doc_id()
         educatorObj = user_educatorData(
@@ -386,7 +397,8 @@ for school in schools:
             arrayOfNumberSelection(random.randint(0, 3), schools),
         )
         educators[educatorKey] = educatorObj
-        users[educatorKey] = user_userId("educator", None, None, None, None, None, educatorObj, None, None)
+        users[educatorKey] = user_userId("educator", None, None, None, None, None, None, educatorObj, None, None)
+        educators_by_school[school].append(educatorKey)
 
     # For each educator, make a class
     classes_by_school[school] = []
@@ -423,20 +435,26 @@ for x in classes:
         # add student as a member of this class
         student_by_classes[x].append(studentKey)
         # create users object
-        users[studentKey] = user_userId("student", None, None, None, None, newStudent, None, None, None)
+        users[studentKey] = user_userId("student", None, None, None, None, None, newStudent, None, None, None)
 
 # Create administrators for each district
 for district in districts:
     admin_classes = []
+    admin_users = []
     for school in districts[district]["schools"]:
         admin_classes.extend(classes_by_school[school])
+        for educator in educators_by_school[school]:
+            admin_users.append({ educator: True })
+        for class_ in classes_by_school[school]:
+            for student in student_by_classes[class_]:
+                admin_users.append({ student: True })
     for _ in range(4):
         adminKey = randomAlphaNumericString(16)
         adminObj = user_adminData(
-            district, districts[district]["schools"], admin_classes
+            district, districts[district]["schools"], admin_classes, admin_users
         )
         admins[adminKey] = adminObj
-        users[adminKey] = user_userId("admin", None, None, None, None, None, None, None, adminObj)
+        users[adminKey] = user_userId("admin", None, None, None, None, None, None, None, None, adminObj)
 
 # Create caregivers for students
 caregivers = {}
@@ -444,7 +462,7 @@ for student in students:
     caregiverKey = randomAlphaNumericString(16)
     caregiverObj = user_careGiverData([student])
     caregivers[caregiverKey] = caregiverObj
-    users[caregiverKey] = user_userId("caregiver", None, None, None, None, None, None, caregiverObj, None)
+    users[caregiverKey] = user_userId("caregiver", None, None, None, None, None, None, None, caregiverObj, None)
 
 # Create a few administrations based on group of classes
 for group in randomGroup(classes, random.randint(5, 10)):
@@ -455,6 +473,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
     admin_users = []
     admin_id = randomAlphaNumericString(16)
     admin_trials = {}
+    admin_start = fake.date_time()
     # define runs for this administration
     admin_runIds = {
         "swr": {"taskId": "swr", "variant": random.choice(gse_variants["swr"])["id"]},
@@ -467,10 +486,10 @@ for group in randomGroup(classes, random.randint(5, 10)):
         for _ in range(4):
             trialId = randomAlphaNumericString(16)
             admin_trials[run] = gse_trial(trialId)
-    swr_run = create_assessment("swr", True)
-    pa_run = create_assessment("pa", True)
-    sre_run = create_assessment("sre", False)
-    fake_run = create_assessment("fakeTask", True)
+    swr_run = create_assessment("swr", admin_start, True)
+    pa_run = create_assessment("pa", admin_start, True)
+    sre_run = create_assessment("sre", admin_start, False)
+    fake_run = create_assessment("fakeTask", admin_start, True)
     assessments = {"swr": swr_run, "pa": pa_run, "sre": sre_run, "fakeTask": fake_run}
             
     # Gather data for this administration
@@ -482,9 +501,9 @@ for group in randomGroup(classes, random.randint(5, 10)):
         admin_users.extend(student_by_classes[id])
     # Generate the user_administration record
     for user in admin_users:
-        user_admins[user] = user_administrations(
+        user_admins[user] = { admin_id: user_administrations(
             {"swr": swr_run, "pa": pa_run, "sre": sre_run, "fakeRun": fake_run}, False
-        )
+        )}
         gse_users[user]["tasks"] = ["swr", "pa", "sre", "fakeTask"]
         gse_users[user]["variants"] = [
             admin_runIds["swr"]["variant"],
@@ -506,6 +525,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
             gse_user_district = schools[gse_user_school]["districtId"]
             gse_run_completed = (assessments[run]['completedOn'] is not None)
             gse_users[user]["__collections__"]["runs"][gse_runId] = gse_run(gse_runId, gse_run_completed, admin_trials[run], gse_user_class, gse_user_district, gse_user_school)
+        users[user]["administrationsStarted"] = { admin_id: dt_to_firestore(admin_start) }
 
     # use list(set()) to make lists of unique items
     administrations[admin_id] = administrationId(
@@ -529,7 +549,7 @@ writeToFile(gse_db, 'gse_db.json')
 
 # Add completed administrations and classes objects to user & school respectively 
 for user in user_admins:
-    users[user]["__collections__"]["administrations"] = user_admins
+    users[user]["__collections__"]["administrations"] = user_admins[user]
 for school in classes_by_school:
     classList = {}
     for schoolId in classes_by_school:
