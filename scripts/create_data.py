@@ -587,7 +587,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
 
 # endregion
 
-gse_db = {"__collections__": {"tasks": gse_tasks, "user": gse_users}}
+gse_db = {"__collections__": {"tasks": gse_tasks, "users": gse_users}}
 writeToFile(gse_db, op.join("..", "firebase", "assessment", "assessment_db.json"))
 
 # Add completed administrations and classes objects to user & school respectively
