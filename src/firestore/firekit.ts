@@ -20,12 +20,14 @@ import {
   getDoc,
   getDocs,
   query,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { initializeProjectFirekit } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
+  IExternalUserData,
   IFirekit,
   IMyAdministrationData,
   IMyAssessmentData,
@@ -175,11 +177,10 @@ export class RoarFirekit {
       const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
       let externalData = {};
       externalDataSnapshot.forEach((doc) => {
-        // TODO: Elijah add externalData to the dummy data created by Python
         // doc.data() is never undefined for query doc snapshots returned by ``getDocs``
         externalData = {
           ...externalData,
-          [doc.id]: doc.data(),
+          [doc.id]: doc.data() as IExternalUserData,
         };
       });
       userData.externalData = externalData;
@@ -308,7 +309,7 @@ export class RoarFirekit {
     return this._updateAssessment(administrationId, taskId, { startedOn: new Date() });
   }
 
-  async showAssessmentReward(administrationId: string, taskId: string) {
+  async updateAssessmentRewardShown(administrationId: string, taskId: string) {
     this._verify_authentication();
     return this._updateAssessment(administrationId, taskId, { rewardShown: true });
   }
@@ -426,6 +427,41 @@ export class RoarFirekit {
     });
   }
 
-  // async createUser();
+  async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
+    const docRef = doc(this.admin.db, 'users', uid, 'externalData', externalResourceId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      // TODO make sure we update the doc without overwriting existing data
+      // See the note about dot notation in https://firebase.google.com/docs/firestore/manage-data/add-data#update_fields_in_nested_objects
+      await updateDoc(docRef, {
+        [externalResourceId]: externalData,
+      });
+    } else {
+      await setDoc(docRef, externalData);
+    }
+  }
+
+  async createUser(
+    userData: IUserData,
+    externalResourceId: string | undefined,
+    externalData: { [x: string]: unknown } | undefined,
+  ) {
+    this._verify_authentication();
+
+    const userDocRef = await addDoc(collection(this.admin.db, 'users'), userData);
+
+    // Add the ID to the admin's list of users
+    const adminUsersDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'adminData', 'users');
+    await updateDoc(adminUsersDoc, {
+      [adminUsersDoc.id]: true,
+    });
+
+    if (externalResourceId !== undefined && externalData !== undefined) {
+      await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
+    }
+
+    // TODO Adam: Add the user to the assessment database as well.
+  }
+
   // async updateUser();
 }

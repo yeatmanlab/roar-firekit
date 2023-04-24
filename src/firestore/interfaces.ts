@@ -68,6 +68,10 @@ export interface IAdminData extends DocumentData {
   [x: string]: unknown;
 }
 
+export interface IExternalUserData extends DocumentData {
+  [x: string]: unknown;
+}
+
 export interface IUserData extends DocumentData {
   userType: UserType;
   assessmentPid?: string;
@@ -83,7 +87,7 @@ export interface IUserData extends DocumentData {
   caregiverData?: ICaregiverData;
   // Allow for data from external resources like clever or state-wide tests
   externalData?: {
-    [x: string]: unknown;
+    [x: string]: IExternalUserData;
   };
 }
 
