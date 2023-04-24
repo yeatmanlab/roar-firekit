@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{everythingInMyDatabase=**} {
+      allow read, write: if request.auth.token.super_admin == true
+    }
+    
+    function isLoggedIn() {
+ 			return request.auth != null;
+		}
+
+    // Allow users to create, read, and write to their own data
+    match /users/{userId}/{document=**} {      
+      function userOwnsData() {
+  			return isLoggedIn() && request.auth.uid == userId;
+			}
+      
+      function userIsThisAdminType(adminType) {
+        return userId in get(/databases/$(database)/documents/users/$(request.auth.uid)/$(adminType + "Data")/users).data;
+      }
+      
+      function userIsAValidAdmin() {
+      	return userIsThisAdminType("educators") ||
+          userIsThisAdminType("caregivers") ||
+          userIsThisAdminType("admins");
+      }
+      
+      function canRead() {
+        return isLoggedIn() && (userOwnsData() || userIsAValidAdmin());
+      }
+      
+      allow read: if canRead();
+      allow write: if canRead();
+    }
+    
+    match /administrations/{administrationId}/{document=**} {
+      function isAnAdministrationUserParticipatedIn() {
+        return request.auth.uid in resource.data.users;
+      }
+      
+      function userCreatedThis() {
+        return request.auth.uid == resource.data.createdBy;
+      }
+      
+      function hasAdminAccessOfThisType(adminType) {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)/adminData).data.adminLevel == adminType &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/adminData).data[adminType].hasAny(resource.data[adminType]);
+      }
+      
+      function hasAdminAccess() {
+        return hasAdminAccessOfThisType("studies") ||
+          hasAdminAccessOfThisType("classes") ||
+          hasAdminAccessOfThisType("schools") ||
+          hasAdminAccessOfThisType("districts");
+      }
+      
+      function canRead() {
+        return isAnAdministrationUserParticipatedIn() ||
+          userCreatedThis() ||
+          hasAdminAccess();
+      }
+      
+      allow read: if isLoggedIn() && canRead();
+      
+      function adminOrEducatorRequestedCreate() {
+        return request.data.createdBy == request.auth.uid && (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/adminData) ||
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/educatorData)
+        );
+      }
+
+      function adminOrEducatorRequestedUpdate() {
+        return resource.data.createdBy == request.auth.uid && (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/adminData) ||
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/educatorData)
+        );
+      }
+
+
+      allow create: if isLoggedIn() && adminOrEducatorRequestedCreate();
+      allow update: if isLoggedIn() && adminOrEducatorRequestedUpdate();
+      allow delete: if false;
+    }
+  }
+}
