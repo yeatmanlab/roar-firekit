@@ -1,9 +1,16 @@
-import { IUserData, RoarUser } from './user';
+import { IAppUserData, RoarAppUser } from './user';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
 import { RoarRun } from './run';
 import { firebaseSignIn, firebaseSignOut } from '../auth';
-import { getFirestore, collection, doc, DocumentReference } from 'firebase/firestore';
-import { FirebaseConfigData, roarEnableIndexedDbPersistence, safeInitializeApp } from './util';
+import { getFirestore, collection, doc, DocumentReference, connectFirestoreEmulator } from 'firebase/firestore';
+import {
+  FirebaseConfigData,
+  EmulatorConfigData,
+  RealConfigData,
+  roarEnableIndexedDbPersistence,
+  safeInitializeApp,
+} from './util';
+import { initializeApp } from 'firebase/app';
 
 export interface AssessmentConfigData {
   firebaseConfig: FirebaseConfigData;
@@ -11,23 +18,23 @@ export interface AssessmentConfigData {
 }
 
 /**
- * The RoarAppFirekit class is the main entry point for the ROAR Firestore API.
+ * The RoarAppkit class is the main entry point for the ROAR Firestore API.
  * It represents multiple linked Firestore documents and provides methods
  * for interacting with them.
  */
-export class RoarAppFirekit {
-  userInfo: IUserData;
+export class RoarAppkit {
+  userInfo: IAppUserData;
   taskInfo: ITaskVariantInput;
-  user: RoarUser | undefined;
+  user: RoarAppUser | undefined;
   task: RoarTaskVariant | undefined;
   run: RoarRun | undefined;
   rootDoc: DocumentReference;
   /**
-   * Create a RoarAppFirekit. This expects an object with keys `userInfo`,
-   * `taskInfo`, and `confg` where `userInfo` is a [[IUserData]] object,
+   * Create a RoarAppkit. This expects an object with keys `userInfo`,
+   * `taskInfo`, and `confg` where `userInfo` is a [[IAppUserData]] object,
    * `taskInfo` is a [[ITaskVariantInput]] object and `config` is a
    * [[AssessmentConfigData]] object.
-   * @param {{userInfo: IUserData, taskInfo: ITaskVariantInput, config: AssessmentConfigData}=} destructuredParam
+   * @param {{userInfo: IAppUserData, taskInfo: ITaskVariantInput, config: AssessmentConfigData}=} destructuredParam
    *     userInfo: The user input object
    *     taskInfo: The task input object
    *     config: Firebase configuration object
@@ -37,7 +44,7 @@ export class RoarAppFirekit {
     taskInfo,
     config,
   }: {
-    userInfo: IUserData;
+    userInfo: IAppUserData;
     taskInfo: ITaskVariantInput;
     config: AssessmentConfigData;
   }) {
@@ -47,9 +54,21 @@ export class RoarAppFirekit {
     this.task = undefined;
     this.run = undefined;
 
-    const firebaseApp = safeInitializeApp(config.firebaseConfig, 'app-firestore');
-    const db = getFirestore(firebaseApp);
-    roarEnableIndexedDbPersistence(db);
+    let db;
+
+    if ((config.firebaseConfig as EmulatorConfigData).emulatorPorts) {
+      const firebaseApp = initializeApp(
+        { projectId: config.firebaseConfig.projectId, apiKey: config.firebaseConfig.apiKey },
+        'app-firestore',
+      );
+      const ports = (config.firebaseConfig as EmulatorConfigData).emulatorPorts;
+      db = getFirestore(firebaseApp);
+      connectFirestoreEmulator(db, 'localhost', ports.db);
+    } else {
+      const firebaseApp = safeInitializeApp(config.firebaseConfig as RealConfigData, 'app-firestore');
+      db = getFirestore(firebaseApp);
+      roarEnableIndexedDbPersistence(db);
+    }
 
     this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
   }
@@ -62,7 +81,7 @@ export class RoarAppFirekit {
    */
   async startRun() {
     const auth = await firebaseSignIn(this.userInfo.id);
-    this.user = new RoarUser({
+    this.user = new RoarAppUser({
       ...this.userInfo,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       firebaseUid: auth.currentUser!.uid,

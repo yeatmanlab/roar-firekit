@@ -1,5 +1,6 @@
 {
   "firestore": {
+    "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "emulators": {
@@ -7,13 +8,13 @@
       "port": 9099
     },
     "firestore": {
-      "port": 8079
+      "port": 8080
     },
     "ui": {
-      "port": 3999
+      "port": 4000
     },
     "hub": {
-      "port": 4399
+      "port": 4400
     },
     "singleProjectMode": false
   }

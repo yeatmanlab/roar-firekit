@@ -236,6 +236,9 @@ export class RoarFirekit {
     return uidArray.map((uid) => this._getUser(uid));
   }
 
+  // TODO: (Adam) rewrite so that administrationsAssigned is a map where the
+  // keys are the administration Ids and the values are time stamps for when it
+  // was assigned. Same for administrationsStarted and administrationsCompleted.
   public get administrationsAssigned() {
     return this.userData?.administrationsAssigned;
   }
@@ -246,6 +249,10 @@ export class RoarFirekit {
 
   public get administrationsCompleted() {
     return this.userData?.administrationsCompleted;
+  }
+
+  public get roarUid() {
+    return this.admin.user?.uid;
   }
 
   private async _getGlobalAdministration(administrationId: string): Promise<IAdministrationData | undefined> {

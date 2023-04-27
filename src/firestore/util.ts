@@ -1,6 +1,6 @@
 import { initializeApp, getApp } from 'firebase/app';
-import { inMemoryPersistence, getAuth, setPersistence } from 'firebase/auth';
-import { enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
+import { inMemoryPersistence, getAuth, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
 import _isEqual from 'lodash/isEqual';
 
 /** Remove null attributes from an object
@@ -13,15 +13,27 @@ export const removeNull = (obj: object): object => {
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null));
 };
 
-export interface FirebaseConfigData {
-  apiKey: string;
-  authDomain: string;
+export interface CommonFirebaseConfig {
   projectId: string;
+  apiKey: string;
+}
+
+export interface EmulatorConfigData extends CommonFirebaseConfig {
+  emulatorPorts: {
+    db: number;
+    auth: number;
+  };
+}
+
+export interface RealConfigData extends CommonFirebaseConfig {
+  authDomain: string;
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
   measurementId: string;
 }
+
+export type FirebaseConfigData = RealConfigData | EmulatorConfigData;
 
 export const roarEnableIndexedDbPersistence = (db: Firestore) => {
   enableIndexedDbPersistence(db).catch((err) => {
@@ -42,13 +54,14 @@ export const roarEnableIndexedDbPersistence = (db: Firestore) => {
   // Subsequent queries will use persistence, if it was enabled successfully
 };
 
-export const safeInitializeApp = (config: FirebaseConfigData, name: string) => {
+export const safeInitializeApp = (config: RealConfigData, name: string) => {
   try {
     const app = getApp(name);
     if (!_isEqual(app.options, config)) {
       throw new Error(`There is an existing firebase app named ${name} with different configuration options.`);
     }
     return app;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     if (error.code === 'app/no-app') {
       return initializeApp(config, name);
@@ -59,26 +72,47 @@ export const safeInitializeApp = (config: FirebaseConfigData, name: string) => {
 };
 
 export const initializeProjectFirekit = (config: FirebaseConfigData, name: string, enableDbPersistence = true) => {
-  const app = safeInitializeApp(config, name);
-  const kit = {
-    firebaseApp: app,
-    auth: getAuth(app),
-    db: getFirestore(app),
-  };
+  if ((config as EmulatorConfigData).emulatorPorts) {
+    const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
+    const ports = (config as EmulatorConfigData).emulatorPorts;
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-  // Auth state persistence is set with ``setPersistence`` and specifies how a
-  // user session is persisted on a device. We choose in memory persistence by
-  // default because many students will access the ROAR on shared devices in the
-  // classroom.
-  // setPersistence(kit.auth, inMemoryPersistence);
+    connectFirestoreEmulator(db, 'localhost', ports.db);
 
-  if (enableDbPersistence) {
-    // Firestore offline data persistence enables Cloud Firestore data caching
-    // when the device is offline.
-    roarEnableIndexedDbPersistence(kit.db);
+    const originalInfo = console.info;
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    console.info = () => {};
+    connectAuthEmulator(auth, `http://localhost:${ports.auth}`);
+    console.info = originalInfo;
+
+    return {
+      firebaseApp: app,
+      auth,
+      db,
+    };
+  } else {
+    const app = safeInitializeApp(config as RealConfigData, name);
+    const kit = {
+      firebaseApp: app,
+      auth: getAuth(app),
+      db: getFirestore(app),
+    };
+
+    // Auth state persistence is set with ``setPersistence`` and specifies how a
+    // user session is persisted on a device. We choose in memory persistence by
+    // default because many students will access the ROAR on shared devices in the
+    // classroom.
+    // setPersistence(kit.auth, inMemoryPersistence);
+
+    if (enableDbPersistence) {
+      // Firestore offline data persistence enables Cloud Firestore data caching
+      // when the device is offline.
+      roarEnableIndexedDbPersistence(kit.db);
+    }
+
+    return kit;
   }
-
-  return kit;
 };
 
 /** Get unique entries from a single id string and an array of id strings

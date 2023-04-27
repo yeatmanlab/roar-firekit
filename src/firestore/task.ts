@@ -14,20 +14,12 @@ import {
 } from 'firebase/firestore';
 import { removeNull } from './util';
 
-/** Tasks may be decomposed into blocks of trials */
-export interface IBlock {
-  blockNumber: number;
-  trialMethod: string;
-  corpus: string;
-}
-
 export interface ITaskVariantInput {
   taskId: string;
   taskName: string;
   variantName: string;
   taskDescription?: string | null;
   variantDescription?: string | null;
-  blocks?: IBlock[];
   srcHash?: string | null;
 }
 
@@ -44,7 +36,6 @@ interface IFirestoreTaskData {
  * @param {string} taskDescription - The description of the task
  * @param {string} variantName - The name of the task variant
  * @param {string} variantDescription - The description of the variant
- * @param {Array} blocks - The blocks of this task variant
  */
 export class RoarTaskVariant {
   taskId: string;
@@ -56,7 +47,6 @@ export class RoarTaskVariant {
   variantDescription: string | null;
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference | undefined;
-  blocks: IBlock[];
   srcHash: string | null;
   constructor({
     taskId,
@@ -64,7 +54,6 @@ export class RoarTaskVariant {
     variantName,
     taskDescription = null,
     variantDescription = null,
-    blocks = [],
     srcHash = null,
   }: ITaskVariantInput) {
     this.taskId = taskId;
@@ -72,7 +61,6 @@ export class RoarTaskVariant {
     this.taskDescription = taskDescription;
     this.variantName = variantName;
     this.variantDescription = variantDescription;
-    this.blocks = blocks;
     this.srcHash = srcHash;
 
     this.taskRef = undefined;
@@ -87,20 +75,6 @@ export class RoarTaskVariant {
   setRefs(rootDoc: DocumentReference) {
     this.taskRef = doc(rootDoc, 'tasks', this.taskId);
     this.variantsCollectionRef = collection(this.taskRef, 'variants');
-  }
-
-  /** Add a block to this experiment
-   * @method
-   * @param {number} blockNumber - The block index
-   * @param {string} trialMethod - The trial sampling method
-   * @param {string} corpus - The corpus from which stimuli are drawn
-   */
-  addBlock({ blockNumber = 0, trialMethod = 'practice', corpus = 'practiceCorpusId' }: IBlock) {
-    this.blocks.push({
-      blockNumber,
-      trialMethod,
-      corpus,
-    });
   }
 
   /**
@@ -126,16 +100,14 @@ export class RoarTaskVariant {
       const emptyVariantRef: DocumentReference = doc(this.taskRef, 'variants', 'empty');
       await setDoc(emptyVariantRef, {
         name: 'empty',
-        blocksString: 'empty',
         srcHash: 'empty',
       });
 
       // Check to see if variant exists already by querying for a match on the
-      // name, srcHash, and the blocks.
+      // name, and srcHash.
       const q = query(
         this.variantsCollectionRef,
         where('name', '==', this.variantName),
-        where('blocksString', '==', JSON.stringify(this.blocks)),
         orderBy('lastPlayed', 'desc'),
         orderBy('srcHash'),
         limit(1),
@@ -166,7 +138,6 @@ export class RoarTaskVariant {
         const q = query(
           this.variantsCollectionRef,
           where('name', '==', this.variantName),
-          where('blocksString', '==', JSON.stringify(this.blocks)),
           orderBy('lastPlayed', 'desc'),
           limit(1),
         );
@@ -195,8 +166,6 @@ export class RoarTaskVariant {
         const variantData = {
           name: this.variantName,
           description: this.variantDescription,
-          blocks: this.blocks,
-          blocksString: JSON.stringify(this.blocks),
           srcHash: this.srcHash,
           lastPlayed: serverTimestamp(),
         };

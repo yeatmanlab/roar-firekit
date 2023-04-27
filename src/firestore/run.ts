@@ -14,7 +14,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { RoarTaskVariant } from './task';
-import { RoarUser } from './user';
+import { RoarAppUser } from './user';
 
 /**
  * Convert a trial data to allow storage on Cloud Firestore.
@@ -77,7 +77,7 @@ export const calculateRunScores = async (runRef: DocumentReference): Promise<obj
 };
 
 export interface IRunInput {
-  user: RoarUser;
+  user: RoarAppUser;
   task: RoarTaskVariant;
 }
 
@@ -88,12 +88,12 @@ export interface IRunInput {
  * one user "running" through a single task one time.
  */
 export class RoarRun {
-  user: RoarUser;
+  user: RoarAppUser;
   task: RoarTaskVariant;
   runRef: DocumentReference;
   started: boolean;
   /** Create a ROAR run
-   * @param {RoarUser} user - The user running the task
+   * @param {RoarAppUser} user - The user running the task
    * @param {RoarTaskVariant} task - The task variant being run
    */
   constructor({ user, task }: IRunInput) {

@@ -11,7 +11,7 @@ import { removeNull } from './util';
 
 export type userCategoryType = 'student' | 'educator' | 'researcher' | 'admin' | 'caregiver';
 
-export interface IUserData {
+export interface IAppUserData {
   id: string;
   birthMonth?: number | null;
   birthYear?: number | null;
@@ -23,7 +23,7 @@ export interface IUserData {
   userMetadata?: Record<string, unknown>;
 }
 
-export interface IUserInput extends IUserData {
+export interface IUserInput extends IAppUserData {
   firebaseUid: string;
 }
 
@@ -45,7 +45,7 @@ interface IFirestoreUserData {
 }
 
 /** Class representing a ROAR user */
-export class RoarUser {
+export class RoarAppUser {
   /** Create a ROAR user
    * @param {string} id - The ROAR ID of the user
    * @param {string} firebaseUid - The firebase UID of the user

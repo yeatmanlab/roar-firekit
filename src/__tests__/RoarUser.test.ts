@@ -1,7 +1,7 @@
 import { doc, DocumentReference, getDoc, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, deleteUser, signOut } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { RoarUser } from '../firestore/user';
+import { RoarAppUser } from '../firestore/user';
 import { firebaseSignIn } from '../auth';
 import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
@@ -33,14 +33,14 @@ const getRandomUserInput = async (withSignIn = false) => {
   return userInput;
 };
 
-describe('RoarUser', () => {
+describe('RoarAppUser', () => {
   afterEach(async () => {
     await signOut(auth);
   });
 
   it('constructs a user', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     expect(user.id).toBe(userInput.id);
     expect(user.firebaseUid).toBe(userInput.firebaseUid);
     expect(user.birthMonth).toBe(userInput.birthMonth);
@@ -59,13 +59,13 @@ describe('RoarUser', () => {
       const userInput = await getRandomUserInput();
       const invalidInput = Object.create(userInput);
       invalidInput.userCategory = 'superhero';
-      new RoarUser(invalidInput);
+      new RoarAppUser(invalidInput);
     }).rejects.toThrow('User category must be one of student, educator, researcher, admin, caregiver.');
   });
 
   it('sets Firestore document references', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
     expect(user.userRef).toBeInstanceOf(DocumentReference);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -74,7 +74,7 @@ describe('RoarUser', () => {
 
   it('throws if trying to write to Firestore before setting refs', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     await expect(async () => await user.toFirestore()).rejects.toThrow(
       'User refs not set. Please use the setRefs method first.',
     );
@@ -82,7 +82,7 @@ describe('RoarUser', () => {
 
   it('throws if trying to update timestamp before setting refs', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     await expect(async () => await user.updateFirestoreTimestamp()).rejects.toThrow(
       'User refs not set. Please use the setRefs method first.',
     );
@@ -90,7 +90,7 @@ describe('RoarUser', () => {
 
   it('creates a new Firestore document', async () => {
     const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
     try {
       await user.toFirestore();
@@ -134,7 +134,7 @@ describe('RoarUser', () => {
 
   it('updates an existing Firestore document', async () => {
     const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
 
     try {
@@ -183,7 +183,7 @@ describe('RoarUser', () => {
 
   it('updates the server timestamp', async () => {
     const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
 
     try {
@@ -219,7 +219,7 @@ describe('RoarUser', () => {
   it('prohibits writing data to other users', async () => {
     const userInput = await getRandomUserInput(true);
     userInput.firebaseUid = 'other-user';
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
     await expect(async () => await user.toFirestore()).rejects.toThrow('Missing or insufficient permissions.');
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion

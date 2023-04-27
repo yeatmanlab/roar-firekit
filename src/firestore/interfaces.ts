@@ -75,6 +75,7 @@ export interface IExternalUserData extends DocumentData {
 export interface IUserData extends DocumentData {
   userType: UserType;
   assessmentPid?: string;
+  assessmentUid?: string;
   dob?: Date;
   assessmentsCompleted?: string[];
   assessmentsAssigned?: string[];

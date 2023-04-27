@@ -1,18 +1,38 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc } from 'firebase/firestore';
 
-// The gse-yeatmanlab firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: process.env.ROAR_FIREBASE_API_KEY || '',
-  authDomain: process.env.ROAR_FIREBASE_AUTH_DOMAIN || '',
-  projectId: process.env.ROAR_FIREBASE_PROJECT_ID || '',
-  storageBucket: process.env.ROAR_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: process.env.ROAR_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: process.env.ROAR_FIREBASE_APP_ID || '',
-  measurementId: process.env.ROAR_FIREBASE_MEASUREMENT_ID || '',
+import { EmulatorConfigData } from '../../firestore/util';
+
+import * as assessmentFirebaseConfig from '../../../firebase/assessment/firebase.json';
+import * as adminFirebaseConfig from '../../../firebase/admin/firebase.json';
+
+const appConfig: EmulatorConfigData = {
+  projectId: 'demo-gse-yeatmanlab',
+  apiKey: 'any-string-value',
+  emulatorPorts: {
+    db: assessmentFirebaseConfig.emulators.firestore.port,
+    auth: assessmentFirebaseConfig.emulators.auth.port,
+  },
 };
 
-export const firebaseApp = initializeApp(firebaseConfig, 'unittest');
-const db = getFirestore(firebaseApp);
+const adminConfig: EmulatorConfigData = {
+  projectId: 'demo-gse-roar-admin',
+  apiKey: 'any-string-value',
+  emulatorPorts: {
+    db: adminFirebaseConfig.emulators.firestore.port,
+    auth: adminFirebaseConfig.emulators.auth.port,
+  },
+};
+
+export const roarConfig = {
+  app: appConfig,
+  admin: adminConfig,
+};
+
+export const firebaseApps = {
+  app: initializeApp(roarConfig.app, 'test-app'),
+  admin: initializeApp(roarConfig.admin, 'test-admin'),
+};
+
+const db = getFirestore(firebaseApps.app);
 export const rootDoc = doc(collection(db, 'ci'), 'test-root-doc');
