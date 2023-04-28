@@ -77,9 +77,9 @@ describe('WJPercentile class', () => {
     const expected = [
       {
         firestorePid: 'user_1',
-        roarScore: '130',
-        standardScore: '64',
-        wjPercentile: '0.9',
+        roarScore: '253',
+        standardScore: '67',
+        wjPercentile: '1.4',
       },
       {
         firestorePid: 'user_2',
@@ -95,15 +95,15 @@ describe('WJPercentile class', () => {
       },
       {
         firestorePid: 'user_4',
-        roarScore: '710',
+        roarScore: '640',
         standardScore: '137',
         wjPercentile: '99.3',
       },
       {
         firestorePid: 'user_5',
-        roarScore: '760',
-        standardScore: '100',
-        wjPercentile: '48.9',
+        roarScore: '673',
+        standardScore: '98',
+        wjPercentile: '44.5',
       },
       {
         firestorePid: 'user_6',
