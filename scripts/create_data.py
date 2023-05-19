@@ -284,12 +284,12 @@ def gse_run(runId, taskId, varientId, completed, trials, classId, districtId, sc
 def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, variants):
     birthdayDatetime = datetime.strptime(birthday, "%d/%m/%Y")
     return {
-        "id": userId,
+        "roarUid": userId,
         "birthMonth": birthdayDatetime.month,
         "birthYear": birthdayDatetime.year,
         "classId": classId,
         "districtId": districtId,
-        "firebaseUid": "",
+        "assessmentUid": "",
         "schoolId": schoolId,
         "studyId": "",
         "studies": studies,
@@ -297,7 +297,7 @@ def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, va
         "taskRefs": [],
         "variants": variants,
         "variantRefs": [],
-        "__collections__": {"runs": {} },
+        "__collections__": {"runs": {}},
     }
 
 
@@ -521,10 +521,10 @@ for group in randomGroup(classes, random.randint(5, 10)):
         for _ in range(4):
             trialId = randomAlphaNumericString(16)
             admin_trials[run] = gse_trial(trialId)
-    swr_run = create_assessment("swr", 'runId', admin_start, True)
-    pa_run = create_assessment("pa", 'runId', admin_start, True)
-    sre_run = create_assessment("sre", 'runId', admin_start, False)
-    fake_run = create_assessment("fakeTask", 'runId', admin_start, True)
+    swr_run = create_assessment("swr", "runId", admin_start, True)
+    pa_run = create_assessment("pa", "runId", admin_start, True)
+    sre_run = create_assessment("sre", "runId", admin_start, False)
+    fake_run = create_assessment("fakeTask", "runId", admin_start, True)
     assessments = {"swr": swr_run, "pa": pa_run, "sre": sre_run, "fakeTask": fake_run}
 
     # Gather data for this administration
@@ -562,7 +562,7 @@ for group in randomGroup(classes, random.randint(5, 10)):
             "/tasks/fakeTask/variant/{}".format(admin_runIds["fakeTask"]["variant"]),
         ]
         for run in assessments:
-            gse_runId = randomAlphaNumericString(16, 'run-')
+            gse_runId = randomAlphaNumericString(16, "run-")
             gse_user_class = students[user]["classId"]
             gse_user_school = classes[gse_user_class]["schoolId"]
             gse_user_district = schools[gse_user_school]["districtId"]
@@ -580,7 +580,9 @@ for group in randomGroup(classes, random.randint(5, 10)):
             # Alter user object to match runIds
             user_admins[user][admin_id]["assessments"][run]["runId"] = gse_runId
         users[user]["administrationsStarted"] = {admin_id: dt_to_firestore(admin_start)}
-        users[user]["administrationsAssigned"] = {admin_id: dt_to_firestore(admin_start)}
+        users[user]["administrationsAssigned"] = {
+            admin_id: dt_to_firestore(admin_start)
+        }
 
     # use list(set()) to make lists of unique items
     administrations[admin_id] = administrationId(

@@ -7,9 +7,8 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { removeNull } from './util';
-
-export type userCategoryType = 'student' | 'educator' | 'researcher' | 'admin' | 'caregiver';
+import { UserType } from '../interfaces';
+import { removeNull } from '../util';
 
 export interface IAppUserData {
   id: string;
@@ -18,8 +17,8 @@ export interface IAppUserData {
   classId?: string | null;
   schoolId?: string | null;
   districtId?: string | null;
-  studyId?: string | null;
-  userCategory?: userCategoryType;
+  studies?: string[] | null;
+  userCategory?: UserType;
   userMetadata?: Record<string, unknown>;
 }
 
@@ -35,8 +34,7 @@ interface IFirestoreUserData {
   classId?: string | null;
   schoolId?: string | null;
   districtId?: string | null;
-  studyId?: string | null;
-  userCategory: userCategoryType;
+  userCategory: UserType;
   lastUpdated: ReturnType<typeof serverTimestamp>;
   studies?: ReturnType<typeof arrayUnion>;
   districts?: ReturnType<typeof arrayUnion>;
@@ -54,7 +52,7 @@ export class RoarAppUser {
    * @param {string} classId - The class ID of the user
    * @param {string} schoolId - The school ID of the user
    * @param {string} districtId - The district ID of the user
-   * @param {string} studyId - The study ID of the user
+   * @param {string} studies - The studies of the user
    * @param {string} userCategory - The user type. Must be either "student," "educator," or "researcher"
    * @param {*} userMetadata - An object containing additional user metadata
    */
@@ -65,8 +63,8 @@ export class RoarAppUser {
   classId: string | null;
   schoolId: string | null;
   districtId: string | null;
-  studyId: string | null;
-  userCategory: userCategoryType;
+  studies: string[] | null;
+  userCategory: UserType;
   isPushedToFirestore: boolean;
   userRef: DocumentReference | undefined;
   userMetadata: Record<string, unknown>;
@@ -78,11 +76,11 @@ export class RoarAppUser {
     classId = null,
     schoolId = null,
     districtId = null,
-    studyId = null,
-    userCategory = 'student' as const,
+    studies = null,
+    userCategory = UserType.student,
     userMetadata = {},
   }: IUserInput) {
-    const allowedUserCategories: string[] = ['student', 'educator', 'researcher', 'admin', 'caregiver'];
+    const allowedUserCategories = Object.values(UserType);
     if (!allowedUserCategories.includes(userCategory)) {
       throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
     }
@@ -94,8 +92,8 @@ export class RoarAppUser {
     this.classId = classId;
     this.schoolId = schoolId;
     this.districtId = districtId;
-    this.studyId = studyId;
-    this.userCategory = userCategory as userCategoryType;
+    this.studies = studies;
+    this.userCategory = userCategory;
     this.userMetadata = userMetadata;
 
     this.userRef = undefined;
@@ -114,7 +112,7 @@ export class RoarAppUser {
    * @method
    * @async
    */
-  async toFirestore() {
+  async toAppFirestore() {
     if (this.userRef === undefined) {
       throw new Error('User refs not set. Please use the setRefs method first.');
     } else {
@@ -126,7 +124,6 @@ export class RoarAppUser {
         classId: this.classId,
         schoolId: this.schoolId,
         districtId: this.districtId,
-        studyId: this.studyId,
         userCategory: this.userCategory,
         lastUpdated: serverTimestamp(),
       };
@@ -134,7 +131,7 @@ export class RoarAppUser {
       // If the study, district, school, or class is provided, also add it to the
       // list of all studies, districts, schools, or classes.
       // Likewise for task and variant.
-      if (this.studyId) userData.studies = arrayUnion(this.studyId);
+      if (this.studies) userData.studies = arrayUnion(...this.studies);
       if (this.districtId) userData.districts = arrayUnion(this.districtId);
       if (this.schoolId) userData.schools = arrayUnion(this.schoolId);
       if (this.classId) userData.classes = arrayUnion(this.classId);

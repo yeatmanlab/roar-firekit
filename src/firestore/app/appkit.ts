@@ -1,20 +1,42 @@
-import { IAppUserData, RoarAppUser } from './user';
-import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { RoarRun } from './run';
-import { firebaseSignIn, firebaseSignOut } from '../auth';
-import { getFirestore, collection, doc, DocumentReference, connectFirestoreEmulator } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
 import {
-  FirebaseConfigData,
+  Auth,
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
+import {
+  DocumentReference,
+  Firestore,
+  collection,
+  connectFirestoreEmulator,
+  doc,
+  getFirestore,
+} from 'firebase/firestore';
+
+import { roarEmail } from '../../auth';
+import { RoarRun } from './run';
+import { ITaskVariantInput, RoarTaskVariant } from './task';
+import { IAppUserData, RoarAppUser } from './user';
+import {
   EmulatorConfigData,
+  FirebaseConfigData,
   RealConfigData,
   roarEnableIndexedDbPersistence,
   safeInitializeApp,
-} from './util';
-import { initializeApp } from 'firebase/app';
+} from '../util';
 
 export interface AssessmentConfigData {
   firebaseConfig: FirebaseConfigData;
   rootDoc: string[];
+}
+
+interface IAppkitConstructorParams {
+  userInfo: IAppUserData;
+  taskInfo: ITaskVariantInput;
+  config: AssessmentConfigData;
 }
 
 /**
@@ -23,12 +45,15 @@ export interface AssessmentConfigData {
  * for interacting with them.
  */
 export class RoarAppkit {
-  userInfo: IAppUserData;
+  auth: Auth;
+  db: Firestore;
+  isAuthenticated: boolean;
+  rootDoc: DocumentReference;
+  run: RoarRun | undefined;
+  task: RoarTaskVariant | undefined;
   taskInfo: ITaskVariantInput;
   user: RoarAppUser | undefined;
-  task: RoarTaskVariant | undefined;
-  run: RoarRun | undefined;
-  rootDoc: DocumentReference;
+  userInfo: IAppUserData;
   /**
    * Create a RoarAppkit. This expects an object with keys `userInfo`,
    * `taskInfo`, and `confg` where `userInfo` is a [[IAppUserData]] object,
@@ -39,22 +64,16 @@ export class RoarAppkit {
    *     taskInfo: The task input object
    *     config: Firebase configuration object
    */
-  constructor({
-    userInfo,
-    taskInfo,
-    config,
-  }: {
-    userInfo: IAppUserData;
-    taskInfo: ITaskVariantInput;
-    config: AssessmentConfigData;
-  }) {
+  constructor({ userInfo, taskInfo, config }: IAppkitConstructorParams) {
     this.userInfo = userInfo;
     this.taskInfo = taskInfo;
     this.user = undefined;
     this.task = undefined;
     this.run = undefined;
+    this.isAuthenticated = false;
 
-    let db;
+    let db: Firestore;
+    let auth: Auth;
 
     if ((config.firebaseConfig as EmulatorConfigData).emulatorPorts) {
       const firebaseApp = initializeApp(
@@ -63,14 +82,49 @@ export class RoarAppkit {
       );
       const ports = (config.firebaseConfig as EmulatorConfigData).emulatorPorts;
       db = getFirestore(firebaseApp);
+      auth = getAuth(firebaseApp);
+
       connectFirestoreEmulator(db, 'localhost', ports.db);
+
+      const originalInfo = console.info;
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      console.info = () => {};
+      connectAuthEmulator(auth, `http://localhost:${ports.auth}`);
+      console.info = originalInfo;
     } else {
       const firebaseApp = safeInitializeApp(config.firebaseConfig as RealConfigData, 'app-firestore');
       db = getFirestore(firebaseApp);
       roarEnableIndexedDbPersistence(db);
+      auth = getAuth(firebaseApp);
     }
 
+    this.db = db;
+    this.auth = auth;
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        this.isAuthenticated = true;
+      } else {
+        this.isAuthenticated = false;
+      }
+    });
+
     this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
+  }
+
+  async signInWithEmailAndPassword(roarPid: string, password: string) {
+    return createUserWithEmailAndPassword(this.auth, roarEmail(roarPid), password).catch((error) => {
+      if (error.code === 'auth/email-already-in-use') {
+        // console.log('Email already in use');
+        return signInWithEmailAndPassword(this.auth, roarEmail(roarPid), password);
+      } else {
+        throw error;
+      }
+    });
+  }
+
+  async signOut() {
+    return this.auth.signOut();
   }
 
   /**
@@ -80,11 +134,14 @@ export class RoarAppkit {
    * @async
    */
   async startRun() {
-    const auth = await firebaseSignIn(this.userInfo.id);
+    if (!this.isAuthenticated) {
+      throw new Error('The user must be authenticated to start a run.');
+    }
+
     this.user = new RoarAppUser({
       ...this.userInfo,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      firebaseUid: auth.currentUser!.uid,
+      firebaseUid: this.auth.currentUser!.uid,
     });
     this.user.setRefs(this.rootDoc);
 
@@ -97,7 +154,7 @@ export class RoarAppkit {
       this.task
         .toFirestore()
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .then(() => this.user!.toFirestore())
+        .then(() => this.user!.toAppFirestore())
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         .then(() => this.run!.startRun())
     );
@@ -120,7 +177,7 @@ export class RoarAppkit {
    */
   async finishRun() {
     if (this.run) {
-      return this.run.finishRun().then(() => firebaseSignOut());
+      return this.run.finishRun();
     } else {
       throw new Error('Run is undefined. Use the startRun method first.');
     }

@@ -1,14 +1,14 @@
 import { getAuth, deleteUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, DocumentReference, doc, getDoc, getDocs, Timestamp, deleteDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
-import { RoarAppUser } from '../firestore/user';
-import { convertTrialToFirestore, RoarRun } from '../firestore/run';
+import { RoarAppUser } from '../firestore/app/user';
+import { convertTrialToFirestore, RoarRun } from '../firestore/app/run';
 import { firebaseSignIn } from '../auth';
-import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
-import { RoarTaskVariant } from '../firestore/task';
+import { firebaseApps, rootDoc } from './__utils__/firebaseConfig';
+import { RoarTaskVariant } from '../firestore/app/task';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
 
-const auth = getAuth(firebaseApp);
+const auth = getAuth(firebaseApps.app);
 
 const getRandomUserInput = async (withSignIn = false) => {
   const uid = `ci-user-${uuidv4()}`;
@@ -87,11 +87,13 @@ describe('RoarRun', () => {
     const task = new RoarTaskVariant(taskInput);
     user.setRefs(rootDoc);
     task.setRefs(rootDoc);
-    const run = new RoarRun({ user, task });
+    const studyId = 'test-study-id';
+    const run = new RoarRun({ user, task, studyId });
     expect(run.user).toBe(user);
     expect(run.task).toBe(task);
     expect(run.runRef).toBeInstanceOf(DocumentReference);
     expect(run.started).toBe(false);
+    expect(run.studyId).toBe(studyId);
   });
 
   it('throws an error if user is not a student', async () => {
@@ -126,7 +128,8 @@ describe('RoarRun', () => {
     const task = new RoarTaskVariant(taskInput);
     user.setRefs(rootDoc);
     task.setRefs(rootDoc);
-    const run = new RoarRun({ user, task });
+    const studyId = 'test-study-id';
+    const run = new RoarRun({ user, task, studyId });
 
     // Confirm that user and task are not intially pushed to Firestore
     expect(run.user.isPushedToFirestore).toBe(false);
@@ -168,7 +171,7 @@ describe('RoarRun', () => {
           districtId: run.user.districtId,
           schoolId: run.user.schoolId,
           classId: run.user.classId,
-          studyId: run.user.studyId,
+          studyId: studyId,
           taskId: run.task.taskId,
           variantId: run.task.variantId,
           taskRef: expect.any(DocumentReference),

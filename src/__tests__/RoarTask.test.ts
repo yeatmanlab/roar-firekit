@@ -14,11 +14,11 @@ import {
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { firebaseSignIn } from '../auth';
-import { RoarTaskVariant } from '../firestore/task';
-import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
+import { RoarTaskVariant } from '../firestore/app/task';
+import { firebaseApps, rootDoc } from './__utils__/firebaseConfig';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
 
-const auth = getAuth(firebaseApp);
+const auth = getAuth(firebaseApps.app);
 const uid = `ci-user-task-tests`;
 
 const taskInput = {

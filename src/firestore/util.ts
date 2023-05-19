@@ -1,6 +1,7 @@
 import { initializeApp, getApp } from 'firebase/app';
 import { inMemoryPersistence, getAuth, setPersistence, connectAuthEmulator } from 'firebase/auth';
 import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _isEqual from 'lodash/isEqual';
 
 /** Remove null attributes from an object
@@ -22,6 +23,7 @@ export interface EmulatorConfigData extends CommonFirebaseConfig {
   emulatorPorts: {
     db: number;
     auth: number;
+    functions: number;
   };
 }
 
@@ -77,19 +79,22 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
     const ports = (config as EmulatorConfigData).emulatorPorts;
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const functions = getFunctions(app);
 
-    connectFirestoreEmulator(db, 'localhost', ports.db);
+    connectFirestoreEmulator(db, '127.0.0.1', ports.db);
+    connectFunctionsEmulator(functions, '127.0.0.1', ports.functions);
 
     const originalInfo = console.info;
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     console.info = () => {};
-    connectAuthEmulator(auth, `http://localhost:${ports.auth}`);
+    connectAuthEmulator(auth, `http://127.0.0.1:${ports.auth}`);
     console.info = originalInfo;
 
     return {
       firebaseApp: app,
       auth,
       db,
+      functions,
     };
   } else {
     const app = safeInitializeApp(config as RealConfigData, name);
@@ -97,6 +102,7 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
       firebaseApp: app,
       auth: getAuth(app),
       db: getFirestore(app),
+      functions: getFunctions(app),
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a

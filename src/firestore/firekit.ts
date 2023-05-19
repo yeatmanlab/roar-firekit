@@ -1,15 +1,20 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import _uniq from 'lodash/uniq';
 import _without from 'lodash/without';
+import _get from 'lodash/get';
+import dot from 'dot-object';
+import { StatusCode } from 'status-code-enum';
 import {
   AuthError,
   GoogleAuthProvider,
+  OAuthProvider,
+  ProviderId,
   createUserWithEmailAndPassword,
   getRedirectResult,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
-  signInWithCredential,
 } from 'firebase/auth';
 import {
   addDoc,
@@ -19,29 +24,45 @@ import {
   doc,
   getDoc,
   getDocs,
-  query,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { initializeProjectFirekit } from './util';
+import { httpsCallable } from 'firebase/functions';
+
+import { isEmailAvailable, isUsernameAvailable } from '../auth';
+import { initializeProjectFirekit, removeNull } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
   IExternalUserData,
   IFirekit,
+  IAppFirekit,
   IMyAdministrationData,
   IMyAssessmentData,
   IRoarConfigData,
   IUserData,
   UserType,
 } from './interfaces';
-// import { ITaskVariantInput, RoarTaskVariant } from './task';
+import { RoarAppUser } from './app/user';
+
+enum OAuthProviderType {
+  CLEVER = 'admin',
+  GOOGLE = 'educator',
+}
+
+const RoarProviderId = {
+  ...ProviderId,
+  CLEVER: 'oidc.clever',
+};
 
 export class RoarFirekit {
   roarConfig: IRoarConfigData;
-  app: IFirekit;
+  app: IAppFirekit;
   admin: IFirekit;
   userData?: IUserData;
+  roarAppUser?: RoarAppUser;
+  oAuthAccessToken?: string;
+  oidcIdToken?: string;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[IRoarConfigData]] object.
@@ -53,59 +74,141 @@ export class RoarFirekit {
 
     this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence);
     this.admin = initializeProjectFirekit(roarConfig.admin, 'admin', enableDbPersistence);
+
+    this.app.docRefs = {
+      prod: doc(this.app.db, 'prod', 'roar-prod'),
+    };
   }
 
   //           +------------------------------+
   // ----------| Begin Authentication Methods |----------
   //           +------------------------------+
+
+  private _verify_authentication() {
+    if (this.admin.user === undefined || this.app.user === undefined) {
+      throw new Error('User is not authenticated.');
+    }
+  }
+
+  private async _associateAppAndAdminUids() {
+    this._verify_authentication();
+    const syncAccessControl = httpsCallable(this.app.functions, 'syncaccesscontrol');
+    const result = await syncAccessControl({ adminUid: this.admin.user!.uid });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(result.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+      throw new Error('Failed to associate admin and assessment UIDs.');
+    }
+  }
+
+  // TODO: Add a private method that calls the syncCleverData cloud function.
+  private async _syncCleverData() {
+    this._verify_authentication();
+    const syncCleverData = httpsCallable(this.app.functions, 'synccleverdata');
+    const result = await syncCleverData({ adminUid: this.admin.user!.uid });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(result.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+      throw new Error('Failed to sync Clever and ROAR data.');
+    }
+  }
+
+  async isUsernameAvailable(username: string): Promise<boolean> {
+    return isUsernameAvailable(this.admin.auth, username);
+  }
+
+  async isEmailAvailable(email: string): Promise<boolean> {
+    return isEmailAvailable(this.admin.auth, email);
+  }
+
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
-    return createUserWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
-      this.admin.user = adminUserCredential.user;
-      return createUserWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
-        this.app.user = appUserCredential.user;
+    return createUserWithEmailAndPassword(this.admin.auth, email, password)
+      .catch((error: AuthError) => {
+        console.log('Error creating user', error);
+        console.log(error.code);
+        console.log(error.message);
+      })
+      .then((adminUserCredential) => {
+        this.admin.user = adminUserCredential?.user;
+        return createUserWithEmailAndPassword(this.app.auth, email, password)
+          .then((appUserCredential) => {
+            this.app.user = appUserCredential.user;
+          })
+          .then(this._associateAppAndAdminUids.bind(this))
+          .then(this.getMyData.bind(this));
       });
-    });
   }
 
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     return signInWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
       this.admin.user = adminUserCredential.user;
-      return signInWithEmailAndPassword(this.app.auth, email, password).then((appUserCredential) => {
-        this.app.user = appUserCredential.user;
-      });
+      return signInWithEmailAndPassword(this.app.auth, email, password)
+        .then((appUserCredential) => {
+          this.app.user = appUserCredential.user;
+        })
+        .then(this.getMyData.bind(this));
     });
   }
 
-  async signInWithGooglePopup() {
-    const provider = new GoogleAuthProvider();
+  async signInWithPopup(provider: OAuthProviderType) {
+    let authProvider;
+    if (provider === OAuthProviderType.GOOGLE) {
+      authProvider = new GoogleAuthProvider();
+    } else if (provider === OAuthProviderType.CLEVER) {
+      authProvider = new OAuthProvider('oidc.clever');
+    } else {
+      throw new Error(`provider must be one of ${Object.values(OAuthProviderType)}. Received ${provider} instead.`);
+    }
+
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
     const swallowAllowedErrors = (error: AuthError) => {
       if (!allowedErrors.includes(error.code)) {
         throw error;
       }
     };
-    return signInWithPopup(this.app.auth, provider)
-      .then((appUserCredential) => {
-        // This gives you a Google Access Token. You can use it to access the Google API.
-        this.app.user = appUserCredential.user;
-        return GoogleAuthProvider.credentialFromResult(appUserCredential);
+
+    return signInWithPopup(this.admin.auth, authProvider)
+      .then((adminResult) => {
+        this.admin.user = adminResult.user;
+        if (provider === OAuthProviderType.GOOGLE) {
+          const credential = GoogleAuthProvider.credentialFromResult(adminResult);
+          // This gives you a Google Access Token. You can use it to access Google APIs.
+          this.oAuthAccessToken = credential?.accessToken;
+          return credential;
+        } else if (provider === OAuthProviderType.CLEVER) {
+          const credential = OAuthProvider.credentialFromResult(adminResult);
+          // This gives you a Clever Access Token. You can use it to access Clever APIs.
+          this.oAuthAccessToken = credential?.accessToken;
+          this.oidcIdToken = credential?.idToken;
+          return credential;
+        }
       })
       .catch(swallowAllowedErrors)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.admin.auth, credential)
-            .then((adminUserCredential) => {
+          return signInWithCredential(this.app.auth, credential)
+            .then((appUserCredential) => {
               // credential = GoogleAuthProvider.credentialFromResult(result);
-              this.admin.user = adminUserCredential.user;
+              this.app.user = appUserCredential.user;
             })
             .catch(swallowAllowedErrors);
         }
-      });
+      })
+      .then(this._associateAppAndAdminUids.bind(this))
+      .then(this.getMyData.bind(this));
   }
 
-  async initiateGoogleRedirect() {
-    const provider = new GoogleAuthProvider();
-    return signInWithRedirect(this.admin.auth, provider);
+  async initiateRedirect(provider: OAuthProviderType) {
+    let authProvider;
+    if (provider === OAuthProviderType.GOOGLE) {
+      authProvider = new GoogleAuthProvider();
+    } else if (provider === OAuthProviderType.CLEVER) {
+      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
+    } else {
+      throw new Error(`provider must be one of ${Object.values(OAuthProviderType)}. Received ${provider} instead.`);
+    }
+
+    return signInWithRedirect(this.admin.auth, authProvider);
   }
 
   async signInFromRedirectResult(enableCookiesCallback: () => void) {
@@ -118,14 +221,23 @@ export class RoarFirekit {
     };
 
     return getRedirectResult(this.admin.auth)
-      .then((adminUserCredential) => {
-        if (adminUserCredential !== null) {
-          this.admin.user = adminUserCredential.user;
+      .then((adminRedirectResult) => {
+        if (adminRedirectResult !== null) {
+          this.admin.user = adminRedirectResult.user;
 
-          // This gives you a Google Access Token. You can use it to access Google APIs.
-          // const credential = GoogleAuthProvider.credentialFromResult(result);
-          // const token = credential.accessToken;
-          return GoogleAuthProvider.credentialFromResult(adminUserCredential);
+          const providerId = adminRedirectResult.providerId;
+          if (providerId === RoarProviderId.GOOGLE) {
+            const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
+            // This gives you a Google Access Token. You can use it to access Google APIs.
+            this.oAuthAccessToken = credential?.accessToken;
+            return credential;
+          } else if (providerId === RoarProviderId.CLEVER) {
+            const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
+            // This gives you a Clever Access Token. You can use it to access Clever APIs.
+            this.oAuthAccessToken = credential?.accessToken;
+            this.oidcIdToken = credential?.idToken;
+            return credential;
+          }
         }
       })
       .catch(catchEnableCookiesError)
@@ -137,7 +249,9 @@ export class RoarFirekit {
             }
           });
         }
-      });
+      })
+      .then(this._associateAppAndAdminUids.bind(this))
+      .then(this.getMyData.bind(this));
   }
 
   async signOut() {
@@ -145,18 +259,14 @@ export class RoarFirekit {
       this.app.user = undefined;
       return this.admin.auth.signOut().then(() => {
         this.admin.user = undefined;
+        this.userData = undefined;
       });
     });
   }
+
   //           +------------------------------+
   // ----------|  End Authentication Methods  |----------
   //           +------------------------------+
-
-  private _verify_authentication() {
-    if (this.admin.user === undefined) {
-      throw new Error('User is not authenticated.');
-    }
-  }
 
   private async _getUser(uid: string): Promise<IUserData | undefined> {
     this._verify_authentication();
@@ -192,38 +302,26 @@ export class RoarFirekit {
   async getMyData() {
     this._verify_authentication();
     this.userData = await this._getUser(this.admin.user!.uid);
+    if (this.userData) {
+      this.roarAppUser = new RoarAppUser({
+        id: this.admin.user!.uid,
+        firebaseUid: this.app.user!.uid,
+        birthMonth: this.userData.dob?.getMonth(),
+        birthYear: this.userData.dob?.getFullYear(),
+        classId: this.userData.studentData?.classId || this.userData!.educatorData?.classId,
+        schoolId: this.userData.studentData?.schoolId || this.userData!.educatorData?.schoolId,
+        districtId: this.userData.studentData?.districtId || this.userData!.educatorData?.districtId,
+        studies: this.userData.studentData?.studies || this.userData!.educatorData?.studies,
+        userCategory: this.userData.userType,
+      });
+    }
   }
-
-  async getMyAdminRoles() {
-    this._verify_authentication();
-    const adminCollection = collection(this.app.db, 'admin');
-    const q = query(adminCollection);
-    const querySnapshot = await getDocs(q);
-
-    const roles: { [x: string]: boolean } = {};
-    querySnapshot.forEach((doc) => {
-      roles[doc.id.replace(/s$/, '')] = doc.data().users.includes(this.app.user?.uid);
-    });
-    return roles;
-  }
-
-  async addMeToAdminRequests() {
-    const adminCollection = collection(this.app.db, 'admin');
-    const requestsRef = doc(adminCollection, 'requests');
-
-    await updateDoc(requestsRef, {
-      users: arrayUnion(this.app.user?.uid),
-    });
-  }
-
-  // TODO: Adam write the appFirekit
-  // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
 
   /* Return a list of all UIDs for users that this user has access to */
   async listUsers() {
     this._verify_authentication();
-    const adminUsersDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'adminData', 'users');
-    const docSnap = await getDoc(adminUsersDoc);
+    const accessControlDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'accessControl', 'users');
+    const docSnap = await getDoc(accessControlDoc);
     if (docSnap.exists()) {
       return Object.keys(docSnap.data());
     }
@@ -236,9 +334,6 @@ export class RoarFirekit {
     return uidArray.map((uid) => this._getUser(uid));
   }
 
-  // TODO: (Adam) rewrite so that administrationsAssigned is a map where the
-  // keys are the administration Ids and the values are time stamps for when it
-  // was assigned. Same for administrationsStarted and administrationsCompleted.
   public get administrationsAssigned() {
     return this.userData?.administrationsAssigned;
   }
@@ -311,8 +406,13 @@ export class RoarFirekit {
     }
   }
 
+  // TODO: Create the run in the assessment Firestore, record it and then pass it to the app
   async startAssessment(administrationId: string, taskId: string) {
     this._verify_authentication();
+
+    // Start this run in the assessment Firestore
+    // Append runId to `runId` and `allRunIds` for this assessment in the userId/administrations collection
+
     return this._updateAssessment(administrationId, taskId, { startedOn: new Date() });
   }
 
@@ -438,37 +538,59 @@ export class RoarFirekit {
     const docRef = doc(this.admin.db, 'users', uid, 'externalData', externalResourceId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      // TODO make sure we update the doc without overwriting existing data
+      // We use the dot-object module to transform the potentially nested external data to
+      // dot notation. This prevents overwriting extisting external data.
       // See the note about dot notation in https://firebase.google.com/docs/firestore/manage-data/add-data#update_fields_in_nested_objects
-      await updateDoc(docRef, {
-        [externalResourceId]: externalData,
-      });
+      await updateDoc(
+        docRef,
+        removeNull(
+          dot.dot({
+            [externalResourceId]: externalData,
+          }),
+        ),
+      );
     } else {
-      await setDoc(docRef, externalData);
+      await setDoc(docRef, removeNull(externalData));
     }
   }
 
   async createUser(
+    roarUid: string,
     userData: IUserData,
     externalResourceId: string | undefined,
     externalData: { [x: string]: unknown } | undefined,
   ) {
     this._verify_authentication();
 
-    const userDocRef = await addDoc(collection(this.admin.db, 'users'), userData);
-
     // Add the ID to the admin's list of users
-    const adminUsersDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'adminData', 'users');
-    await updateDoc(adminUsersDoc, {
-      [adminUsersDoc.id]: true,
+    // This must be done before we create the user (because of the firestore security rules)
+    const accessControlDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'accessControl', 'users');
+    await updateDoc(accessControlDoc, {
+      [roarUid]: true,
     });
+
+    const userDocRef = doc(this.admin.db, 'users', roarUid);
+    await setDoc(userDocRef, userData);
 
     if (externalResourceId !== undefined && externalData !== undefined) {
       await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
     }
 
+    // Add the new user to this admin's list of users in the assessment database ACL.
+    const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
+    await setDoc(
+      aclDocRef,
+      {
+        [roarUid]: true,
+      },
+      { merge: true },
+    );
+
     // TODO Adam: Add the user to the assessment database as well.
   }
 
   // async updateUser();
+
+  // TODO: Adam write the appFirekit
+  // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
 }

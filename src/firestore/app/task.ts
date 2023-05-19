@@ -12,7 +12,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { removeNull } from './util';
+import { removeNull } from '../util';
 
 export interface ITaskVariantInput {
   taskId: string;

@@ -4,6 +4,7 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { faker } from '@faker-js/faker';
 
+import { roarEmail } from '../auth';
 import { RoarFirekit } from '../firestore/firekit';
 import { IFirekit } from '../firestore/interfaces';
 import { roarConfig } from './__utils__/firebaseConfig';
@@ -39,10 +40,10 @@ describe('RoarFirekit', () => {
     console.warn = jest.fn();
     console.info = jest.fn();
 
-    connectAuthEmulator(app.auth, `http://localhost:${roarConfig.app.emulatorPorts.auth}`);
-    connectFirestoreEmulator(app.db, 'localhost', roarConfig.app.emulatorPorts.db);
-    connectAuthEmulator(admin.auth, `http://localhost:${roarConfig.admin.emulatorPorts.auth}`);
-    connectFirestoreEmulator(admin.db, 'localhost', roarConfig.admin.emulatorPorts.db);
+    connectAuthEmulator(app.auth, `http://127.0.0.1:${roarConfig.app.emulatorPorts.auth}`);
+    connectFirestoreEmulator(app.db, '127.0.0.1', roarConfig.app.emulatorPorts.db);
+    connectAuthEmulator(admin.auth, `http://127.0.0.1:${roarConfig.admin.emulatorPorts.auth}`);
+    connectFirestoreEmulator(admin.db, '127.0.0.1', roarConfig.admin.emulatorPorts.db);
 
     console.warn = originalWarn;
     console.info = originalInfo;
@@ -94,5 +95,32 @@ describe('RoarFirekit', () => {
     expect(firekit.admin.user).toBeDefined();
     expect(firekit.app.user).toEqual(app.auth.currentUser);
     expect(firekit.admin.user).toEqual(admin.auth.currentUser);
+  });
+
+  it('checks if emails are available', async () => {
+    const email = faker.internet.email();
+    const password = faker.internet.password();
+    await firekit.registerWithEmailAndPassword({ email, password });
+
+    const isEmailAvailable = await firekit.isEmailAvailable(email);
+    expect(isEmailAvailable).toBe(false);
+
+    const email2 = faker.internet.email();
+    const isEmailAvailable2 = await firekit.isEmailAvailable(email2);
+    expect(isEmailAvailable2).toBe(true);
+  });
+
+  it('checks if usernames are available', async () => {
+    const userName = faker.internet.userName();
+    const email = roarEmail(userName);
+    const password = faker.internet.password();
+    await firekit.registerWithEmailAndPassword({ email, password });
+
+    const isUsernameAvailable = await firekit.isUsernameAvailable(userName);
+    expect(isUsernameAvailable).toBe(false);
+
+    const userName2 = faker.internet.userName();
+    const isUsernameAvailable2 = await firekit.isUsernameAvailable(userName2);
+    expect(isUsernameAvailable2).toBe(true);
   });
 });

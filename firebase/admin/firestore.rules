@@ -1,6 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow super_admins to do everything
     match /{everythingInMyDatabase=**} {
       allow read, write: if request.auth.token.super_admin == true
     }
@@ -9,30 +10,66 @@ service cloud.firestore {
  			return request.auth != null;
 		}
 
+    function userType() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(userType, 'guest');
+    }
+
+    function adminLevel() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('adminData', {}).get('adminLevel', null);
+    }
+
+    function getSupplementalUserData(userType, orgType) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get(userType + 'Data', {}).get(orgType, []).toSet();
+    }
+
+    function getOrgs(orgType) {
+      // N.B.: This leaves out caregivers. We may want to include them in the future.
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let adminOrgs = userData.get('adminData', {}).get(orgType, []).toSet();
+      let educatorOrgs = userData.get('educatorData', {}).get(orgType, []).toSet();
+      let StudentOrgs = userData.get('studentData', {}).get(orgType, []).toSet();
+      return adminOrgs.union(educatorOrgs).union(studentOrgs);
+    }
+
     // Allow users to create, read, and write to their own data
-    match /users/{userId}/{document=**} {      
+    // Also allow admins/educators/caregivers to read and write data for their users
+    match /users/{userId} {      
       function userOwnsData() {
   			return isLoggedIn() && request.auth.uid == userId;
 			}
       
-      function userIsThisAdminType(adminType) {
-        return userId in get(/databases/$(database)/documents/users/$(request.auth.uid)/$(adminType + "Data")/users).data;
+      function isAdminForThisUser() {
+        return userId in get(/databases/$(database)/documents/users/$(request.auth.uid)/accessControl/users).data.keys()
+      }
+
+      function userTypeIsNotUpdated() {
+        return request.resource.data.userType == resource.data.userType;
       }
       
-      function userIsAValidAdmin() {
-      	return userIsThisAdminType("educators") ||
-          userIsThisAdminType("caregivers") ||
-          userIsThisAdminType("admins");
+      function hasAccess() {
+        return isLoggedIn() && (userOwnsData() || isAdminForThisUser());
       }
       
-      function canRead() {
-        return isLoggedIn() && (userOwnsData() || userIsAValidAdmin());
+      allow read: if hasAccess();
+      allow write: if hasAccess() && userTypeIsNotUpdated();
+
+      match /administrations/{administrationId} {
+        allow read: if hasAccess();
+        allow write: if hasAccess();
       }
-      
-      allow read: if canRead();
-      allow write: if canRead();
+
+      match /accessControl/users {
+        allow read: if userOwnsData();
+        // Currently we only allow super_admins to add users to access control.
+        // It would be nice to allow admins to add users to their own access
+        // control, but we need to find a way to keep them from adding users
+        // outside of their organization.
+        allow write: if false;
+      }
     }
     
+    // Allow users to read any administration that they have created or are assigned to.
+    // Allow users to create or update administrations only if they are an admin and they are recorded as the creator.
     match /administrations/{administrationId}/{document=**} {
       function isAnAdministrationUserParticipatedIn() {
         return request.auth.uid in resource.data.users;
@@ -41,45 +78,64 @@ service cloud.firestore {
       function userCreatedThis() {
         return request.auth.uid == resource.data.createdBy;
       }
-      
-      function hasAdminAccessOfThisType(adminType) {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)/adminData).data.adminLevel == adminType &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)/adminData).data[adminType].hasAny(resource.data[adminType]);
-      }
-      
-      function hasAdminAccess() {
-        return hasAdminAccessOfThisType("studies") ||
-          hasAdminAccessOfThisType("classes") ||
-          hasAdminAccessOfThisType("schools") ||
-          hasAdminAccessOfThisType("districts");
+
+      function isAdminForAnyAssignedUser() {
+        let myUsers = get(/databases/$(database)/documents/users/$(request.auth.uid)/accessControl/users).data.keys().toSet();
+        let administrationUsers = resource.data.users;
+        return myUsers.hasAny(administrationUsers);
       }
       
       function canRead() {
-        return isAnAdministrationUserParticipatedIn() ||
-          userCreatedThis() ||
-          hasAdminAccess();
+        // TODO: Allow admins or educators from the same org to view admins created by their peers.
+        return isAnAdministrationUserParticipatedIn() || userCreatedThis() || isAdminForAnyAssignedUser();
       }
       
       allow read: if isLoggedIn() && canRead();
       
       function adminOrEducatorRequestedCreate() {
-        return request.data.createdBy == request.auth.uid && (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)/adminData) ||
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)/educatorData)
-        );
+        return request.data.createdBy == request.auth.uid && userType() in ['admin', 'educator'];
       }
 
       function adminOrEducatorRequestedUpdate() {
-        return resource.data.createdBy == request.auth.uid && (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)/adminData) ||
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)/educatorData)
-        );
+        // TODO: Allow admins or educators from the same org to update admins created by their peers.
+        return request.data.createdBy == request.auth.uid && (userType() in ['admin', 'educator']);
       }
-
 
       allow create: if isLoggedIn() && adminOrEducatorRequestedCreate();
       allow update: if isLoggedIn() && adminOrEducatorRequestedUpdate();
       allow delete: if false;
+    }
+
+    // Anyone in a district can read that district's info
+    // Only super_admins can write districts.
+    match /districts/{districtId}/{document=**} {
+      allow read: if isLoggedIn() && getOrgs('districts').hasAll([districtId]);
+      allow write: if false;
+    }
+
+    // Anyone in a school can read that school's info.
+    // Only district level admins can write to schools if the school is in their district.
+    match /schools/{schoolId}/{document=**} {
+      allow read: if isLoggedIn() && getOrgs('schools').hasAll([schoolId]);
+      
+      let myDistricts = getSupplementalUserData('admin', 'districts');
+      allow write: if adminLevel() == 'district' && myDistricts.hasAll(request.data.districtId);
+    }
+
+    // Anyone in a class can read that class's info
+    // Only school or district level admins can write to classes if the class is in their school or district.
+    match /classes/{classId}/{document=**} {
+      allow read: if isLoggedIn() && getOrgs('classes').hasAll([classId]);
+      
+      let mySchools = getSupplementalUserData('admin', 'schools');
+      allow write: if adminLevel() in ['district', 'school'] && mySchool.hasAll(request.data.schoolId);
+    }
+
+    // Anyone in a study can read that study's info
+    // Only super_admins can write to studies
+    match /studies/{studyId}/{document=**} {
+      allow read: if isLoggedIn() && getOrgs('studies').hasAll([studiesId]);
+      allow write: if false;
     }
   }
 }

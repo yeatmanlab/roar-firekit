@@ -1,6 +1,7 @@
 import { FirebaseApp } from 'firebase/app';
 import { Auth, User } from 'firebase/auth';
-import { DocumentData, Firestore } from 'firebase/firestore';
+import { DocumentData, Firestore, DocumentReference } from 'firebase/firestore';
+import { Functions } from 'firebase/functions';
 import { FirebaseConfigData } from './util';
 
 export interface IRoarConfigData {
@@ -12,7 +13,14 @@ export interface IFirekit {
   firebaseApp: FirebaseApp;
   db: Firestore;
   auth: Auth;
+  functions: Functions;
   user?: User;
+}
+
+export interface IAppFirekit extends IFirekit {
+  docRefs?: {
+    [key: string]: DocumentReference;
+  };
 }
 
 type Grade = number | 'K' | 'PK' | 'TK';
@@ -23,6 +31,7 @@ export enum UserType {
   student = 'student',
   caregiver = 'caregiver',
   guest = 'guest',
+  researcher = 'researcher',
 }
 
 enum AdminLevel {
@@ -34,17 +43,19 @@ enum AdminLevel {
 
 export interface IStudentOrEducatorData extends DocumentData {
   classId: string;
-  previousClassIds: string[];
+  classes: string[];
   schoolId: string;
-  previousSchoolIds: string[];
+  schools: string[];
   districtId: string;
+  districts: string[];
   studies: string[];
-  previousStudies: string[];
-  previousDistrictIds: string[];
   [x: string]: unknown;
 }
 
 export interface IStudentData extends IStudentOrEducatorData {
+  ell?: boolean;
+  gender?: string;
+  dob: Date;
   grade: Grade;
 }
 
@@ -72,16 +83,24 @@ export interface IExternalUserData extends DocumentData {
   [x: string]: unknown;
 }
 
+export interface IAdministrationDateMap {
+  [x: string]: Date;
+}
+
 export interface IUserData extends DocumentData {
   userType: UserType;
+  name?: {
+    first: string;
+    last: string;
+    middle?: string;
+  };
   assessmentPid?: string;
   assessmentUid?: string;
-  dob?: Date;
   assessmentsCompleted?: string[];
   assessmentsAssigned?: string[];
-  administrationsAssigned?: string[];
-  administrationsStarted?: string[];
-  administrationsCompleted?: string[];
+  administrationsAssigned?: IAdministrationDateMap;
+  administrationsStarted?: IAdministrationDateMap;
+  administrationsCompleted?: IAdministrationDateMap;
   adminData?: IAdminData;
   educatorData?: IEducatorData;
   studentData?: IStudentData;

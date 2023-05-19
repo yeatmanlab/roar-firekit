@@ -1,111 +1,120 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to create, read, and write to their own data
-    // Because we use the top level collection to separate development from production,
-    // We use the dev_collection and dev_document wildcards to catch both
+    // Legacy CI user that is like a super_admin
+    // TODO: Deprecate this user in favor of using the Firestore emulator for CI
+    function isCiUser() {
+      return request.auth.uid == '5bxhS2oSJSclAfYLMheAJV8C8B53';
+    }
+
+    // Allow super_admins to do everything
+    match /{everythingInMyDatabase=**} {
+      allow read: if request.auth.token.super_admin == true || isCiUser();
+      allow write: if request.auth.token.super_admin == true;
+    }
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function getAccessControlSet() {
+      return get(/accessControl/{request.auth.uid}).data.keys().toSet();
+    }
+
+    function getRoarUid() {
+      return get(/accessControl/{request.auth.uid}).data.get('roarUid', '');
+    }
+    
+    // We use the top level collection to separate development from production.
+    // We therefore use the dev_collection and dev_document wildcards to catch both
     // production and dev databases
     match /{dev_collection}/{dev_document} {
-    
-      function isCiUser() {
-        return request.auth.uid == '5bxhS2oSJSclAfYLMheAJV8C8B53';
-      }
-      
-      function isLoggedIn() {
- 			  return request.auth != null;
-			}
-      
-      function isRole(role) {
-  			return isLoggedIn() && request.auth.uid in get(/databases/$(database)/documents/admin/$(role)).data.users
-			}
-      
-      function canRead() {
-      	return isCiUser() || isRole("researchers") || isRole("admins");
-      }
-      
-      allow read: if canRead();
-      allow write: if false;
-
-      match /users/{userId} {
+      // Allow users to create, read, and write to their own data or data for users under their admin control
+      match /users/{roarUid} {
       	function myData() {
-        	return request.auth != null && request.auth.uid == get(/databases/$(database)/documents/$(dev_collection)/$(dev_document)/users/$(userId)).data.firebaseUid
+        	return isLoggedIn() && roarUid == getRoarUid();
     		}
-        
-      	function canWrite() {
-        	return myData() || isCiUser();
-      	}
-        
-        function canReadTrials() {
-          return myData() || canRead();
+
+        function userInAccessControlSet() {
+          return getAccessControlSet().hasAll([roarUid]);
         }
-      
-	      allow create: if request.auth != null && request.auth.uid == request.resource.data.firebaseUid;
-        allow update: if request.auth != null && request.auth.uid == resource.data.firebaseUid;
-        allow delete: if isCiUser();
-  	    allow read: if canRead();
+
+        function canAccess() {
+          return userInAccessControlSet() || myData();
+        }
+        
+  	    allow read: if canAccess();
+	      allow create: if canAccess();
+        allow update: if canAccess();
                 
         // Explicitly define rules for the "runs" subcollection
         match /runs/{runId} {
-          allow write: if canWrite();
-          allow read: if canRead();
+          allow write: if myData();
+          allow read: if canAccess();
           
           match /trials/{trialId} {
-          	allow write: if canWrite();
-            allow read: if canReadTrials();
+          	allow write: if myData();
+            allow read: if canAccess();
           }
         }
       }
       
+      // N.B.: This is a placeholder for tracking the provenance of corpora. We
+      // don't currently use it so we lock down access to it.
       match /corpora/{corpusId}/{document=**} {
-        allow read: if canRead();
+        allow read: if false;
         allow write: if false;
       }
       
+      // Tasks and variants are free for any authenticated user to read and create.
+      // Updates are only allowed for certain fields.
+      // Only super_admins can update the `registered` field.
       match /tasks/{taskId} {
         function isUpdateToOnly(allowedFields) {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
         }
 
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
-        allow update: if request.auth != null && isUpdateToOnly(['description', 'lastUpdated']);
-        allow delete: if isCiUser();
+        function registeredFieldIsNotUpdated() {
+          return request.resource.data.registered == resource.data.registered;
+        }
+
+        function canWrite() {
+          return isLoggedIn() && registeredFieldIsNotUpdated();
+        }
+
+        allow read: if isLoggedIn();
+        allow create: if canWrite();
+        allow update: if canWrite() && isUpdateToOnly(['description', 'lastUpdated']);
         
         match /variants/{variantId} {
-          allow read: if request.auth != null;
-          allow create: if request.auth != null;
-          allow update: if request.auth != null && isUpdateToOnly(['lastPlayed', 'description', 'srcHash']);
-          allow delete: if isCiUser();
+          allow read: if isLoggedIn();
+          allow create: if canWrite();
+          allow update: if canWrite() && isUpdateToOnly(['description', 'lastPlayed']);
         }
       }
-      
-      match /districts/{districtId}/{document=**} {
-        allow read: if canRead();
-        allow write: if false;
-      }
-      
-      match /studies/{studyId}/{document=**} {
-        allow read: if canRead();
-        allow write: if false;
-      }
     }
     
-    // Allow anyone to read (but not write) to the list of authorized UIDs
-    match /admin/{user_type} {
-      allow read: if request.auth != null;
+    // The access control document for each authUID will look like
+    // {
+    //   roarUid: thisUsersRoarUid, // Required key that maps this user's auth UID to their roar UID
+    //   // And the rest of the keys are all roar users that this user has access to
+    //   thisUsersRoarUid: true,
+    //   roarUid1: true,
+    //   roarUid2: true,
+    //   roarUid42: true,
+    // }
+    match /accessControl/{authUid} {
+      function isMyUid() {
+  			return isLoggedIn() && request.auth.uid == authUid;
+			}
+
+      // Anyone can read their own access control doc
+      allow read: if isMyUid();
+      // Currently we only allow super_admins to add users to access control.
+      // It would be nice to allow admins to add users to their own access
+      // control, but we need to find a way to keep them from adding users
+      // outside of their organization.
       allow write: if false;
-    }
-    
-    // Anyone can add a request to become an authorized user
-    // But they can only use ArrayUnion, adding a single UID to the list
-    match /admin/requests {
-      allow create: if false;
-      allow read: if request.auth != null;
-      allow update: if (
-          request.resource.data.users.size() == resource.data.users.size() + 1
-          && request.resource.data.users.hasAll(resource.data.users)
-      );
-      allow delete: if false;
     }
   }
 }

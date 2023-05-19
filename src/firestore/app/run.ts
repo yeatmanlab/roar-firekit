@@ -79,6 +79,7 @@ export const calculateRunScores = async (runRef: DocumentReference): Promise<obj
 export interface IRunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
+  studyId?: string;
 }
 
 /**
@@ -91,18 +92,21 @@ export class RoarRun {
   user: RoarAppUser;
   task: RoarTaskVariant;
   runRef: DocumentReference;
+  studyId: string | null;
   started: boolean;
   /** Create a ROAR run
    * @param {RoarAppUser} user - The user running the task
    * @param {RoarTaskVariant} task - The task variant being run
+   * @param {string} studyId - The ID of the study to which this run belongs
    */
-  constructor({ user, task }: IRunInput) {
+  constructor({ user, task, studyId }: IRunInput) {
     if (!(user.userCategory === 'student')) {
       throw new Error('Only students can start a run.');
     }
 
     this.user = user;
     this.task = task;
+    this.studyId = studyId || null;
     if (this.user.userRef) {
       this.runRef = doc(collection(this.user.userRef, 'runs'));
     } else {
@@ -121,7 +125,7 @@ export class RoarRun {
    */
   async startRun() {
     if (!this.user.isPushedToFirestore) {
-      await this.user.toFirestore();
+      await this.user.toAppFirestore();
     }
     if (this.task.variantRef === undefined) {
       await this.task.toFirestore();
@@ -130,7 +134,7 @@ export class RoarRun {
       districtId: this.user.districtId,
       schoolId: this.user.schoolId,
       classId: this.user.classId,
-      studyId: this.user.studyId,
+      studyId: this.studyId,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
       taskRef: this.task.taskRef,

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc } from 'firebase/firestore';
+import { collection, connectFirestoreEmulator, doc, getFirestore } from 'firebase/firestore';
 
 import { EmulatorConfigData } from '../../firestore/util';
 
@@ -12,6 +12,7 @@ const appConfig: EmulatorConfigData = {
   emulatorPorts: {
     db: assessmentFirebaseConfig.emulators.firestore.port,
     auth: assessmentFirebaseConfig.emulators.auth.port,
+    functions: assessmentFirebaseConfig.emulators.functions.port,
   },
 };
 
@@ -21,6 +22,7 @@ const adminConfig: EmulatorConfigData = {
   emulatorPorts: {
     db: adminFirebaseConfig.emulators.firestore.port,
     auth: adminFirebaseConfig.emulators.auth.port,
+    functions: adminFirebaseConfig.emulators.functions.port,
   },
 };
 
@@ -35,4 +37,5 @@ export const firebaseApps = {
 };
 
 const db = getFirestore(firebaseApps.app);
+connectFirestoreEmulator(db, '127.0.0.1', roarConfig.app.emulatorPorts.db);
 export const rootDoc = doc(collection(db, 'ci'), 'test-root-doc');
