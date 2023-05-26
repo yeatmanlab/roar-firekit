@@ -13,16 +13,40 @@ service cloud.firestore {
       allow write: if request.auth.token.super_admin == true;
     }
 
-    function isLoggedIn() {
+    function loggedIn() {
       return request.auth != null;
     }
 
-    function getAccessControlSet() {
-      return get(/accessControl/{request.auth.uid}).data.keys().toSet();
+    function roarUid() {
+      return request.auth.token.roarUid;
     }
 
-    function getRoarUid() {
-      return get(/accessControl/{request.auth.uid}).data.get('roarUid', '');
+    function assessmentUid() {
+      return request.auth.token.assessmentUid;
+    }
+
+    // The auth token has a custom claim for the organizations that the user is
+    // an admin for. The expected data structure is
+    // token.adminOrgs = {
+    //   districts?: string[],
+    //   schools?: string[],
+    //   classes?: string[],
+    //   families?: string[],
+    //   studies?: string[],
+    // }
+    function getAdminList(orgType) {
+      return request.auth.token.get(adminOrgs, {}).get(orgType, []).toSet();
+    }
+
+    function usersOrgIsInAdminList(orgType, orgIds) {
+      return getAdminList(orgType).hasAny(orgIds);
+    }
+
+    // We use the userClaims collection to store refresh timestamps to propogate
+    // custom user claims back to the client.
+    match /userClaims/{uid} {
+      allow get: if loggedIn() && uid == request.auth.uid;
+      allow write: if false; // Only write in cloud functions using admin SDK
     }
     
     // We use the top level collection to separate development from production.
@@ -30,31 +54,70 @@ service cloud.firestore {
     // production and dev databases
     match /{dev_collection}/{dev_document} {
       // Allow users to create, read, and write to their own data or data for users under their admin control
-      match /users/{roarUid} {
+
+      function getOrgs(orgType) {
+        return get(/databases/$(database)/documents/$(dev_collection)/$(dev_document)/users/$(roarUid())).data.get(orgType, []);
+      }
+
+      match /users/{uid} {
       	function myData() {
-        	return isLoggedIn() && roarUid == getRoarUid();
+        	return loggedIn() && uid == roarUid();
     		}
 
-        function userInAccessControlSet() {
-          return getAccessControlSet().hasAll([roarUid]);
+        function userIsAdminForThisRoarUid() {
+          return loggedIn() && (usersOrgIsInAdminList('districts', resource.data.districts)
+          || usersOrgIsInAdminList('schools', resource.data.schools)
+          || usersOrgIsInAdminList('classes', resource.data.classes)
+          || usersOrgIsInAdminList('families', resource.data.families)
+          || usersOrgIsInAdminList('studies', resource.data.studies));
         }
 
-        function canAccess() {
-          return userInAccessControlSet() || myData();
+        function requestHasNoSchoolOrgs() {
+          return request.resource.data.get('districts', []).size() == 0
+          && request.resource.data.get('schools', []).size() == 0
+          && request.resource.data.get('classes', []).size() == 0;
+        }
+
+        function userIsAdminForNewRoarUid() {
+          return loggedIn() && (orgsAreInAdminList('districts', request.resource.data.districts)
+          || (orgsAreInAdminList('schools', request.resource.data.schools) && getOrgs('districts').toSet().hasAny(request.resource.data.districts))
+          || (orgsAreInAdminList('classes', request.resource.data.classes) && (getOrgs('districts').toSet().hasAny(request.resource.data.districts) || getOrgs('schools').toSet().hasAny(request.resource.data.schools)))
+          || (orgsAreInAdminList('families', request.resource.data.families) && requestHasNoSchoolOrgs())
+          || (orgsAreInAdminList('studies', request.resource.data.studies) && requestHasNoSchoolOrgs()));
+        }
+
+        function canAccessExistingUser() {
+          return userIsAdminForThisRoarUid() || myData();
+        }
+
+        function canCreateNewUser() {
+          return userIsAdminForNewRoarUid() || myData();
         }
         
-  	    allow read: if canAccess();
-	      allow create: if canAccess();
-        allow update: if canAccess();
+  	    allow read: if canAccessExistingUser();
+	      allow create: if canCreateNewUser();
+        allow update: if canAccessExistingUser();
                 
         // Explicitly define rules for the "runs" subcollection
         match /runs/{runId} {
+          function userIsAdminForThisRunId() {
+            return loggedIn() && (usersOrgIsInAdminList('districts', [resource.data.districtId])
+            || usersOrgIsInAdminList('schools', [resource.data.schoolId])
+            || usersOrgIsInAdminList('classes', [resource.data.classId])
+            || usersOrgIsInAdminList('families', [resource.data.familyId])
+            || usersOrgIsInAdminList('studies', [resource.data.studyId]));
+          }
+
+          function canAccessRun() {
+            return userIsAdminForThisRunId() || myData();
+          }
+
           allow write: if myData();
-          allow read: if canAccess();
+          allow read: if canAccessRun();
           
           match /trials/{trialId} {
           	allow write: if myData();
-            allow read: if canAccess();
+            allow read: if canAccessRun();
           }
         }
       }
@@ -79,42 +142,19 @@ service cloud.firestore {
         }
 
         function canWrite() {
-          return isLoggedIn() && registeredFieldIsNotUpdated();
+          return loggedIn() && registeredFieldIsNotUpdated();
         }
 
-        allow read: if isLoggedIn();
+        allow read: if loggedIn();
         allow create: if canWrite();
         allow update: if canWrite() && isUpdateToOnly(['description', 'lastUpdated']);
         
         match /variants/{variantId} {
-          allow read: if isLoggedIn();
+          allow read: if loggedIn();
           allow create: if canWrite();
           allow update: if canWrite() && isUpdateToOnly(['description', 'lastPlayed']);
         }
       }
-    }
-    
-    // The access control document for each authUID will look like
-    // {
-    //   roarUid: thisUsersRoarUid, // Required key that maps this user's auth UID to their roar UID
-    //   // And the rest of the keys are all roar users that this user has access to
-    //   thisUsersRoarUid: true,
-    //   roarUid1: true,
-    //   roarUid2: true,
-    //   roarUid42: true,
-    // }
-    match /accessControl/{authUid} {
-      function isMyUid() {
-  			return isLoggedIn() && request.auth.uid == authUid;
-			}
-
-      // Anyone can read their own access control doc
-      allow read: if isMyUid();
-      // Currently we only allow super_admins to add users to access control.
-      // It would be nice to allow admins to add users to their own access
-      // control, but we need to find a way to keep them from adding users
-      // outside of their organization.
-      allow write: if false;
     }
   }
 }

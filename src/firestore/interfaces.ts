@@ -15,6 +15,7 @@ export interface IFirekit {
   auth: Auth;
   functions: Functions;
   user?: User;
+  claimsLastUpdated?: Date;
 }
 
 export interface IAppFirekit extends IFirekit {

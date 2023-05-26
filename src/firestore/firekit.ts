@@ -11,6 +11,8 @@ import {
   ProviderId,
   createUserWithEmailAndPassword,
   getRedirectResult,
+  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -24,6 +26,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -61,6 +64,7 @@ export class RoarFirekit {
   admin: IFirekit;
   userData?: IUserData;
   roarAppUser?: RoarAppUser;
+  adminClaims?: Record<string, string[]>;
   oAuthAccessToken?: string;
   oidcIdToken?: string;
   /**
@@ -78,6 +82,18 @@ export class RoarFirekit {
     this.app.docRefs = {
       prod: doc(this.app.db, 'prod', 'roar-prod'),
     };
+
+    onAuthStateChanged(this.admin.auth, (user) => {
+      if (user) {
+        this._listenToClaims(this.admin);
+      }
+    });
+
+    onAuthStateChanged(this.app.auth, (user) => {
+      if (user) {
+        this._listenToClaims(this.app);
+      }
+    });
   }
 
   //           +------------------------------+
@@ -90,13 +106,44 @@ export class RoarFirekit {
     }
   }
 
-  private async _associateAppAndAdminUids() {
+  private _listenToClaims = (firekit: IFirekit) => {
     this._verify_authentication();
-    const syncAccessControl = httpsCallable(this.app.functions, 'syncaccesscontrol');
-    const result = await syncAccessControl({ adminUid: this.admin.user!.uid });
+    onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
+      const data = doc.data();
+      if (data!.lastUpdated) {
+        const lastUpdated = new Date(data!.lastUpdated);
+        if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
+          // Update the user's ID token and refresh claimsLastUpdated.
+          firekit.user!.getIdToken(true);
+          firekit.claimsLastUpdated = lastUpdated;
+        }
+      }
+    });
+  };
+
+  private _listenToTokenChange = (firekit: IFirekit) => {
+    onIdTokenChanged(firekit.auth, async (user) => {
+      // TODO: Get the user's ID token result and store the admin claims
+      const idTokenResult = await user!.getIdTokenResult(false);
+      this.adminClaims = idTokenResult.claims.adminOrgs;
+    });
+  };
+
+  private async _setUidCustomClaims() {
+    this._verify_authentication();
+    const setAdminUidClaims = httpsCallable(this.admin.functions, 'setuidclaims');
+    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user!.uid });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(result.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+    if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+      throw new Error('Failed to associate admin and assessment UIDs.');
+    }
+
+    const setAppUidClaims = httpsCallable(this.app.functions, 'setuidclaims');
+    const appResult = await setAppUidClaims({ adminUid: this.admin.user!.uid, roarUid: this.admin.user!.uid });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
       throw new Error('Failed to associate admin and assessment UIDs.');
     }
   }
@@ -134,7 +181,7 @@ export class RoarFirekit {
           .then((appUserCredential) => {
             this.app.user = appUserCredential.user;
           })
-          .then(this._associateAppAndAdminUids.bind(this))
+          .then(this._setUidCustomClaims.bind(this))
           .then(this.getMyData.bind(this));
       });
   }
@@ -146,6 +193,7 @@ export class RoarFirekit {
         .then((appUserCredential) => {
           this.app.user = appUserCredential.user;
         })
+        .then(this._setUidCustomClaims.bind(this))
         .then(this.getMyData.bind(this));
     });
   }
@@ -194,7 +242,7 @@ export class RoarFirekit {
             .catch(swallowAllowedErrors);
         }
       })
-      .then(this._associateAppAndAdminUids.bind(this))
+      .then(this._setUidCustomClaims.bind(this))
       .then(this.getMyData.bind(this));
   }
 
@@ -250,7 +298,7 @@ export class RoarFirekit {
           });
         }
       })
-      .then(this._associateAppAndAdminUids.bind(this))
+      .then(this._setUidCustomClaims.bind(this))
       .then(this.getMyData.bind(this));
   }
 
