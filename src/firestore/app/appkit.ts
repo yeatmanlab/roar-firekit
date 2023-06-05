@@ -1,130 +1,51 @@
-import { initializeApp } from 'firebase/app';
-import {
-  Auth,
-  connectAuthEmulator,
-  createUserWithEmailAndPassword,
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
-import {
-  DocumentReference,
-  Firestore,
-  collection,
-  connectFirestoreEmulator,
-  doc,
-  getFirestore,
-} from 'firebase/firestore';
+import { Auth } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore';
 
-import { roarEmail } from '../../auth';
 import { RoarRun } from './run';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { IAppUserData, RoarAppUser } from './user';
-import {
-  EmulatorConfigData,
-  FirebaseConfigData,
-  RealConfigData,
-  roarEnableIndexedDbPersistence,
-  safeInitializeApp,
-} from '../util';
-
-export interface AssessmentConfigData {
-  firebaseConfig: FirebaseConfigData;
-  rootDoc: string[];
-}
+import { IUserInput, RoarAppUser } from './user';
 
 interface IAppkitConstructorParams {
-  userInfo: IAppUserData;
+  auth: Auth;
+  db: Firestore;
+  userInfo: IUserInput;
   taskInfo: ITaskVariantInput;
-  config: AssessmentConfigData;
 }
 
 /**
- * The RoarAppkit class is the main entry point for the ROAR Firestore API.
- * It represents multiple linked Firestore documents and provides methods
- * for interacting with them.
+ * The RoarAppkit class is the main entry point for ROAR apps using the ROAR
+ * Firestore API.  It represents multiple linked Firestore documents and
+ * provides methods for interacting with them.
  */
 export class RoarAppkit {
   auth: Auth;
   db: Firestore;
-  isAuthenticated: boolean;
-  rootDoc: DocumentReference;
-  run: RoarRun | undefined;
-  task: RoarTaskVariant | undefined;
-  taskInfo: ITaskVariantInput;
-  user: RoarAppUser | undefined;
-  userInfo: IAppUserData;
+  run: RoarRun;
+  task: RoarTaskVariant;
+  user: RoarAppUser;
+  private _started: boolean;
   /**
    * Create a RoarAppkit. This expects an object with keys `userInfo`,
-   * `taskInfo`, and `confg` where `userInfo` is a [[IAppUserData]] object,
-   * `taskInfo` is a [[ITaskVariantInput]] object and `config` is a
-   * [[AssessmentConfigData]] object.
-   * @param {{userInfo: IAppUserData, taskInfo: ITaskVariantInput, config: AssessmentConfigData}=} destructuredParam
-   *     userInfo: The user input object
-   *     taskInfo: The task input object
-   *     config: Firebase configuration object
+   * `taskInfo`, and `db` where `userInfo` is a [[IUserInput]] object,
+   * `taskInfo` is a [[ITaskVariantInput]] object, and `db` is a [[Firestore]]
+   * instance.
+   * @param {{userInfo: IUserInput, taskInfo: ITaskVariantInput}=} input
+   * @param {IUserInput} input.userInfo - The user input object
+   * @param {ITaskVariantInput} input.taskInfo - The task input object
+   * @param {Firestore} input.db - Assessment Firestore instance
    */
-  constructor({ userInfo, taskInfo, config }: IAppkitConstructorParams) {
-    this.userInfo = userInfo;
-    this.taskInfo = taskInfo;
-    this.user = undefined;
-    this.task = undefined;
-    this.run = undefined;
-    this.isAuthenticated = false;
-
-    let db: Firestore;
-    let auth: Auth;
-
-    if ((config.firebaseConfig as EmulatorConfigData).emulatorPorts) {
-      const firebaseApp = initializeApp(
-        { projectId: config.firebaseConfig.projectId, apiKey: config.firebaseConfig.apiKey },
-        'app-firestore',
-      );
-      const ports = (config.firebaseConfig as EmulatorConfigData).emulatorPorts;
-      db = getFirestore(firebaseApp);
-      auth = getAuth(firebaseApp);
-
-      connectFirestoreEmulator(db, 'localhost', ports.db);
-
-      const originalInfo = console.info;
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      console.info = () => {};
-      connectAuthEmulator(auth, `http://localhost:${ports.auth}`);
-      console.info = originalInfo;
-    } else {
-      const firebaseApp = safeInitializeApp(config.firebaseConfig as RealConfigData, 'app-firestore');
-      db = getFirestore(firebaseApp);
-      roarEnableIndexedDbPersistence(db);
-      auth = getAuth(firebaseApp);
-    }
-
-    this.db = db;
+  constructor({ db, auth, userInfo, taskInfo }: IAppkitConstructorParams) {
     this.auth = auth;
+    this.db = db;
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        this.isAuthenticated = true;
-      } else {
-        this.isAuthenticated = false;
-      }
-    });
-
-    this.rootDoc = doc(collection(db, config.rootDoc[0]), ...config.rootDoc.slice(1));
+    this.user = new RoarAppUser(userInfo);
+    this.task = new RoarTaskVariant(taskInfo);
+    this.run = new RoarRun({ user: this.user, task: this.task });
+    this._started = false;
   }
 
-  async signInWithEmailAndPassword(roarPid: string, password: string) {
-    return createUserWithEmailAndPassword(this.auth, roarEmail(roarPid), password).catch((error) => {
-      if (error.code === 'auth/email-already-in-use') {
-        // console.log('Email already in use');
-        return signInWithEmailAndPassword(this.auth, roarEmail(roarPid), password);
-      } else {
-        throw error;
-      }
-    });
-  }
-
-  async signOut() {
-    return this.auth.signOut();
+  get isAuthenticated(): boolean {
+    return this.auth.currentUser !== null;
   }
 
   /**
@@ -133,31 +54,16 @@ export class RoarAppkit {
    * @method
    * @async
    */
-  async startRun() {
+  async startRun(additionalRunMetadata?: { [key: string]: string }) {
     if (!this.isAuthenticated) {
-      throw new Error('The user must be authenticated to start a run.');
+      throw new Error('User must be authenticated to start a run.');
     }
 
-    this.user = new RoarAppUser({
-      ...this.userInfo,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      firebaseUid: this.auth.currentUser!.uid,
-    });
-    this.user.setRefs(this.rootDoc);
-
-    this.task = new RoarTaskVariant(this.taskInfo);
-    this.task.setRefs(this.rootDoc);
-
-    this.run = new RoarRun({ user: this.user, task: this.task });
-
-    return (
-      this.task
-        .toFirestore()
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .then(() => this.user!.toAppFirestore())
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .then(() => this.run!.startRun())
-    );
+    return this.task
+      .toFirestore()
+      .then(() => this.user.toAppFirestore())
+      .then(() => this.run.startRun(additionalRunMetadata))
+      .then(() => (this._started = true));
   }
 
   /**
@@ -176,15 +82,20 @@ export class RoarAppkit {
    * @async
    */
   async finishRun() {
-    if (this.run) {
+    if (this._started) {
       return this.run.finishRun();
     } else {
-      throw new Error('Run is undefined. Use the startRun method first.');
+      throw new Error('This run has not started. Use the startRun method first.');
     }
   }
 
   /**
    * Add new trial data to this run on Firestore.
+   *
+   * ROAR expects certain data to be added to each trial:
+   * - correct: boolean, whether the correct answer was correct
+   * - theta: number (optional), the ability estimate for adaptive assessments
+   * - thetaSE: number (optional), the standard error of the ability estimate for adaptive assessments
    *
    * This method can be added to individual jsPsych trials by calling it from
    * the `on_finish` function, like so:
@@ -217,13 +128,13 @@ export class RoarAppkit {
    *   {
    *     type: imageKeyboardResponse,
    *     stimulus: 'imgA.png',
-   *     data: { saveToFirestore: true },
+   *     data: { save: true },
    *   }
    * ]
    * jsPsych.init({
    *   timeline: timeline,
    *   on_data_update: function(data) {
-   *     if (data.saveToFirestore) {
+   *     if (data.save) {
    *       firekit.addTrialData(data);
    *     }
    *   }
@@ -235,10 +146,10 @@ export class RoarAppkit {
    * @param {*} trialData - An object containing trial data.
    */
   async writeTrial(trialData: Record<string, unknown>) {
-    if (this.run) {
+    if (this._started) {
       return this.run.writeTrial(trialData);
     } else {
-      throw new Error('Run is undefined. Use the startRun method first.');
+      throw new Error('This run has not started. Use the startRun method first.');
     }
   }
 }

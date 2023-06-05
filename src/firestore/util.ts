@@ -123,7 +123,6 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
 
 /** Get unique entries from a single id string and an array of id strings
  *
- *
  * @function
  * @param {string} id - a single id string
  * @param {string[]} idArray - an array of id strings

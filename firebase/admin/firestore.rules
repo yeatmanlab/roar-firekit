@@ -31,12 +31,16 @@ service cloud.firestore {
       return request.auth.token.get(adminOrgs, {}).get(orgType, []).toSet();
     }
 
-    function orgsAreInAdminList(orgType, orgIds) {
-      return orgIds ? getAdminList(orgType).hasAny(orgIds) : false;
+    function targetOrgsInAdminList(orgType, targetOrgIds) {
+      return targetOrgIds && getAdminList(orgType).hasAny(targetOrgIds);
     }
 
-    function userType() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('userType', 'guest');
+    function keysNotUpdated(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
+    function onlyTheseKeysUpdated(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
     // We use the userClaims collection to store refresh timestamps to propogate
@@ -46,83 +50,272 @@ service cloud.firestore {
       allow write: if false; // Only write in cloud functions using admin SDK
     }
 
-    function getOrgs(orgType) {
-      return get(/databases/$(database)/documents/users/$(roarUid())).data.get(orgType, []);
-    }
-
-    // Allow users to create, read, and write to their own data
-    // Also allow admins/educators/caregivers to read and write data for their users
+    // Allow users to read their own data
+    // Also allow admins to read and write data for their users
     match /users/{uid} {
       function myData() {
   			return loggedIn() && uid == roarUid();
 			}
       
-      function isAdmin() {
-        return (orgsAreInAdminList('districts', resource.data.districts)
-        || orgsAreInAdminList('schools', resource.data.schools)
-        || orgsAreInAdminList('classes', resource.data.classes)
-        || orgsAreInAdminList('families', resource.data.families)
-        || orgsAreInAdminList('studies', resource.data.studies));
+      function isCurrentOrPreviousAdmin() {
+        return (targetOrgsInAdminList('districts', resource.data.get(['districts', 'all'], []))
+        || targetOrgsInAdminList('schools', resource.data.get(['schools', 'all'], []))
+        || targetOrgsInAdminList('classes', resource.data.get(['classes', 'all'], []))
+        || targetOrgsInAdminList('families', resource.data.get(['families', 'all'], []))
+        || targetOrgsInAdminList('studies', resource.data.get(['studies', 'all'], [])));
       }
 
-      // This is basically a copy of ``isAdmin`` above but
-      // because we are in a new document path, we cannot use ``resource.data``
-      // Instead we have to use ``get`` to retrieve the orgs for this roarUid.
-      // We only use this when necessary to minimize database reads in the
-      // security rules.
-      function isAdminWithDatabaseRead() {
-        let roarUserData = get(/databases/$(database)/documents/users/$(uid)).data;
-        return (orgsAreInAdminList('districts', roarUserData.get('districts', []))
-        || orgsAreInAdminList('schools', roarUserData.get('schools', []))
-        || orgsAreInAdminList('classes', roarUserData.get('classes', []))
-        || orgsAreInAdminList('families', roarUserData.get('families', []))
-        || orgsAreInAdminList('studies', roarUserData.get('studies', [])));
+      function canReadExistingUser() {
+        return loggedIn() && (myData() || isCurrentOrPreviousAdmin());
       }
 
-      function userTypeIsNotUpdated() {
-        return request.resource.data.userType == resource.data.userType;
-      }
-      
-      function hasAccessToExistingUser() {
-        return loggedIn() && (myData() || isAdmin());
-      }
+      allow read: if canReadExistingUser();
 
-      function requestHasNoSchoolOrgs() {
-        return request.resource.data.get('districts', []).size() == 0
-        && request.resource.data.get('schools', []).size() == 0
-        && request.resource.data.get('classes', []).size() == 0;
-      }
-
+      // We now address creating a new user:
       // If the authenticated user (requestor) is creating a new user (target), then
       // the requestor must satisfy one of the following conditions
-      // - the requestor is a district admin for the districtId of the target
-      // - the requestor is a school admin for the schoolId of the target and requestor and target share the same districtId
-      // - the requestor is a class admin for the classId of the target and the requestor and target share the same districtId and schoolId
-      // - the requestor is a family admin and the target is in the same family. The target must have a null districtId, schoolId, and classId
-      // - the requestor is a study admin for the studyId of the target. The target must have a null districtId, schoolId, and classId.
+      // - the requestor is a district admin for the districtId of the target. The schoolId and classId must be in that district. And families and studies must be empty.
+      // - the requestor is a school admin for the schoolId of the target. The districtId of the target must match that of the school. And the classId must be in the school.
+      // - the requestor is a class admin for the classId of the target. The districtId and schoolId of the target must match that of the class.
+      // - the requestor is a family admin and the target is in the same family. No educational orgs can be set
+      // - the requestor is a study admin for the studyId of the target. No educational orgs can be set
+
+      function commonKeys() {
+        return ['userType', 'name', 'assessmentPid', 'studentData', 'educatorData', 'caregiverData', 'adminData'];
+      }
+
+      function educationalOrgKeys() {
+        return ['classes', 'schools', 'districts'];
+      }
+
+      function allowedEduKeys(newUser) {
+        let allowedKeys = commonKeys().concat(educationalOrgKeys());
+        return newUser ? allowedKeys.concat(['assessmentUid']) : allowedKeys;
+      }
+
+      function allowedFamilyKeys(newUser) {
+        let allowedKeys = commonKeys().concat(['families']);
+        return newUser ? allowedKeys.concat(['assessmentUid']) : allowedKeys;
+      }
+
+      function allowedStudyKeys(newUser) {
+        let allowedKeys = commonKeys().concat(['studies']);
+        return newUser ? allowedKeys.concat(['assessmentUid']) : allowedKeys;
+      }
+
+      function readOnlyKeys() {
+        return ['archived', 'assessmentUid']
+      }
+
+      function userUpdateKeys() {
+        return [
+          'assessmentsCompleted',
+          'assessmentsAssigned',
+          'administrationsAssigned',
+          'administrationsStarted'
+          'administrationsCompleted',
+        ]
+      }
+
+      function requestHasOnlyEduKeys(newUser) {
+        return request.resource.data.keys().hasOnly(allowedEduKeys(newUser));
+      }
+
+      function requestHasOnlyStudyKeys(newUser) {
+        return request.resource.data.keys().hasAny(allowedStudyKeys(newUser));
+      }
+
+      function requestHasOnlyFamilyKeys(newUser) {
+        return request.resource.data.keys().hasAny(allowedFamilyKeys(newUser));
+      }
+
+      function noPreviousOrgsOfThisType(orgType) {
+        let orgData = request.resource.data.get(orgType, true);
+        let currentIds = orgData.get('current', true);
+        return orgData && currentIds && orgData.get('all', []).hasOnly(currentIds) && data.get('dates', {}).keys().hasOnly(currentIds);
+      }
+
+      function requestHasOnlyCurrentOrgs() {
+        return noPreviousOrgsOfThisType('districts')
+        && noPreviousOrgsOfThisType('schools')
+        && noPreviousOrgsOfThisType('classes')
+        && noPreviousOrgsOfThisType('studies')
+        && noPreviousOrgsOfThisType('families');
+      }
+
+      function atMostOneOrgInRequest(orgType) {
+        return request.resource.data.get([orgType, 'current'], []).size() <= 1;
+      }
+
+      function atMostOneDistrictAndSchoolInRequest() {
+        return atMostOneOrgInRequest('districts') && atMostOneOrgInRequest('schools');
+      }
+
+      function getOrgDoc(orgType, orgId) {
+        return get(/databases/$(database)/documents/$(orgType)/$(orgId)).data
+      }
+
+      function orgHasMatchingKey(orgType, orgId, key, valueToMatch) {
+        return getOrgDoc().get(key, 'nullId') == valueToMatch;
+      }
+
+      function requestOrgsInAdminList(orgType) {
+        return targetOrgsInAdminList(orgType, request.resource.data.get([orgType, 'current'], []));
+      }
+
+      function isClassAdminForNewUser() {
+        let data = request.resource.data;
+        let currentDistrict = data.get(['districts', 'current'], ['nullId'])[0];
+        let currentSchool = data.get(['schools', 'current'], ['nullId'])[0];
+        let currentClass = data.get(['classes', 'current'], ['nullId'])[0];
+        let currentClassDoc = getOrgDoc('classes', currentClass);
+
+        return (requestOrgsInAdminList('classes')
+        && atMostOneOrgInRequest('classes')
+        && currentClassDoc.get('districtId', 'nullId') == currentDistrict
+        && currentClassDoc.get('schoolId', 'nullId') == currentSchool);
+      }
+
+      function isSchoolAdminForNewUser() {
+        let data = request.resource.data;
+        let currentDistrict = data.get(['districts', 'current'], ['nullId'])[0];
+        let currentSchool = data.get(['schools', 'current'], ['nullId'])[0];
+        let currentClasses = data.get(['classes', 'current'], []);
+        let currentSchoolDoc = getOrgDoc('schools', currentSchool);
+
+        return (requestOrgsInAdminList('schools')
+        && orgHasMatchingKey('schools', currentSchool, 'districtId', currentDistrict))
+        && currentClasses.hasOnly(currentSchoolDoc.get('classes', []))
+      }
+
+      function isDistrictAdminForNewUser() {
+        // TODO: Make sure all of the classes are also in the district
+        // In order to accomplish this, I think we may need to record class IDs in the district doc
+        let data = request.resource.data;
+        let currentDistrict = data.get(['districts', 'current'], ['nullId'])[0];
+        let currentSchools = data.get(['schools', 'current'], []);
+        let currentDistrictDoc = getOrgDoc('districts', currentDistrict);
+
+        return (requestOrgsInAdminList('districts')
+        && currentSchools.hasOnly(currentDistrictDoc.get('schools', []))
+      }
+
+      function isEduAdminForNewUser() {
+        // Add 'assessmentUid' to the list of allowed keys only for user doc creation
+        return requestHasOnlyEduKeys(true) && (isDistrictAdminForNewUser() || isSchoolAdminForNewUser() || isClassAdminForNewUser());
+      }
+
       function isAdminForNewUser() {
-        return (orgsAreInAdminList('districts', request.resource.data.districts)
-        || (orgsAreInAdminList('schools', request.resource.data.schools) && getOrgs('districts').toSet().hasAny(request.resource.data.districts))
-        || (orgsAreInAdminList('classes', request.resource.data.classes) && (getOrgs('districts').toSet().hasAny(request.resource.data.districts) || getOrgs('schools').toSet().hasAny(request.resource.data.schools)))
-        || (orgsAreInAdminList('families', request.resource.data.families) && requestHasNoSchoolOrgs())
-        || (orgsAreInAdminList('studies', request.resource.data.studies) && requestHasNoSchoolOrgs()));
+        let familyAdminCondition = (requestOrgsInAdminList('families') && requestHasOnlyFamilyKeys(true));
+        let studyAdminCondition = (requestOrgsInAdminList('studies') && requestHasOnlyStudyKeys(true));
+
+        return (familyAdminCondition || studyAdminCondition || isEduAdminForNewUser();
       }
 
-      function hasAccessToNewUser() {
-        return loggedIn() && isAdminForNewUser();
+      function canCreateUser() {
+        return loggedIn() && isAdminForNewUser() && requestHasOnlyCurrentOrgs() && atMostOneDistrictAndSchoolInRequest();
       }
+
+      allow create: if canCreateUser();
       
-      allow read: if hasAccessToExistingUser();
-      allow update: if hasAccessToExistingUser() && userTypeIsNotUpdated();
-      allow create: if hasAccessToNewUser();
+      // We now address updating an existing user
+      // If the authenticated user (requestor) is updating an existing user (target), then
+      // the requestor must satisfy one of the following conditions
+      // - the requestor is a district admin for the districtId of the target. They can only update common + educational keys. Any added schools and classes must be in the district.
+      // - the requestor is a school admin for the schoolId of the target. They may not update district info. They can only update common + educational keys. Any added classes must be in the school.
+      // - the requestor is a class admin for the classId of the target. The districtId and schoolId of the target must match that of the class.
+      // - the requestor is a family admin for a current family of the target. No educational orgs can be set
+      // - the requestor is a study admin for a current study of the target. No educational orgs can be set
 
-      match /administrations/{administrationId} {
-        function hasAccessToAdministration() {
-          return loggedIn() && (myData() || isAdminWithDatabaseRead());
+      function resourceOrgsInAdminList(orgType) {
+        return targetOrgsInAdminList(orgType, resource.data.get([orgType, 'current'], []));
+      }
+
+      function orgTypeIsConsistent(orgType) {
+        let data = request.resource.data
+        return data.get([orgType, 'all'], []).hasAll(data.get([orgType, 'current'], []))
+      }
+
+      function orgsAreConsistent() {
+        return orgTypeIsConsistent('districts')
+        && orgTypeIsConsistent('schools')
+        && orgTypeIsConsistent('classes')
+        && orgTypeIsConsistent('families')
+        && orgTypeIsConsistent('studies');
+      }
+
+      function isDistrictAdmin() {
+        return resourceOrgsInAdminList('districts') && keysNotUpdated(['districts']);
+      }
+
+      function isSchoolAdmin() {
+        return resourceOrgsInAdminList('schools') && keysNotUpdated(['districts', 'schools']);
+      }
+
+      function isClassAdmin() {
+        return resourceOrgsInAdminList('classes') && keysNotUpdated(['districts', 'schools', 'classes']);
+      }
+
+      function isEduAdmin() {
+        return requestHasOnlyEduKeys(false)
+        && atMostOneDistrictAndSchoolInRequest()
+        && keysNotUpdated(['name'])
+        && (isDistrictAdmin() || isSchoolAdmin() || isClassAdmin())
+      }
+
+      function isFamilyAdmin() {
+        return resourceOrgsInAdminList('families') && requestHasOnlyFamilyKeys(false)
+      }
+
+      function isStudyAdmin() {
+        return resourceOrgsInAdminList('studies') && requestHasOnlyStudyKeys(false)
+      }
+
+      function isCurrentAdmin() {
+        return keysNotUpdated(readOnlyKeys().concat(userUpdateKeys())) && (isEduAdmin() || isFamilyAdmin())
+      }
+
+      function editingMyData() {
+        return myData() && onlyTheseKeysUpdated(userUpdateKeys());
+      }
+
+      allow update: if isCurrentAdmin() || editingMyData();
+
+      // TODO: Adam start a Slack thread about admin access to assignments
+      // TODO: Should current admins see previous assignments from other orgs (Adam's guess: yes???)
+
+      // Users should be able to read and write to their own assignments
+      // Admins should be able to read (not write) assignments if they are an admin for one of the assigning orgs
+      // N.B. This assumes that the assigningOrgs are exhaustively listed. E.g., if district 1 assigns an administration,
+      // then schools A and B, which are in district 1, are assumed to also be listed in assigningOrgs.
+      match /assignments/{administrationId} {
+        function isAdminForAssigningOrg(orgType) {
+          return targetOrgsInAdminList(orgType, resource.data.get(['assigningOrgs', orgType], []));
         }
 
-        allow read: if hasAccessToAdministration();
-        allow write: if hasAccessToAdministration();
+        function isAdminForAnyAssigningOrg() {
+          return (isAdminForAssigningOrg('districts')
+          || isAdminForAssigningOrg('schools')
+          || isAdminForAssigningOrg('classes')
+          || isAdminForAssigningOrg('studies')
+          || isAdminForAssigningOrg('families'));
+        }
+
+        function canReadAssignment() {
+          return loggedIn() && (myData() || isAdminForAnyAssigningOrg());
+        }
+
+        function lengthOfAssessmentsUnchanged() {
+          return request.resource.data.get('assessments', []).size() == resource.data.get('assessments', []).size();
+        }
+
+        function canUpdateAssignment() {
+          return myData() && lengthOfAssessmentsUnchanged() && keysNotUpdated('assigningOrgs');
+        }
+
+        allow read: if canReadAssignment();
+        allow create: if false; // Only allow assignment creation in cloud functions using the admin SDK.
+        allow update: if canUpdateAssignment();
       }
     }
     
@@ -135,6 +328,8 @@ service cloud.firestore {
     // - they are an admin for any of the assigned organizations.
     // Prohibit deletion by anyone except super_admins.
     // Prohibit modification of the createdBy field.
+    // N.B. This assumes that the assigningOrgs are exhaustively listed. E.g., if district 1 assigns an administration,
+    // then schools A and B, which are in district 1, are assumed to also be listed in assigningOrgs.
     match /administrations/{administrationId} {
       function userAssignedToAdministration() {
         return roarUid() in resource.data.users;
@@ -149,19 +344,19 @@ service cloud.firestore {
       }
 
       function isAdminForAnyAssignedOrg() {
-        return orgsAreInAdminList('districts', resource.data.districts)
-        || orgsAreInAdminList('schools', resource.data.schools)
-        || orgsAreInAdminList('classes', resource.data.classes)
-        || orgsAreInAdminList('studies', resource.data.studies)
-        || orgsAreInAdminList('families', resource.data.families);
+        return targetOrgsInAdminList('districts', resource.data.districts)
+        || targetOrgsInAdminList('schools', resource.data.schools)
+        || targetOrgsInAdminList('classes', resource.data.classes)
+        || targetOrgsInAdminList('studies', resource.data.studies)
+        || targetOrgsInAdminList('families', resource.data.families);
       }
 
       function isAdminForAnyAssignedOrgInNewAdministration() {
-        return orgsAreInAdminList('districts', request.resource.data.districts)
-        || orgsAreInAdminList('schools', request.resource.data.schools)
-        || orgsAreInAdminList('classes', request.resource.data.classes)
-        || orgsAreInAdminList('studies', request.resource.data.studies)
-        || orgsAreInAdminList('families', request.resource.data.families);
+        return targetOrgsInAdminList('districts', request.resource.data.districts)
+        || targetOrgsInAdminList('schools', request.resource.data.schools)
+        || targetOrgsInAdminList('classes', request.resource.data.classes)
+        || targetOrgsInAdminList('studies', request.resource.data.studies)
+        || targetOrgsInAdminList('families', request.resource.data.families);
       }
       
       function canRead() {
@@ -178,50 +373,52 @@ service cloud.firestore {
         return userCreatedNewAdministration() && isAdminForAnyAssignedOrgInNewAdministration();
       }
 
-      function createdByUnchanged() {
-        return request.resource.data.createdBy == resource.data.createdBy;
-      }
-
       allow create: if loggedIn() && canCreate();
-      allow update: if loggedIn() && canUpdate() && createdByUnchanged();
+      allow update: if loggedIn() && canUpdate() && keysNotUpdated(['createdBy']);
       allow delete: if false;
+    }
+
+    function getAllOrgs(orgType) {
+      return get(/databases/$(database)/documents/users/$(roarUid())).data.get([orgType, 'all'], []);
     }
 
     // Anyone in a district can read that district's info
     // Only super_admins can write districts.
     match /districts/{districtId} {
-      allow read: if loggedIn() && getOrgs('districts').hasAll([districtId]);
+      allow read: if loggedIn() && getAllOrgs('districts').hasAll([districtId]);
       allow write: if false;
     }
 
     // Anyone in a school can read that school's info.
     // Only district level admins can write to schools if the school is in their district.
     match /schools/{schoolId} {
-      allow read: if loggedIn() && getOrgs('schools').hasAll([schoolId]);
-      allow create: if orgsAreInAdminList('districts', [request.resource.data.get('districtId', 'nullId')]);
-      allow update, delete: if orgsAreInAdminList('districts', [resource.data.get('districtId', 'nullId')]);
+      allow read: if loggedIn() && getAllOrgs('schools').hasAll([schoolId]);
+      allow create: if targetOrgsInAdminList('districts', [request.resource.data.get('districtId', 'nullId')]);
+      allow update, delete: if targetOrgsInAdminList('districts', [resource.data.get('districtId', 'nullId')]);
     }
 
     // Anyone in a class can read that class's info
     // Only school or district level admins can write to classes if the class is in their school or district.
     match /classes/{classId} {
-      allow read: if loggedIn() && getOrgs('classes').hasAll([classId]);
-      allow create: if orgsAreInAdminList('districts', [request.resource.data.get('districtId', 'nullId')])
-      || orgsAreInAdminList('schools', [request.resource.data.get('schoolId', 'nullId')]);
-      allow update, delete: if orgsAreInAdminList('districts', [resource.data.get('districtId', 'nullId')])
-      || orgsAreInAdminList('schools', [resource.data.get('schoolId', 'nullId')]);
+      allow read: if loggedIn() && getAllOrgs('classes').hasAll([classId]);
+      allow create: if targetOrgsInAdminList('districts', [request.resource.data.get('districtId', 'nullId')])
+      || targetOrgsInAdminList('schools', [request.resource.data.get('schoolId', 'nullId')]);
+      allow update, delete: if targetOrgsInAdminList('districts', [resource.data.get('districtId', 'nullId')])
+      || targetOrgsInAdminList('schools', [resource.data.get('schoolId', 'nullId')]);
     }
 
     // Anyone in a study can read that study's info
-    // Only super_admins can write to studies
+    // Anyone who is an admin for this study can write to it
     match /studies/{studyId} {
-      allow read: if loggedIn() && getOrgs('studies').hasAll([studiesId]);
-      allow write: if orgsAreInAdminList('studies', [studyId]);
+      allow read: if loggedIn() && getAllOrgs('studies').hasAll([studyId]);
+      allow write: if targetOrgsInAdminList('studies', [studyId]);
     }
 
+    // Anyone in a family can read that family's info
+    // Any admin for this family can write to it
     match /families/{familyId} {
-      allow read: if loggedIn() && getOrgs('families').hasAll([familyId]);
-      allow write: if orgsAreInAdminList('families', [familyId]);
+      allow read: if loggedIn() && getAllOrgs('families').hasAll([familyId]);
+      allow write: if targetOrgsInAdminList('families', [familyId]);
     }
   }
 }

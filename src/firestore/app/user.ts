@@ -1,110 +1,137 @@
 import {
+  DocumentReference,
+  Firestore,
+  FirestoreError,
   arrayUnion,
   doc,
-  DocumentReference,
-  FirestoreError,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import _union from 'lodash/union';
 import { UserType } from '../interfaces';
 import { removeNull } from '../util';
 
 export interface IAppUserData {
-  id: string;
+  assessmentPid: string;
   birthMonth?: number | null;
   birthYear?: number | null;
-  classId?: string | null;
+  classIds?: string[] | null;
+  classes?: string[] | null;
   schoolId?: string | null;
+  schools?: string[] | null;
   districtId?: string | null;
+  districts?: string[] | null;
   studies?: string[] | null;
-  userCategory?: UserType;
+  families?: string[] | null;
+  userType?: UserType;
   userMetadata?: Record<string, unknown>;
 }
 
 export interface IUserInput extends IAppUserData {
-  firebaseUid: string;
+  assessmentUid: string;
+  roarUid: string;
+  db: Firestore;
 }
 
 interface IFirestoreUserData {
-  id: string;
-  firebaseUid: string;
+  assessmentPid: string;
+  assessmentUid: string;
   birthMonth?: number | null;
   birthYear?: number | null;
-  classId?: string | null;
-  schoolId?: string | null;
-  districtId?: string | null;
-  userCategory: UserType;
-  lastUpdated: ReturnType<typeof serverTimestamp>;
-  studies?: ReturnType<typeof arrayUnion>;
-  districts?: ReturnType<typeof arrayUnion>;
-  schools?: ReturnType<typeof arrayUnion>;
+  classIds?: ReturnType<typeof arrayUnion>;
   classes?: ReturnType<typeof arrayUnion>;
+  schoolId?: string | null;
+  schools?: ReturnType<typeof arrayUnion>;
+  districtId?: string | null;
+  districts?: ReturnType<typeof arrayUnion>;
+  studies?: ReturnType<typeof arrayUnion>;
+  families?: ReturnType<typeof arrayUnion>;
+  userType: UserType;
+  lastUpdated: ReturnType<typeof serverTimestamp>;
 }
 
 /** Class representing a ROAR user */
 export class RoarAppUser {
-  /** Create a ROAR user
-   * @param {string} id - The ROAR ID of the user
-   * @param {string} firebaseUid - The firebase UID of the user
-   * @param {number} birthMonth - The birth month of the user
-   * @param {number} birthYear - The birth year of the user
-   * @param {string} classId - The class ID of the user
-   * @param {string} schoolId - The school ID of the user
-   * @param {string} districtId - The district ID of the user
-   * @param {string} studies - The studies of the user
-   * @param {string} userCategory - The user type. Must be either "student," "educator," or "researcher"
-   * @param {*} userMetadata - An object containing additional user metadata
-   */
-  id: string;
-  firebaseUid: string;
+  db: Firestore;
+  roarUid: string;
+  assessmentUid: string;
+  assessmentPid: string;
   birthMonth: number | null;
   birthYear: number | null;
-  classId: string | null;
+  classIds: string[] | null;
+  classes: string[] | null;
   schoolId: string | null;
+  schools: string[] | null;
   districtId: string | null;
+  districts: string[] | null;
   studies: string[] | null;
-  userCategory: UserType;
+  families: string[] | null;
+  userType: UserType;
   isPushedToFirestore: boolean;
-  userRef: DocumentReference | undefined;
+  userRef: DocumentReference;
   userMetadata: Record<string, unknown>;
+  /** Create a ROAR user
+   * @param {object} input
+   * @param {Firestore} input.db - The assessment Firestore instance to which this user's data will be written
+   * @param {string} input.roarUid - The ROAR ID of the user
+   * @param {string} input.assessmentUid - The assessment firebase UID of the user
+   * @param {string} input.assessmentPid - The assessment PID of the user
+   * @param {number} input.birthMonth - The birth month of the user
+   * @param {number} input.birthYear - The birth year of the user
+   * @param {string[]} input.classIds - The current class IDs of the user
+   * @param {string[]} input.classes - All previous and current class IDs of the user
+   * @param {string} input.schoolId - The current school ID of the user
+   * @param {string[]} input.schools - All previous and current school IDs of the user
+   * @param {string} input.districtId - The current district ID of the user
+   * @param {string[]} input.districts - All previous and current district IDs of the user
+   * @param {string[]} input.studies - All previous and current study IDs of the user
+   * @param {string[]} input.families - All previous and current family IDs of the user
+   * @param {string} input.userType - The user type. Must be either 'admin', 'educator', 'student', 'caregiver', 'guest', or 'researcher.'
+   * @param {*} input.userMetadata - An object containing additional user metadata
+   */
   constructor({
-    id,
-    firebaseUid,
+    db,
+    roarUid,
+    assessmentUid,
+    assessmentPid,
     birthMonth = null,
     birthYear = null,
-    classId = null,
+    classIds = null,
+    classes = null,
     schoolId = null,
+    schools = null,
     districtId = null,
+    districts = null,
     studies = null,
-    userCategory = UserType.student,
+    families = null,
+    userType = UserType.student,
     userMetadata = {},
   }: IUserInput) {
     const allowedUserCategories = Object.values(UserType);
-    if (!allowedUserCategories.includes(userCategory)) {
+    if (!allowedUserCategories.includes(userType)) {
       throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
     }
 
-    this.id = id;
-    this.firebaseUid = firebaseUid;
+    this.db = db;
+    this.roarUid = roarUid;
+    this.assessmentPid = assessmentPid;
+    this.assessmentUid = assessmentUid;
     this.birthMonth = birthMonth;
     this.birthYear = birthYear;
-    this.classId = classId;
+    this.classIds = classIds;
+    this.classes = classes;
     this.schoolId = schoolId;
+    this.schools = schools;
     this.districtId = districtId;
+    this.districts = districts;
     this.studies = studies;
-    this.userCategory = userCategory;
+    this.families = families;
+    this.userType = userType;
     this.userMetadata = userMetadata;
 
-    this.userRef = undefined;
+    this.userRef = doc(this.db, 'users', this.roarUid);
     this.isPushedToFirestore = false;
-  }
-
-  /** Set Firestore doc references
-   * @param {DocumentReference} rootDoc - The root document reference
-   */
-  setRefs(rootDoc: DocumentReference) {
-    this.userRef = doc(rootDoc, 'users', this.id);
   }
 
   /**
@@ -113,49 +140,56 @@ export class RoarAppUser {
    * @async
    */
   async toAppFirestore() {
-    if (this.userRef === undefined) {
-      throw new Error('User refs not set. Please use the setRefs method first.');
-    } else {
-      const userData: IFirestoreUserData = {
-        id: this.id,
-        firebaseUid: this.firebaseUid,
-        birthMonth: this.birthMonth,
-        birthYear: this.birthYear,
-        classId: this.classId,
-        schoolId: this.schoolId,
-        districtId: this.districtId,
-        userCategory: this.userCategory,
-        lastUpdated: serverTimestamp(),
-      };
+    const userData: IFirestoreUserData = {
+      assessmentUid: this.assessmentUid,
+      assessmentPid: this.assessmentPid,
+      birthMonth: this.birthMonth,
+      birthYear: this.birthYear,
+      schoolId: this.schoolId,
+      districtId: this.districtId,
+      userType: this.userType,
+      lastUpdated: serverTimestamp(),
+    };
 
-      // If the study, district, school, or class is provided, also add it to the
-      // list of all studies, districts, schools, or classes.
-      // Likewise for task and variant.
-      if (this.studies) userData.studies = arrayUnion(...this.studies);
-      if (this.districtId) userData.districts = arrayUnion(this.districtId);
-      if (this.schoolId) userData.schools = arrayUnion(this.schoolId);
-      if (this.classId) userData.classes = arrayUnion(this.classId);
+    // Ensure that districts contains districtId, and likewise for schools and classes.
+    const districts = _union(this.districts, [this.districtId]);
+    const schools = _union(this.schools, [this.schoolId]);
+    const classes = _union(this.classes, this.classIds);
 
-      return updateDoc(this.userRef, removeNull(userData))
-        .catch((error: FirestoreError) => {
-          const errorCode = error.code;
-          if (errorCode === 'permission-denied') {
-            // The ROAR Firestore rules are written such that if we get here, the
-            // user does not currently exist in Firestore. So create them.
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            return setDoc(this.userRef!, {
-              ...userData,
-              ...this.userMetadata,
-              createdAt: serverTimestamp(),
-            });
-          } else {
-            throw error;
-          }
-        })
-        .then(() => {
-          this.isPushedToFirestore = true;
-        });
-    }
+    // If studies, districts, schools, classes, or families are provided, append them to
+    // the list that is already in Firestore.
+    if (districts) userData.districts = arrayUnion(...districts);
+    if (schools) userData.schools = arrayUnion(...schools);
+    if (classes) userData.classes = arrayUnion(...classes);
+    if (this.classIds) userData.classIds = arrayUnion(...this.classIds);
+    if (this.families) userData.families = arrayUnion(...this.families);
+    if (this.studies) userData.studies = arrayUnion(...this.studies);
+
+    return updateDoc(
+      this.userRef,
+      removeNull({
+        ...userData,
+        ...this.userMetadata,
+      }),
+    )
+      .catch((error: FirestoreError) => {
+        const errorCode = error.code;
+        if (errorCode === 'not-found') {
+          // We attempted to update a document that does not exist.
+          // Try again using setDoc but this time also append a ``createdAt`` field.
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          return setDoc(this.userRef!, {
+            ...userData,
+            ...this.userMetadata,
+            createdAt: serverTimestamp(),
+          });
+        } else {
+          throw error;
+        }
+      })
+      .then(() => {
+        this.isPushedToFirestore = true;
+      });
   }
 
   /**
@@ -164,12 +198,8 @@ export class RoarAppUser {
    * @async
    */
   async updateFirestoreTimestamp() {
-    if (this.userRef === undefined) {
-      throw new Error('User refs not set. Please use the setRefs method first.');
-    } else {
-      updateDoc(this.userRef, {
-        lastUpdated: serverTimestamp(),
-      });
-    }
+    updateDoc(this.userRef, {
+      lastUpdated: serverTimestamp(),
+    });
   }
 }

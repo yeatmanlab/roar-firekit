@@ -40,17 +40,18 @@ import {
   IExternalUserData,
   IFirekit,
   IAppFirekit,
-  IMyAdministrationData,
-  IMyAssessmentData,
+  IAssignmentData,
+  IAssignedAssessmentData,
   IRoarConfigData,
   IUserData,
   UserType,
 } from './interfaces';
 import { RoarAppUser } from './app/user';
+import { RoarRun } from './app/run';
 
 enum OAuthProviderType {
-  CLEVER = 'admin',
-  GOOGLE = 'educator',
+  CLEVER = 'clever',
+  GOOGLE = 'google',
 }
 
 const RoarProviderId = {
@@ -65,6 +66,7 @@ export class RoarFirekit {
   userData?: IUserData;
   roarAppUser?: RoarAppUser;
   adminClaims?: Record<string, string[]>;
+  private _oAuthProvider?: OAuthProviderType;
   oAuthAccessToken?: string;
   oidcIdToken?: string;
   /**
@@ -94,11 +96,13 @@ export class RoarFirekit {
         this._listenToClaims(this.app);
       }
     });
+
+    this._listenToTokenChange(this.admin);
   }
 
-  //           +------------------------------+
-  // ----------| Begin Authentication Methods |----------
-  //           +------------------------------+
+  //           +--------------------------------+
+  // ----------|  Begin Authentication Methods  |----------
+  //           +--------------------------------+
 
   private _verify_authentication() {
     if (this.admin.user === undefined || this.app.user === undefined) {
@@ -123,7 +127,6 @@ export class RoarFirekit {
 
   private _listenToTokenChange = (firekit: IFirekit) => {
     onIdTokenChanged(firekit.auth, async (user) => {
-      // TODO: Get the user's ID token result and store the admin claims
       const idTokenResult = await user!.getIdTokenResult(false);
       this.adminClaims = idTokenResult.claims.adminOrgs;
     });
@@ -132,31 +135,42 @@ export class RoarFirekit {
   private async _setUidCustomClaims() {
     this._verify_authentication();
     const setAdminUidClaims = httpsCallable(this.admin.functions, 'setuidclaims');
-    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user!.uid });
+    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user.uid });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+    if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
       throw new Error('Failed to associate admin and assessment UIDs.');
     }
 
     const setAppUidClaims = httpsCallable(this.app.functions, 'setuidclaims');
-    const appResult = await setAppUidClaims({ adminUid: this.admin.user!.uid, roarUid: this.admin.user!.uid });
+    const appResult = await setAppUidClaims({ adminUid: this.admin.user!.uid, roarUid: this.roarUid! });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
+    if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
       throw new Error('Failed to associate admin and assessment UIDs.');
     }
   }
 
-  // TODO: Add a private method that calls the syncCleverData cloud function.
+  // TODO: Add dateAssigned, dateOpened, dateClosed to each user's assignment.
+  // Tasks should have: ID, name, dashboardDescription, imgUrl, version
   private async _syncCleverData() {
-    this._verify_authentication();
-    const syncCleverData = httpsCallable(this.app.functions, 'synccleverdata');
-    const result = await syncCleverData({ adminUid: this.admin.user!.uid });
+    if (this._oAuthProvider === OAuthProviderType.CLEVER) {
+      this._verify_authentication();
+      const syncAdminCleverData = httpsCallable(this.admin.functions, 'synccleverdata');
+      const adminResult = await syncAdminCleverData({ assessmentUid: this.app.user.uid, accessToken: this.oAuthAccessToken });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(result.data as any, 'status', StatusCode.ServerErrorInternal) === StatusCode.SuccessOK) {
-      throw new Error('Failed to sync Clever and ROAR data.');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
+        throw new Error('Failed to sync Clever and ROAR data.');
+      }
+
+      const syncAppCleverData = httpsCallable(this.app.functions, 'synccleverdata');
+      const appResult = await syncAppCleverData({ adminUid: this.admin.user!.uid, roarUid: this.roarUid, accessToken: this.oAuthAccessToken });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
+        throw new Error('Failed to sync Clever and ROAR data.');
+      }
     }
   }
 
@@ -203,7 +217,7 @@ export class RoarFirekit {
     if (provider === OAuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === OAuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider('oidc.clever');
+      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
     } else {
       throw new Error(`provider must be one of ${Object.values(OAuthProviderType)}. Received ${provider} instead.`);
     }
@@ -221,11 +235,13 @@ export class RoarFirekit {
         if (provider === OAuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
+          this._oAuthProvider = provider;
           this.oAuthAccessToken = credential?.accessToken;
           return credential;
         } else if (provider === OAuthProviderType.CLEVER) {
           const credential = OAuthProvider.credentialFromResult(adminResult);
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
+          this._oAuthProvider = provider;
           this.oAuthAccessToken = credential?.accessToken;
           this.oidcIdToken = credential?.idToken;
           return credential;
@@ -243,6 +259,7 @@ export class RoarFirekit {
         }
       })
       .then(this._setUidCustomClaims.bind(this))
+      .then(this._syncCleverData.bind(this))
       .then(this.getMyData.bind(this));
   }
 
@@ -277,11 +294,13 @@ export class RoarFirekit {
           if (providerId === RoarProviderId.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Google Access Token. You can use it to access Google APIs.
+            this._oAuthProvider = OAuthProviderType.GOOGLE;
             this.oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
+            this._oAuthProvider = OAuthProviderType.CLEVER;
             this.oAuthAccessToken = credential?.accessToken;
             this.oidcIdToken = credential?.idToken;
             return credential;
@@ -299,6 +318,7 @@ export class RoarFirekit {
         }
       })
       .then(this._setUidCustomClaims.bind(this))
+      .then(this._syncCleverData.bind(this))
       .then(this.getMyData.bind(this));
   }
 
@@ -312,9 +332,31 @@ export class RoarFirekit {
     });
   }
 
-  //           +------------------------------+
-  // ----------|  End Authentication Methods  |----------
-  //           +------------------------------+
+  //           +--------------------------------+
+  // ----------|   End Authentication Methods   |----------
+  //           +--------------------------------+
+
+  //           +--------------------------------+
+  // ----------| Begin Methods to Read User and |----------
+  // ----------| Assignment/Administration Data |----------
+  //           +--------------------------------+
+
+  public get dbRefs() {
+    if (this.admin.user && this.app.user) {
+      return {
+        admin: {
+          user: doc(this.admin.db, 'users', this.roarUid!),
+          assignments: collection(this.admin.db, 'users', this.roarUid!, 'assignments'),
+        },
+        app: {
+          user: doc(this.app.db, 'users', this.roarUid!),
+          runs: collection(this.app.db, 'users', this.roarUid!, 'runs'),
+        },
+      };
+    } else {
+      return undefined;
+    }
+  }
 
   private async _getUser(uid: string): Promise<IUserData | undefined> {
     this._verify_authentication();
@@ -322,15 +364,10 @@ export class RoarFirekit {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      let userData = {} as IUserData;
-      if (userDocSnap.data().userType) {
-        userData = userDocSnap.data() as IUserData;
-      } else {
-        userData = {
-          userType: UserType.guest,
-          ...userDocSnap.data(),
-        };
-      }
+      const userData = {
+        userType: UserType.guest,
+        ...userDocSnap.data(),
+      } as IUserData;
 
       const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
       let externalData = {};
@@ -349,18 +386,25 @@ export class RoarFirekit {
 
   async getMyData() {
     this._verify_authentication();
-    this.userData = await this._getUser(this.admin.user!.uid);
+    this.userData = await this._getUser(this.roarUid!);
     if (this.userData) {
       this.roarAppUser = new RoarAppUser({
-        id: this.admin.user!.uid,
-        firebaseUid: this.app.user!.uid,
+        db: this.app.db,
+        assessmentUid: this.app.user.uid,
+        roarUid: this.roarUid!,
+        // TODO: How do we figure out the pid
+        assessmentPid: this.app.user!.pid,
         birthMonth: this.userData.dob?.getMonth(),
         birthYear: this.userData.dob?.getFullYear(),
-        classId: this.userData.studentData?.classId || this.userData!.educatorData?.classId,
-        schoolId: this.userData.studentData?.schoolId || this.userData!.educatorData?.schoolId,
-        districtId: this.userData.studentData?.districtId || this.userData!.educatorData?.districtId,
-        studies: this.userData.studentData?.studies || this.userData!.educatorData?.studies,
-        userCategory: this.userData.userType,
+        classIds: this.userData.classIds,
+        classes: this.userData.classes,
+        schoolId: this.userData.schoolId,
+        schools: this.userData.schools,
+        districtId: this.userData.districtId,
+        districts: this.userData.districts,
+        studies: this.userData.studies,
+        families: this.userData.families,
+        userType: this.userData.userType,
       });
     }
   }
@@ -368,11 +412,18 @@ export class RoarFirekit {
   /* Return a list of all UIDs for users that this user has access to */
   async listUsers() {
     this._verify_authentication();
-    const accessControlDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'accessControl', 'users');
-    const docSnap = await getDoc(accessControlDoc);
-    if (docSnap.exists()) {
-      return Object.keys(docSnap.data());
-    }
+
+    const userCollectionRef = collection(this.admin.db, 'users');
+    const userQuery = query(userCollectionRef,
+      or(
+        where('districts', 'array-contains', this.roarUid!),
+        where('schools', 'array-contains', this.roarUid!),
+        where('classes', 'array-contains', this.roarUid!),
+        where('studies', 'array-contains', this.roarUid!),
+        where('families', 'array-contains', this.roarUid!),
+      ));
+    // TODO: Query all users within this user's admin orgs
+    // TODO: Append the current user's uid to the list of UIDs
     return null;
   }
 
@@ -382,23 +433,23 @@ export class RoarFirekit {
     return uidArray.map((uid) => this._getUser(uid));
   }
 
-  public get administrationsAssigned() {
-    return this.userData?.administrationsAssigned;
+  public get assignmentsAssigned() {
+    return this.userData?.assignmentsAssigned;
   }
 
-  public get administrationsStarted() {
-    return this.userData?.administrationsStarted;
+  public get assignmentsStarted() {
+    return this.userData?.assignmentsStarted;
   }
 
-  public get administrationsCompleted() {
-    return this.userData?.administrationsCompleted;
+  public get assignmentsCompleted() {
+    return this.userData?.assignmentsCompleted;
   }
 
   public get roarUid() {
     return this.admin.user?.uid;
   }
 
-  private async _getGlobalAdministration(administrationId: string): Promise<IAdministrationData | undefined> {
+  private async _getAdministration(administrationId: string): Promise<IAdministrationData | undefined> {
     this._verify_authentication();
     const docRef = doc(this.admin.db, 'administrations', administrationId);
     const docSnap = await getDoc(docRef);
@@ -410,36 +461,45 @@ export class RoarFirekit {
 
   getAdministrations(administrationIds: string[]): Promise<IAdministrationData | undefined>[] {
     this._verify_authentication();
-    return administrationIds.map((id) => this._getGlobalAdministration(id));
+    return administrationIds.map((id) => this._getAdministration(id));
   }
 
-  private async _getMyAdministration(administrationId: string): Promise<IMyAdministrationData | undefined> {
+  private async _getAssignment(administrationId: string): Promise<IAssignmentData | undefined> {
     this._verify_authentication();
-    const docRef = doc(this.admin.db, 'users', this.admin.user!.uid, 'administrations', administrationId);
+    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      return docSnap.data() as IMyAdministrationData;
+      return docSnap.data() as IAssignmentData;
     }
   }
 
-  getMyAdministrations(administrationIds: string[]): Promise<IMyAdministrationData | undefined>[] {
+  getMyAssignments(administrationIds: string[]): Promise<IAssignmentData | undefined>[] {
     this._verify_authentication();
-    return administrationIds.map((id) => this._getMyAdministration(id));
+    return administrationIds.map((id) => this._getAssignment(id));
   }
 
-  async completeAdministration(administrationId: string) {
+  async appendAssignmentToStartedList(administrationId: string) {
     this._verify_authentication();
-    const docRef = doc(this.admin.db, 'users', this.admin.user!.uid, 'administrations', administrationId);
-    return updateDoc(docRef, { completed: true });
+    const userDocRef = this.dbRefs!.admin.user;
+    return updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() });
+  }
+
+  async completeAssignment(administrationId: string) {
+    this._verify_authentication();
+    const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+    const userDocRef = this.dbRefs!.admin.user;
+    return updateDoc(assignmentDocRef, { completed: true }).then(() =>
+      updateDoc(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() }),
+    );
   }
 
   private async _updateAssessment(administrationId: string, taskId: string, updates: { [x: string]: unknown }) {
     this._verify_authentication();
-    const docRef = doc(this.admin.db, 'users', this.admin.user!.uid, 'administrations', administrationId);
+    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const assessmentInfo = docSnap.data().assessments.find((a: IMyAssessmentData) => a.taskId === taskId);
+      const assessmentInfo = docSnap.data().assessments.find((a: IAssignedAssessmentData) => a.taskId === taskId);
       // First remove the old assessment to avoid duplication
       await updateDoc(docRef, {
         assessments: arrayRemove(assessmentInfo),
@@ -454,14 +514,77 @@ export class RoarFirekit {
     }
   }
 
-  // TODO: Create the run in the assessment Firestore, record it and then pass it to the app
   async startAssessment(administrationId: string, taskId: string) {
     this._verify_authentication();
 
-    // Start this run in the assessment Firestore
-    // Append runId to `runId` and `allRunIds` for this assessment in the userId/administrations collection
+    // First grab data about the administration
+    const administrationDocRef = doc(this.admin.db, 'administrations', administrationId);
+    const administrationDocSnap = await getDoc(administrationDocRef);
+    let assessmentParams: { [x: string]: unknown } = {};
+    if (administrationDocSnap.exists()) {
+      const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
+      const thisAssessment = assessments.find((a) => a.taskId === taskId);
+      if (thisAssessment) {
+        assessmentParams = thisAssessment.params;
+      } else {
+        throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
+      }
 
-    return this._updateAssessment(administrationId, taskId, { startedOn: new Date() });
+      // Create the run in the assessment Firestore, record the runId and then
+      // pass it to the app
+      const runRef = doc(this.dbRefs!.app.runs);
+      const runId = runRef.id;
+
+      // Check the assignment to see if none of the assessments have been
+      // started yet. If not, start the assignment
+      const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+      const assignmentDocSnap = await getDoc(assignmentDocRef);
+      if (assignmentDocSnap.exists()) {
+        const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
+        const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
+        if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
+          this.appendAssignmentToStartedList(administrationId);
+        }
+        allRunIdsForThisTask.push(runId);
+
+        // Overwrite `runId` and append runId to `allRunIds` for this assessment
+        // in the userId/assignments collection
+        return this._updateAssessment(administrationId, taskId, {
+          startedOn: new Date(),
+          runId: runId,
+          allRunIds: allRunIdsForThisTask,
+        }).then(() => {
+          if (this.roarAppUser === undefined) {
+            this.getMyData();
+          }
+
+          return new RoarRun({
+            user: this.roarAppUser!,
+            task:
+            studyId:
+            runId
+          })
+        });
+      } else {
+        throw new Error(`Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`);
+      }
+    } else {
+      throw new Error(`Could not find administration with id ${administrationId}`);
+    }
+  }
+
+  async completeAssessment(administrationId: string, taskId: string) {
+    await this._updateAssessment(administrationId, taskId, { completedOn: new Date() });
+
+    // Check to see if all of the assessments in this assignment have been completed,
+    // If so, complete the assignment
+    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      if (docSnap.data().assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn))) {
+        this.completeAssignment(administrationId);
+      }
+    }
   }
 
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
@@ -469,47 +592,37 @@ export class RoarFirekit {
     return this._updateAssessment(administrationId, taskId, { rewardShown: true });
   }
 
-  async completeAssessment(administrationId: string, taskId: string) {
-    await this._updateAssessment(administrationId, taskId, { completedOn: new Date() });
-
-    // Check to see if all of the assessments have been completed,
-    // If so, complete the administration
-    const docRef = doc(this.admin.db, 'users', this.admin.user!.uid, 'administrations', administrationId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      if (docSnap.data().assessments.every((a: IMyAssessmentData) => a.completedOn !== null)) {
-        this.completeAdministration(administrationId);
-      }
-    }
-  }
-
   // These are all methods that will be important for admins, but not necessary for students
-  async createAdministration(assessments: IAssessmentData[], dateOpen: Date, dateClosed: Date, sequential = true) {
+  async createAdministration(assessments: IAssessmentData[], dateOpen: Date, dateClose: Date, sequential = true) {
     this._verify_authentication();
 
     // First add the administration to the database
     const administrationData: IAdministrationData = {
-      createdBy: this.admin.user!.uid,
-      assignedUsers: [],
-      assignedClasses: [],
-      assignedSchools: [],
-      assignedDistricts: [],
-      assignedGrades: [],
+      createdBy: this.roarUid!,
+      users: [],
+      studies: [],
+      families: [],
+      classes: [],
+      schools: [],
+      districts: [],
+      grades: [],
       dateCreated: new Date(),
       dateOpened: dateOpen,
-      dateClosed: dateClosed,
+      dateClosed: dateClose,
       assessments: assessments,
       sequential: sequential,
     };
     const administrationDocRef = await addDoc(collection(this.admin.db, 'administrations'), administrationData);
 
     // Then add the ID to the admin's list of administrationsCreated
-    const userDocRef = doc(this.admin.db, 'users', this.admin.user!.uid);
+    const userDocRef = this.dbRefs!.admin.user;
     await updateDoc(userDocRef, {
       'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
     });
   }
 
+  // TODO: Assign the administration to orgs rather than individual users
+  // TODO: Write a cloud function that will modify each assigned user's local administrations
   async assignAdministrationToUsers(administrationId: string, userIds: string[]) {
     this._verify_authentication();
     const users = await Promise.all(this.getUsers(userIds));
@@ -517,21 +630,27 @@ export class RoarFirekit {
       users.map((user: IUserData | undefined) => user?.studentData),
       undefined,
     );
-    const assignedClasses = _uniq(studentData.map((user) => user!.classId));
-    const assignedSchools = _uniq(studentData.map((user) => user!.schoolId));
-    const assignedDistricts = _uniq(studentData.map((user) => user!.districtId));
-    const assignedGrades = _uniq(studentData.map((user) => user!.grade));
+
+    const studies = _uniq(studentData.map((user) => user!.studies));
+    const families = _uniq(studentData.map((user) => user!.families));
+    const classes = _uniq(studentData.map((user) => user!.classId));
+    const schools = _uniq(studentData.map((user) => user!.schoolId));
+    const districts = _uniq(studentData.map((user) => user!.districtId));
+    const grades = _uniq(studentData.map((user) => user!.grade));
 
     const docRef = doc(this.admin.db, 'administrations', administrationId);
     await updateDoc(docRef, {
-      assignedUsers: arrayUnion(userIds),
-      assignedClasses: arrayUnion(assignedClasses),
-      assignedSchools: arrayUnion(assignedSchools),
-      assignedDistricts: arrayUnion(assignedDistricts),
-      assignedGrades: arrayUnion(assignedGrades),
+      users: arrayUnion(userIds),
+      classes: arrayUnion(classes),
+      schools: arrayUnion(schools),
+      districts: arrayUnion(districts),
+      grades: arrayUnion(grades),
+      studies: arrayUnion(studies),
+      families: arrayUnion(families),
     });
   }
 
+  // TODO: Review this in light of the RBAC changes
   async unassignAdministrationToUsers(administrationId: string, userIds: string[]) {
     this._verify_authentication();
 
@@ -582,6 +701,7 @@ export class RoarFirekit {
     });
   }
 
+  // TODO: Review this in light of the RBAC changes
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
     const docRef = doc(this.admin.db, 'users', uid, 'externalData', externalResourceId);
     const docSnap = await getDoc(docRef);
@@ -602,6 +722,7 @@ export class RoarFirekit {
     }
   }
 
+  // TODO: Review this in light of the RBAC changes
   async createUser(
     roarUid: string,
     userData: IUserData,
@@ -612,7 +733,7 @@ export class RoarFirekit {
 
     // Add the ID to the admin's list of users
     // This must be done before we create the user (because of the firestore security rules)
-    const accessControlDoc = doc(this.admin.db, 'users', this.admin.user!.uid, 'accessControl', 'users');
+    const accessControlDoc = doc(this.admin.db, 'users', this.roarUid!, 'accessControl', 'users');
     await updateDoc(accessControlDoc, {
       [roarUid]: true,
     });
@@ -640,5 +761,5 @@ export class RoarFirekit {
   // async updateUser();
 
   // TODO: Adam write the appFirekit
-  // createAppFirekit(taskInfo: ITaskVariantInput, rootDoc: string[]);
+  // createAppFirekit(taskInfo: ITaskVariantInput);
 }

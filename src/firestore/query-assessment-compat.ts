@@ -1,4 +1,14 @@
-import { DocumentReference, collection, doc, getDocs, query, Query, where, Timestamp } from 'firebase/firestore';
+import {
+  DocumentReference,
+  Firestore,
+  Query,
+  Timestamp,
+  collection,
+  doc,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore';
 import { RoarFirekit } from './firekit';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
 
@@ -88,6 +98,15 @@ interface IUser {
   schools: string[];
   studies: string[];
   classes: string[];
+}
+
+export interface IUserQueryInput {
+  db: Firestore;
+  districts: string[];
+  schools: string[];
+  classes: string[];
+  studies: string[];
+  families: string[];
 }
 
 export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], variantIds: string[]) => {

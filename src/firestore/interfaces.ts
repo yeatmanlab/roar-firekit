@@ -1,6 +1,6 @@
 import { FirebaseApp } from 'firebase/app';
 import { Auth, User } from 'firebase/auth';
-import { DocumentData, Firestore, DocumentReference } from 'firebase/firestore';
+import { DocumentData, Firestore } from 'firebase/firestore';
 import { Functions } from 'firebase/functions';
 import { FirebaseConfigData } from './util';
 
@@ -18,12 +18,6 @@ export interface IFirekit {
   claimsLastUpdated?: Date;
 }
 
-export interface IAppFirekit extends IFirekit {
-  docRefs?: {
-    [key: string]: DocumentReference;
-  };
-}
-
 type Grade = number | 'K' | 'PK' | 'TK';
 
 export enum UserType {
@@ -35,57 +29,38 @@ export enum UserType {
   researcher = 'researcher',
 }
 
-enum AdminLevel {
-  class = 'class',
-  school = 'school',
-  district = 'district',
-  study = 'study',
-}
-
-export interface IStudentOrEducatorData extends DocumentData {
-  classId: string;
-  classes: string[];
-  schoolId: string;
-  schools: string[];
-  districtId: string;
-  districts: string[];
-  studies: string[];
+export interface IExtraMetadata extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IStudentData extends IStudentOrEducatorData {
+export interface IStudentData extends IExtraMetadata {
   ell?: boolean;
-  gender?: string;
   dob: Date;
+  gender?: string;
   grade: Grade;
-}
-
-export interface IEducatorData extends IStudentOrEducatorData {
-  grades: Grade[];
-}
-
-export interface ICaregiverData extends DocumentData {
-  students: string[];
-  [x: string]: unknown;
 }
 
 export interface IAdminData extends DocumentData {
   administrationsCreated: string[];
   permissions: string[];
-  classes: string[];
-  studies: string[];
-  districts: string[];
-  schools: string[];
-  adminLevel: AdminLevel;
-  [x: string]: unknown;
 }
 
 export interface IExternalUserData extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IAdministrationDateMap {
+export interface IAssignmentDateMap {
   [x: string]: Date;
+}
+
+export interface IOrgDateMap {
+  [x: string]: { from: Date; to?: Date };
+}
+
+export interface IOrgs {
+  current: string[];
+  all: string[];
+  dates: IOrgDateMap;
 }
 
 export interface IUserData extends DocumentData {
@@ -99,13 +74,19 @@ export interface IUserData extends DocumentData {
   assessmentUid?: string;
   assessmentsCompleted?: string[];
   assessmentsAssigned?: string[];
-  administrationsAssigned?: IAdministrationDateMap;
-  administrationsStarted?: IAdministrationDateMap;
-  administrationsCompleted?: IAdministrationDateMap;
-  adminData?: IAdminData;
-  educatorData?: IEducatorData;
+  assignmentsAssigned?: IAssignmentDateMap;
+  assignmentsStarted?: IAssignmentDateMap;
+  assignmentsCompleted?: IAssignmentDateMap;
+  classes: IOrgs;
+  schools: IOrgs;
+  districts: IOrgs;
+  studies: IOrgs;
+  families: IOrgs;
+  archived: boolean;
   studentData?: IStudentData;
-  caregiverData?: ICaregiverData;
+  educatorData?: IExtraMetadata;
+  caregiverData?: IExtraMetadata;
+  adminData?: IAdminData;
   // Allow for data from external resources like clever or state-wide tests
   externalData?: {
     [x: string]: IExternalUserData;
@@ -121,11 +102,12 @@ export interface IAssessmentData extends DocumentData {
 
 export interface IAdministrationData extends DocumentData {
   createdBy: string;
-  assignedUsers: string[];
-  assignedClasses: string[];
-  assignedSchools: string[];
-  assignedDistricts: string[];
-  assignedGrades: number[];
+  studies: string[];
+  families: string[];
+  classes: string[];
+  schools: string[];
+  districts: string[];
+  grades: number[];
   dateCreated: Date;
   dateOpened: Date;
   dateClosed: Date;
@@ -133,15 +115,45 @@ export interface IAdministrationData extends DocumentData {
   assessments: IAssessmentData[];
 }
 
-export interface IMyAssessmentData extends DocumentData {
+export interface IAssignedAssessmentData extends DocumentData {
   taskId: string;
-  runId: string | null;
-  completedOn: Date | null;
-  startedOn: Date | null;
+  runId?: string;
+  allRunIds?: string[];
+  completedOn?: Date;
+  startedOn?: Date;
   rewardShown: boolean;
+  [x: string]: unknown;
 }
 
-export interface IMyAdministrationData extends DocumentData {
+export interface IAssignmentData extends DocumentData {
   completed: boolean;
-  assessments: IMyAssessmentData[];
+  assessments: IAssignedAssessmentData[];
+}
+
+export interface IDistrict extends DocumentData {
+  districtName: string;
+  schools: string[];
+  [x: string]: unknown;
+}
+
+export interface ISchool extends DocumentData {
+  schoolName: string;
+  districtId: string;
+  classes: string[];
+  [x: string]: unknown;
+}
+
+export interface IClass extends DocumentData {
+  schoolId: string;
+  districtId: string;
+  grade: Grade;
+  [x: string]: unknown;
+}
+
+export interface IFamily extends DocumentData {
+  [x: string]: unknown;
+}
+
+export interface IStudy extends DocumentData {
+  [x: string]: unknown;
 }

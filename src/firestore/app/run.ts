@@ -1,17 +1,14 @@
 import {
+  DocumentData,
+  FieldValue,
   arrayUnion,
   collection,
   doc,
   DocumentReference,
-  getCountFromServer,
-  getDocs,
-  limit,
-  orderBy,
-  query,
+  increment,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
@@ -40,53 +37,26 @@ export const convertTrialToFirestore = (trialData: object): object => {
   );
 };
 
-export const calculateRunScores = async (runRef: DocumentReference): Promise<object> => {
-  // First get a count of all trials for this run
-  const trialsCollection = collection(runRef, 'trials');
-  let countSnapshot = await getCountFromServer(trialsCollection);
-  const numAttempted = countSnapshot.data().count;
-
-  // Get a count of all correct trials for this run
-  let query_ = query(trialsCollection, where('correct', '==', true));
-  countSnapshot = await getCountFromServer(query_);
-  const numCorrect = countSnapshot.data().count;
-
-  // Get a count of all incorrect trials for this run
-  query_ = query(trialsCollection, where('correct', '==', false));
-  countSnapshot = await getCountFromServer(query_);
-  const numIncorrect = countSnapshot.data().count;
-
-  // Get the last trial
-  query_ = query(trialsCollection, orderBy('serverTimestamp', 'desc'), limit(1));
-  const querySnapshot = await getDocs(query_);
-
-  let theta = null;
-  let thetaSE = null;
-  querySnapshot.forEach((doc) => {
-    theta = doc.data().theta || null;
-    thetaSE = doc.data().thetaSE || null;
-  });
-
-  return {
-    numAttempted,
-    numCorrect,
-    numIncorrect,
-    theta,
-    thetaSE,
-  };
-};
+export interface IRunScores extends DocumentData {
+  theta: number | null;
+  thetaSE: number | null;
+  numAttempted: FieldValue;
+  numCorrect: FieldValue;
+  numIncorrect: FieldValue;
+}
 
 export interface IRunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
   studyId?: string;
+  runId?: string;
 }
 
 /**
  * Class representing a ROAR run.
  *
  * A run is a globally unique collection of successive trials that constitute
- * one user "running" through a single task one time.
+ * one user "running" through a single assessment one time.
  */
 export class RoarRun {
   user: RoarAppUser;
@@ -95,23 +65,23 @@ export class RoarRun {
   studyId: string | null;
   started: boolean;
   /** Create a ROAR run
-   * @param {RoarAppUser} user - The user running the task
-   * @param {RoarTaskVariant} task - The task variant being run
-   * @param {string} studyId - The ID of the study to which this run belongs
+   * @param {IRunInput} input
+   * @param {RoarAppUser} input.user - The user running the task
+   * @param {RoarTaskVariant} input.task - The task variant being run
+   * @param {string} input.studyId - The ID of the study to which this run belongs
+   * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ user, task, studyId }: IRunInput) {
-    if (!(user.userCategory === 'student')) {
-      throw new Error('Only students can start a run.');
-    }
-
+  constructor({ user, task, studyId, runId }: IRunInput) {
     this.user = user;
     this.task = task;
     this.studyId = studyId || null;
-    if (this.user.userRef) {
-      this.runRef = doc(collection(this.user.userRef, 'runs'));
+
+    if (runId) {
+      this.runRef = doc(this.user.userRef, 'runs', runId);
     } else {
-      throw new Error('User refs not set. Please use the user.setRefs method first.');
+      this.runRef = doc(collection(this.user.userRef, 'runs'));
     }
+
     if (!this.task.taskRef) {
       throw new Error('Task refs not set. Please use the task.setRefs method first.');
     }
@@ -123,17 +93,19 @@ export class RoarRun {
    * @method
    * @async
    */
-  async startRun() {
+  async startRun(additionalRunMetadata?: { [key: string]: unknown }) {
     if (!this.user.isPushedToFirestore) {
       await this.user.toAppFirestore();
     }
     if (this.task.variantRef === undefined) {
       await this.task.toFirestore();
     }
+
     const runData = {
+      ...additionalRunMetadata,
       districtId: this.user.districtId,
       schoolId: this.user.schoolId,
-      classId: this.user.classId,
+      classIds: this.user.classIds,
       studyId: this.studyId,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
@@ -142,12 +114,17 @@ export class RoarRun {
       completed: false,
       timeStarted: serverTimestamp(),
       timeFinished: null,
+      numAttempted: 0,
+      numCorrect: 0,
+      numIncorrect: 0,
+      theta: null,
+      thetaSE: null,
     };
 
     await setDoc(this.runRef, runData)
       .then(() => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        return updateDoc(this.user.userRef!, {
+        return updateDoc(this.user.userRef, {
           tasks: arrayUnion(this.task.taskId),
           variants: arrayUnion(this.task.variantId),
           taskRefs: arrayUnion(this.task.taskRef),
@@ -169,12 +146,9 @@ export class RoarRun {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
 
-    const runScores = await calculateRunScores(this.runRef);
-
     return updateDoc(this.runRef, {
       completed: true,
       timeFinished: serverTimestamp(),
-      ...runScores,
     }).then(() => {
       return this.user.updateFirestoreTimestamp();
     });
@@ -191,11 +165,28 @@ export class RoarRun {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
     const trialRef = doc(collection(this.runRef, 'trials'));
+
     return setDoc(trialRef, {
       ...convertTrialToFirestore(trialData),
       serverTimestamp: serverTimestamp(),
-    }).then(() => {
-      this.user.updateFirestoreTimestamp();
-    });
+    })
+      .then(() => {
+        const runScores = {
+          numAttempted: increment(1),
+          theta: trialData.theta || null,
+          thetaSE: trialData.thetaSE || null,
+        } as IRunScores;
+
+        if (trialData.correct) {
+          runScores.numCorrect = increment(1);
+        } else {
+          runScores.numIncorrect = increment(1);
+        }
+
+        return updateDoc(this.runRef, runScores);
+      })
+      .then(() => {
+        this.user.updateFirestoreTimestamp();
+      });
   }
 }
