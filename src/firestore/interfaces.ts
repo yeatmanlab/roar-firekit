@@ -95,19 +95,19 @@ export interface IUserData extends DocumentData {
 
 export interface IAssessmentData extends DocumentData {
   taskId: string;
-  params: {
-    [x: string]: unknown;
-  };
+  params: { [x: string]: unknown };
 }
 
-export interface IAdministrationData extends DocumentData {
-  createdBy: string;
+export interface IOrgLists extends DocumentData {
+  districts: string[];
+  schools: string[];
+  classes: string[];
   studies: string[];
   families: string[];
-  classes: string[];
-  schools: string[];
-  districts: string[];
-  grades: number[];
+}
+
+export interface IAdministrationData extends IOrgLists {
+  createdBy: string;
   dateCreated: Date;
   dateOpened: Date;
   dateClosed: Date;
@@ -127,6 +127,11 @@ export interface IAssignedAssessmentData extends DocumentData {
 
 export interface IAssignmentData extends DocumentData {
   completed: boolean;
+  started: boolean;
+  dateAssigned: Date;
+  dateOpened: Date;
+  dateClosed: Date;
+  assigningOrgs: IOrgLists;
   assessments: IAssignedAssessmentData[];
 }
 

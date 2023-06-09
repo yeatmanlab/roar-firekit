@@ -32,7 +32,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { isEmailAvailable, isUsernameAvailable } from '../auth';
+import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
 import { initializeProjectFirekit, removeNull } from './util';
 import {
   IAdministrationData,
@@ -212,6 +212,11 @@ export class RoarFirekit {
     });
   }
 
+  async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
+    const email = roarEmail(username);
+    return this.logInWithEmailAndPassword({ email, password });
+  }
+
   async signInWithPopup(provider: OAuthProviderType) {
     let authProvider;
     if (provider === OAuthProviderType.GOOGLE) {
@@ -229,6 +234,7 @@ export class RoarFirekit {
       }
     };
 
+    // TODO: If user signs in using Google, we should assign them to the guest userType
     return signInWithPopup(this.admin.auth, authProvider)
       .then((adminResult) => {
         this.admin.user = adminResult.user;
@@ -723,20 +729,15 @@ export class RoarFirekit {
   }
 
   // TODO: Review this in light of the RBAC changes
-  async createUser(
+  async createUserWithUsernameAndPassword(
     roarUid: string,
     userData: IUserData,
-    externalResourceId: string | undefined,
-    externalData: { [x: string]: unknown } | undefined,
+    externalResourceId?: string,
+    externalData?: { [x: string]: unknown },
+    username: string,
+    password: string,
   ) {
     this._verify_authentication();
-
-    // Add the ID to the admin's list of users
-    // This must be done before we create the user (because of the firestore security rules)
-    const accessControlDoc = doc(this.admin.db, 'users', this.roarUid!, 'accessControl', 'users');
-    await updateDoc(accessControlDoc, {
-      [roarUid]: true,
-    });
 
     const userDocRef = doc(this.admin.db, 'users', roarUid);
     await setDoc(userDocRef, userData);

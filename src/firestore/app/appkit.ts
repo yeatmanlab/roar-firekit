@@ -1,15 +1,16 @@
 import { Auth } from 'firebase/auth';
-import { Firestore } from 'firebase/firestore';
 
 import { RoarRun } from './run';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { IUserInput, RoarAppUser } from './user';
+import { IUserInput, IUserUpdateInput, RoarAppUser } from './user';
+import { IOrgLists } from '../interfaces';
 
 interface IAppkitConstructorParams {
   auth: Auth;
-  db: Firestore;
   userInfo: IUserInput;
   taskInfo: ITaskVariantInput;
+  assigningOrgs?: IOrgLists;
+  runId?: string;
 }
 
 /**
@@ -19,28 +20,25 @@ interface IAppkitConstructorParams {
  */
 export class RoarAppkit {
   auth: Auth;
-  db: Firestore;
   run: RoarRun;
   task: RoarTaskVariant;
   user: RoarAppUser;
   private _started: boolean;
   /**
-   * Create a RoarAppkit. This expects an object with keys `userInfo`,
-   * `taskInfo`, and `db` where `userInfo` is a [[IUserInput]] object,
-   * `taskInfo` is a [[ITaskVariantInput]] object, and `db` is a [[Firestore]]
-   * instance.
+   * Create a RoarAppkit.
+   *
    * @param {{userInfo: IUserInput, taskInfo: ITaskVariantInput}=} input
    * @param {IUserInput} input.userInfo - The user input object
    * @param {ITaskVariantInput} input.taskInfo - The task input object
-   * @param {Firestore} input.db - Assessment Firestore instance
+   * @param {IOrgLists} input.assigningOrgs - The ID of the study to which this run belongs
+   * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ db, auth, userInfo, taskInfo }: IAppkitConstructorParams) {
+  constructor({ auth, userInfo, taskInfo, assigningOrgs, runId }: IAppkitConstructorParams) {
     this.auth = auth;
-    this.db = db;
 
     this.user = new RoarAppUser(userInfo);
     this.task = new RoarTaskVariant(taskInfo);
-    this.run = new RoarRun({ user: this.user, task: this.task });
+    this.run = new RoarRun({ user: this.user, task: this.task, assigningOrgs, runId });
     this._started = false;
   }
 
@@ -49,7 +47,25 @@ export class RoarAppkit {
   }
 
   /**
-   * Start the ROAR run. Push the task, user, and run info to Firestore
+   * Update the user's data (both locally and in Firestore).
+   * @param {object} input
+   * @param {string[]} input.tasks - The tasks to be added to the user doc
+   * @param {string[]} input.variants - The variants to be added to the user doc
+   * @param {string} input.assessmentPid - The assessment PID of the user
+   * @param {*} input.userMetadata - Any additional user metadata
+   * @method
+   * @async
+   */
+  async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
+    if (!this.isAuthenticated) {
+      throw new Error('User must be authenticated to update their own data.');
+    }
+
+    return this.user.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
+  }
+
+  /**
+   * Start the ROAR run. Push the task and run info to Firestore.
    * Call this method before starting the jsPsych experiment.
    * @method
    * @async
@@ -59,11 +75,7 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to start a run.');
     }
 
-    return this.task
-      .toFirestore()
-      .then(() => this.user.toAppFirestore())
-      .then(() => this.run.startRun(additionalRunMetadata))
-      .then(() => (this._started = true));
+    return this.run.startRun(additionalRunMetadata).then(() => (this._started = true));
   }
 
   /**
