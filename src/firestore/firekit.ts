@@ -753,8 +753,22 @@ export class RoarFirekit {
         userType: "student",
         studentData: {}
       }
+      if(!_get(userData, 'age') && !_get(userData, 'dob')) {
+        // Throw exception or return code
+        // User can NOT lack date of birth AND age
+        return 1;
+      }
       if(_get(userData, 'name')) userObject['name'] = userData.name;
       if(_get(userData, 'dob')) userObject['studentData']['dob'] = userData.dob;
+      if(_get(userData, 'age')){
+        const age: number = Number(userData.age);
+        const yearOffset = Math.floor(age);
+        const monthOffset = age % yearOffset;
+        let calcDob = new Date();
+        calcDob.setFullYear(calcDob.getFullYear() - yearOffset);
+        calcDob.setMonth(calcDob.getMonth() - monthOffset)
+        userObject['studentData']['dob'] = calcDob;
+      }
       if(_get(userData, 'gender')) userObject['studentData']['gender'] = userData.gender;
       if(_get(userData, 'ell_status')) userObject['studentData']['ell_status'] = userData.ell_status;
       if(_get(userData, 'iep_status')) userObject['studentData']['iep_status'] = userData.iep_status;
@@ -762,7 +776,7 @@ export class RoarFirekit {
 
       const dateNow = Date.now()
       // create district entry
-      const districtId = _get(userData, 'district')
+      const districtId = _get(userData, 'district');
       if(districtId) {
         userObject['districts'] = {
           current: [districtId],
