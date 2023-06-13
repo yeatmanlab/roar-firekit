@@ -29,6 +29,9 @@ import {
   onSnapshot,
   setDoc,
   updateDoc,
+  query,
+  or,
+  where,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -39,7 +42,6 @@ import {
   IAssessmentData,
   IExternalUserData,
   IFirekit,
-  IAppFirekit,
   IAssignmentData,
   IAssignedAssessmentData,
   IRoarConfigData,
@@ -59,9 +61,29 @@ const RoarProviderId = {
   CLEVER: 'oidc.clever',
 };
 
+interface ICreateUserInput {
+  age: string | null,
+  dob: string | null,
+  grade: string,
+  ell_status?: boolean,
+  iep_status?: boolean,
+  frl_status?: boolean,
+  gender?: string,
+  name?: {
+    first?: string,
+    middle?: string,
+    last?: string
+  },
+  school: string | null,
+  district: string | null,
+  class: string | null,
+  family: string | null,
+  study: string | null,
+}
+
 export class RoarFirekit {
   roarConfig: IRoarConfigData;
-  app: IAppFirekit;
+  app: IFirekit;
   admin: IFirekit;
   userData?: IUserData;
   roarAppUser?: RoarAppUser;
@@ -80,10 +102,6 @@ export class RoarFirekit {
 
     this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence);
     this.admin = initializeProjectFirekit(roarConfig.admin, 'admin', enableDbPersistence);
-
-    this.app.docRefs = {
-      prod: doc(this.app.db, 'prod', 'roar-prod'),
-    };
 
     onAuthStateChanged(this.admin.auth, (user) => {
       if (user) {
@@ -135,7 +153,7 @@ export class RoarFirekit {
   private async _setUidCustomClaims() {
     this._verify_authentication();
     const setAdminUidClaims = httpsCallable(this.admin.functions, 'setuidclaims');
-    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user.uid });
+    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user!.uid });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
@@ -157,7 +175,7 @@ export class RoarFirekit {
     if (this._oAuthProvider === OAuthProviderType.CLEVER) {
       this._verify_authentication();
       const syncAdminCleverData = httpsCallable(this.admin.functions, 'synccleverdata');
-      const adminResult = await syncAdminCleverData({ assessmentUid: this.app.user.uid, accessToken: this.oAuthAccessToken });
+      const adminResult = await syncAdminCleverData({ assessmentUid: this.app.user!.uid, accessToken: this.oAuthAccessToken });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
@@ -390,7 +408,7 @@ export class RoarFirekit {
     if (this.userData) {
       this.roarAppUser = new RoarAppUser({
         db: this.app.db,
-        assessmentUid: this.app.user.uid,
+        assessmentUid: this.app.user!.uid,
         roarUid: this.roarUid!,
         // TODO: How do we figure out the pid
         assessmentPid: this.app.user!.pid,
@@ -722,40 +740,77 @@ export class RoarFirekit {
     }
   }
 
-  // TODO: Review this in light of the RBAC changes
   async createUser(
-    roarUid: string,
-    userData: IUserData,
-    externalResourceId: string | undefined,
-    externalData: { [x: string]: unknown } | undefined,
+    email: string,
+    password: string,
+    userData: ICreateUserInput,
   ) {
     this._verify_authentication();
 
-    // Add the ID to the admin's list of users
-    // This must be done before we create the user (because of the firestore security rules)
-    const accessControlDoc = doc(this.admin.db, 'users', this.roarUid!, 'accessControl', 'users');
-    await updateDoc(accessControlDoc, {
-      [roarUid]: true,
-    });
+    const isEmailAvailable = await this.isUsernameAvailable(email)
+    if(isEmailAvailable){
+      let userObject: any = {
+        userType: "student",
+        studentData: {}
+      }
+      if(_get(userData, 'name')) userObject['name'] = userData.name;
+      if(_get(userData, 'dob')) userObject['studentData']['dob'] = userData.dob;
+      if(_get(userData, 'gender')) userObject['studentData']['gender'] = userData.gender;
+      if(_get(userData, 'ell_status')) userObject['studentData']['ell_status'] = userData.ell_status;
+      if(_get(userData, 'iep_status')) userObject['studentData']['iep_status'] = userData.iep_status;
+      if(_get(userData, 'frl_status')) userObject['studentData']['frl_status'] = userData.frl_status;
 
-    const userDocRef = doc(this.admin.db, 'users', roarUid);
-    await setDoc(userDocRef, userData);
-
-    if (externalResourceId !== undefined && externalData !== undefined) {
-      await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
+      const dateNow = Date.now()
+      // create district entry
+      const districtId = _get(userData, 'district')
+      if(districtId) {
+        userObject['districts'] = {
+          current: [districtId],
+          all: [districtId],
+          dates: {
+            [districtId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        }
+      }
+      // create school entry
+      const schoolId = _get(userData, 'school');
+      if(schoolId){
+        userObject['schools'] = {
+          current: [schoolId],
+          all: [schoolId],
+          dates: {
+            [schoolId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        }
+      }
+      // create class entry
+      const classId = _get(userData, 'class');
+      if(classId){
+        userObject['classes'] = {
+          current: [classId],
+          all: [classId],
+          dates: {
+            [classId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        }
+      }
+      const cloudCreateUser = httpsCallable(this.admin.functions, 'createUser');
+      const adminId = await cloudCreateUser({email, password, userData});
+      // call assessment cloud function with adminId
+      // use returned assessmesnt id and write to admin firestore
+    } else {
+      // Throw exception or return status
+      return 1;
     }
-
-    // Add the new user to this admin's list of users in the assessment database ACL.
-    const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
-    await setDoc(
-      aclDocRef,
-      {
-        [roarUid]: true,
-      },
-      { merge: true },
-    );
-
-    // TODO Adam: Add the user to the assessment database as well.
   }
 
   // async updateUser();
