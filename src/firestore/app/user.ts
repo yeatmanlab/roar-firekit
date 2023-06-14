@@ -16,9 +16,9 @@ import { removeNull } from '../util';
 export interface IUserInput {
   roarUid?: string;
   assessmentUid: string;
-  assessmentPid: string;
+  assessmentPid?: string;
   userType?: UserType;
-  userMetadata: { [key: string]: unknown };
+  userMetadata?: { [key: string]: unknown };
   db: Firestore;
 }
 
@@ -47,7 +47,7 @@ export class RoarAppUser {
   db: Firestore;
   roarUid?: string;
   assessmentUid: string;
-  assessmentPid: string;
+  assessmentPid?: string;
   userData?: DocumentData;
   userType: UserType;
   onFirestore?: boolean;
@@ -74,6 +74,10 @@ export class RoarAppUser {
 
     if (userType === UserType.guest && roarUid !== undefined) {
       throw new Error('Guest ROAR users cannot have a ROAR UID.');
+    }
+
+    if (userType !== UserType.guest && assessmentPid === undefined) {
+      throw new Error('All non-guest ROAR users must have an assessment PID on instantiation.');
     }
 
     this.db = db;

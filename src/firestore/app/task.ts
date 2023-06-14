@@ -18,23 +18,23 @@ import { removeNull } from '../util';
 export interface ITaskVariantInput {
   db: Firestore;
   taskId: string;
-  taskName: string;
-  taskDescription?: string | null;
-  variantName: string;
-  variantDescription?: string | null;
+  taskName?: string;
+  taskDescription?: string;
+  variantName?: string;
+  variantDescription?: string;
   variantParams: { [key: string]: unknown };
 }
 
 export interface IFirestoreTaskData {
   id: string;
-  name: string;
+  name?: string;
   description?: string | null;
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
 
 export interface IFirestoreVariantData {
-  name: string;
-  description: string | null;
+  name?: string;
+  description?: string | null;
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
@@ -45,12 +45,12 @@ export interface IFirestoreVariantData {
 export class RoarTaskVariant {
   db: Firestore;
   taskId: string;
-  taskName: string;
-  taskDescription: string | null;
+  taskName?: string;
+  taskDescription?: string;
   taskRef: DocumentReference;
-  variantId: string | undefined;
-  variantName: string;
-  variantDescription: string | null;
+  variantId?: string;
+  variantName?: string;
+  variantDescription?: string;
   variantParams: { [key: string]: unknown };
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
@@ -68,9 +68,9 @@ export class RoarTaskVariant {
     db,
     taskId,
     taskName,
-    taskDescription = null,
+    taskDescription,
     variantName,
-    variantDescription = null,
+    variantDescription,
     variantParams = {},
   }: ITaskVariantInput) {
     this.db = db;
@@ -100,10 +100,10 @@ export class RoarTaskVariant {
       description: this.taskDescription,
       lastUpdated: serverTimestamp(),
     };
-    await setDoc(this.taskRef, taskData, { merge: true });
+    await setDoc(this.taskRef, removeNull(taskData), { merge: true });
 
     // Check to see if variant exists already by querying for a match on the
-    // name.
+    // params.
     const q = query(
       this.variantsCollectionRef,
       where('params', '==', this.variantParams),
