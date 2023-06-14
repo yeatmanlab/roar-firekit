@@ -33,11 +33,8 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  or,
   setDoc,
   updateDoc,
-  query,
-  where,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -57,6 +54,7 @@ import {
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
+import { getTaskAndVariant } from './query-assessment';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -507,20 +505,20 @@ export class RoarFirekit {
 
     throw new Error('Method not currently implemented.');
 
-    const userCollectionRef = collection(this.admin.db, 'users');
-    const userQuery = query(
-      userCollectionRef,
-      or(
-        where('districts', 'array-contains', this.roarUid!),
-        where('schools', 'array-contains', this.roarUid!),
-        where('classes', 'array-contains', this.roarUid!),
-        where('studies', 'array-contains', this.roarUid!),
-        where('families', 'array-contains', this.roarUid!),
-      ),
-    );
-    // TODO: Query all users within this user's admin orgs
-    // TODO: Append the current user's uid to the list of UIDs
-    return null;
+    // const userCollectionRef = collection(this.admin.db, 'users');
+    // const userQuery = query(
+    //   userCollectionRef,
+    //   or(
+    //     where('districts', 'array-contains', this.roarUid!),
+    //     where('schools', 'array-contains', this.roarUid!),
+    //     where('classes', 'array-contains', this.roarUid!),
+    //     where('studies', 'array-contains', this.roarUid!),
+    //     where('families', 'array-contains', this.roarUid!),
+    //   ),
+    // );
+    // // TODO: Query all users within this user's admin orgs
+    // // TODO: Append the current user's uid to the list of UIDs
+    // return null;
   }
 
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
@@ -640,12 +638,27 @@ export class RoarFirekit {
           startedOn: new Date(),
           runId: runId,
           allRunIds: allRunIdsForThisTask,
-        }).then(() => {
+        }).then(async () => {
           if (this.roarAppUserInfo === undefined) {
             this.getMyData();
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+          const taskAndVariant = await getTaskAndVariant({ db: this.app.db, taskId, variantParams: assessmentParams });
+          if (taskAndVariant.task === undefined) {
+            throw new Error(`Could not find task ${taskId}`);
+          }
+
+          if (taskAndVariant.variant === undefined) {
+            throw new Error(
+              `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
+            );
+          }
+
+          const taskName = taskAndVariant.task.name;
+          const taskDescription = taskAndVariant.task.description;
+          const variantName = taskAndVariant.variant.name;
+          const variantDescription = taskAndVariant.variant.description;
 
           // TODO: Fill in the rest of the task info
           const taskInfo = {
