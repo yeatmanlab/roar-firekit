@@ -2,6 +2,7 @@
 import _filter from 'lodash/filter';
 import _fromPairs from 'lodash/fromPairs';
 import _get from 'lodash/get';
+import _set from 'lodash/set';
 import _includes from 'lodash/includes';
 import _isEmpty from 'lodash/isEmpty';
 import _keys from 'lodash/keys';
@@ -72,7 +73,8 @@ const RoarProviderId = {
 };
 
 interface ICreateUserInput {
-  age: string | null,
+  age_month: string | null,
+  age_year: string | null,
   dob: string | null,
   grade: string,
   ell_status?: boolean,
@@ -792,45 +794,47 @@ export class RoarFirekit {
     }
   }
 
-  async createUser(
-    email: string,
-    password: string,
-    userData: ICreateUserInput,
-  ) {
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verify_authentication();
 
-    const isEmailAvailable = await this.isUsernameAvailable(email)
+    const isEmailAvailable = await this.isEmailAvailable(email)
     if(isEmailAvailable){
       let userObject: any = {
         userType: "student",
         studentData: {}
       }
       if(!_get(userData, 'age') && !_get(userData, 'dob')) {
-        // Throw exception or return code
-        // User can NOT lack date of birth AND age
-        return 1;
+        throw new Error('Either age or date of birth must be supplied.')
       }
-      if(_get(userData, 'name')) userObject['name'] = userData.name;
-      if(_get(userData, 'dob')) userObject['studentData']['dob'] = userData.dob;
-      if(_get(userData, 'age')){
-        const age: number = Number(userData.age);
+
+      if(_get(userData, 'name')) _set(userObject, 'name', userData.name);
+      if(_get(userData, 'age_year')){
+        const age: number = Number(userData.age_year);
         const yearOffset = Math.floor(age);
-        const monthOffset = age % yearOffset;
+        const monthOffset = (age % yearOffset) * 10;
         let calcDob = new Date();
         calcDob.setFullYear(calcDob.getFullYear() - yearOffset);
-        calcDob.setMonth(calcDob.getMonth() - monthOffset)
-        userObject['studentData']['dob'] = calcDob;
+        calcDob.setMonth(calcDob.getMonth() - monthOffset);
+        _set(userObject, 'studentData.dob', calcDob);
       }
-      if(_get(userData, 'gender')) userObject['studentData']['gender'] = userData.gender;
-      if(_get(userData, 'ell_status')) userObject['studentData']['ell_status'] = userData.ell_status;
-      if(_get(userData, 'iep_status')) userObject['studentData']['iep_status'] = userData.iep_status;
-      if(_get(userData, 'frl_status')) userObject['studentData']['frl_status'] = userData.frl_status;
+      if(_get(userData, 'age_month')){
+        const age: number = Number(userData.age_year);
+        const monthOffset = Math.floor(age);
+        let calcDob = new Date();
+        calcDob.setMonth(calcDob.getMonth() - monthOffset);
+        _set(userObject, 'studentData.dob', calcDob);
+      }
+      if(_get(userData, 'dob')) _set(userObject, 'studentData.dob', userData.dob);
+      if(_get(userData, 'gender')) _set(userObject, 'studentData.gender', userData.gender);
+      if(_get(userData, 'ell_status')) _set(userObject, 'studentData.ell_status', userData.ell_status);
+      if(_get(userData, 'iep_status')) _set(userObject, 'studentData.iep_status', userData.iep_status)
+      if(_get(userData, 'frl_status')) _set(userObject, 'studentData.frl_status', userData.frl_status);
 
       const dateNow = Date.now()
       // create district entry
       const districtId = _get(userData, 'district');
       if(districtId) {
-        userObject['districts'] = {
+        _set(userObject, 'districts', {
           current: [districtId],
           all: [districtId],
           dates: {
@@ -839,12 +843,12 @@ export class RoarFirekit {
               to: null
             }
           }
-        }
+        })
       }
       // create school entry
       const schoolId = _get(userData, 'school');
       if(schoolId){
-        userObject['schools'] = {
+        _set(userObject, 'schools', {
           current: [schoolId],
           all: [schoolId],
           dates: {
@@ -853,12 +857,12 @@ export class RoarFirekit {
               to: null
             }
           }
-        }
+        })
       }
       // create class entry
       const classId = _get(userData, 'class');
       if(classId){
-        userObject['classes'] = {
+        _set(userObject, 'classes', {
           current: [classId],
           all: [classId],
           dates: {
@@ -867,15 +871,30 @@ export class RoarFirekit {
               to: null
             }
           }
-        }
+        })
       }
-      const cloudCreateUser = httpsCallable(this.admin.functions, 'createUser');
-      const adminId = await cloudCreateUser({email, password, userData});
-      // call assessment cloud function with adminId
-      // use returned assessmesnt id and write to admin firestore
+      const cloudCreateAdminStudent = httpsCallable(this.admin.functions, 'createstudent');
+      const adminResponse = await cloudCreateAdminStudent({email, password, userData});
+      const adminUid = _get(adminResponse, 'data.adminUid');
+
+      const cloudCreateAppStudent = httpsCallable(this.app.functions, 'createstudent');
+      const appResponse = await cloudCreateAppStudent({adminUid, email, password, userData});
+      const assessmentUid = _get(appResponse, 'data.assessmentUid');
+      // Note: The assessment createstudent cloud function handles setting up the user claim.
     } else {
-      // Throw exception or return status
-      return 1;
+      // Email is not available, reject
+      throw new Error(`The email ${email} is not available.`);
+    }
+  }
+
+  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput){
+    const isUsernameAvailable = await this.isUsernameAvailable(username);
+    if(isUsernameAvailable) {
+      const email = `${username}@roar-auth.com`;
+      await this.createStudentWithEmailPassword(email, password, userData)
+    } else {
+      // Username is not available, reject
+      throw new Error(`The username ${username} is not available.`);
     }
   }
 
