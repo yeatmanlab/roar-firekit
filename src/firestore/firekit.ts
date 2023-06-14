@@ -879,7 +879,8 @@ export class RoarFirekit {
 
       const cloudCreateAppStudent = httpsCallable(this.app.functions, 'createstudent');
       const appResponse = await cloudCreateAppStudent({adminUid, email, password, userData});
-      const assessmentUid = _get(appResponse, 'data.assessmentUid');
+      // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
+      return _get(appResponse, 'data.assessmentUid');
       // Note: The assessment createstudent cloud function handles setting up the user claim.
     } else {
       // Email is not available, reject
