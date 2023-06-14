@@ -2,16 +2,19 @@ import { initializeApp, getApp } from 'firebase/app';
 import { inMemoryPersistence, getAuth, setPersistence, connectAuthEmulator } from 'firebase/auth';
 import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import _cloneDeep from 'lodash/cloneDeep';
+import _fromPairs from 'lodash/fromPairs';
 import _isEqual from 'lodash/isEqual';
+import _map from 'lodash/map';
 
-/** Remove null attributes from an object
+/** Remove null and undefined attributes from an object
  * @function
  * @param {Object} obj - Object to remove null attributes from
  * @returns {Object} Object with null attributes removed
  */
 export const removeNull = (obj: object): object => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null));
+  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== null && v !== undefined));
 };
 
 export interface CommonFirebaseConfig {
@@ -167,4 +170,22 @@ export const userHasSelectedOrgs = (usersOrgs: string[], selectedOrgs: string[])
     return true;
   }
   return Boolean(usersOrgs.filter((value) => selectedOrgs.includes(value)).length);
+};
+
+export const emptyOrg = () => {
+  return {
+    current: [],
+    all: [],
+    dates: {},
+  };
+};
+
+export const emptyOrgList = () => {
+  return {
+    districts: [],
+    schools: [],
+    classes: [],
+    studies: [],
+    families: [],
+  };
 };

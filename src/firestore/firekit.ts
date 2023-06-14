@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import _uniq from 'lodash/uniq';
-import _without from 'lodash/without';
+import _filter from 'lodash/filter';
+import _fromPairs from 'lodash/fromPairs';
 import _get from 'lodash/get';
+import _includes from 'lodash/includes';
+import _isEmpty from 'lodash/isEmpty';
+import _keys from 'lodash/keys';
+import _map from 'lodash/map';
+import _nth from 'lodash/nth';
+import _union from 'lodash/union';
 import dot from 'dot-object';
 import { StatusCode } from 'status-code-enum';
 import {
@@ -27,16 +33,16 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  or,
   setDoc,
   updateDoc,
   query,
-  or,
   where,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { isEmailAvailable, isUsernameAvailable } from '../auth';
-import { initializeProjectFirekit, removeNull } from './util';
+import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
+import { emptyOrg, emptyOrgList, initializeProjectFirekit, removeNull } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -47,13 +53,17 @@ import {
   IRoarConfigData,
   IUserData,
   UserType,
+  IOrgLists,
 } from './interfaces';
-import { RoarAppUser } from './app/user';
-import { RoarRun } from './app/run';
+import { IUserInput } from './app/user';
+import { RoarAppkit } from './app/appkit';
 
-enum OAuthProviderType {
+enum AuthProviderType {
   CLEVER = 'clever',
+  CLASSLINK = 'classlink',
   GOOGLE = 'google',
+  EMAIL = 'email',
+  USERNAME = 'username',
 }
 
 const RoarProviderId = {
@@ -80,15 +90,21 @@ interface ICreateUserInput {
   family: string | null,
   study: string | null,
 }
+interface ICurrentAssignments {
+  assigned: string[];
+  started: string[];
+  completed: string[];
+}
 
 export class RoarFirekit {
   roarConfig: IRoarConfigData;
   app: IFirekit;
   admin: IFirekit;
   userData?: IUserData;
-  roarAppUser?: RoarAppUser;
+  roarAppUserInfo?: IUserInput;
   adminClaims?: Record<string, string[]>;
-  private _oAuthProvider?: OAuthProviderType;
+  currentAssignments?: ICurrentAssignments;
+  private _authProvider?: AuthProviderType;
   oAuthAccessToken?: string;
   oidcIdToken?: string;
   /**
@@ -125,6 +141,14 @@ export class RoarFirekit {
   private _verify_authentication() {
     if (this.admin.user === undefined || this.app.user === undefined) {
       throw new Error('User is not authenticated.');
+    }
+  }
+
+  private _verify_admin() {
+    if (this.adminClaims === undefined) {
+      throw new Error('User is not an administrator.');
+    } else if (_isEmpty(_union(...Object.values(this.adminClaims)))) {
+      throw new Error('User is not an administrator.');
     }
   }
 
@@ -169,13 +193,17 @@ export class RoarFirekit {
     }
   }
 
-  // TODO: Add dateAssigned, dateOpened, dateClosed to each user's assignment.
+  // TODO: Write a getAssessment function
   // Tasks should have: ID, name, dashboardDescription, imgUrl, version
+
   private async _syncCleverData() {
-    if (this._oAuthProvider === OAuthProviderType.CLEVER) {
+    if (this._authProvider === AuthProviderType.CLEVER) {
       this._verify_authentication();
       const syncAdminCleverData = httpsCallable(this.admin.functions, 'synccleverdata');
-      const adminResult = await syncAdminCleverData({ assessmentUid: this.app.user!.uid, accessToken: this.oAuthAccessToken });
+      const adminResult = await syncAdminCleverData({
+        assessmentUid: this.app.user!.uid,
+        accessToken: this.oAuthAccessToken,
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
@@ -183,7 +211,11 @@ export class RoarFirekit {
       }
 
       const syncAppCleverData = httpsCallable(this.app.functions, 'synccleverdata');
-      const appResult = await syncAppCleverData({ adminUid: this.admin.user!.uid, roarUid: this.roarUid, accessToken: this.oAuthAccessToken });
+      const appResult = await syncAppCleverData({
+        adminUid: this.admin.user!.uid,
+        roarUid: this.roarUid,
+        accessToken: this.oAuthAccessToken,
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
@@ -212,32 +244,53 @@ export class RoarFirekit {
         return createUserWithEmailAndPassword(this.app.auth, email, password)
           .then((appUserCredential) => {
             this.app.user = appUserCredential.user;
+            this._authProvider = AuthProviderType.EMAIL;
           })
           .then(this._setUidCustomClaims.bind(this))
           .then(this.getMyData.bind(this));
       });
   }
 
-  async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
+  async logInWithEmailAndPassword({
+    email,
+    password,
+    fromUsername = false,
+  }: {
+    email: string;
+    password: string;
+    fromUsername?: boolean;
+  }) {
     return signInWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
       this.admin.user = adminUserCredential.user;
       return signInWithEmailAndPassword(this.app.auth, email, password)
         .then((appUserCredential) => {
           this.app.user = appUserCredential.user;
+          if (fromUsername) {
+            this._authProvider = AuthProviderType.USERNAME;
+          } else {
+            this._authProvider = AuthProviderType.EMAIL;
+          }
         })
         .then(this._setUidCustomClaims.bind(this))
         .then(this.getMyData.bind(this));
     });
   }
 
-  async signInWithPopup(provider: OAuthProviderType) {
+  async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
+    const email = roarEmail(username);
+    return this.logInWithEmailAndPassword({ email, password, fromUsername: true });
+  }
+
+  async signInWithPopup(provider: AuthProviderType) {
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
+
     let authProvider;
-    if (provider === OAuthProviderType.GOOGLE) {
+    if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
-    } else if (provider === OAuthProviderType.CLEVER) {
+    } else if (provider === AuthProviderType.CLEVER) {
       authProvider = new OAuthProvider(RoarProviderId.CLEVER);
     } else {
-      throw new Error(`provider must be one of ${Object.values(OAuthProviderType)}. Received ${provider} instead.`);
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
 
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
@@ -250,16 +303,16 @@ export class RoarFirekit {
     return signInWithPopup(this.admin.auth, authProvider)
       .then((adminResult) => {
         this.admin.user = adminResult.user;
-        if (provider === OAuthProviderType.GOOGLE) {
+        if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
-          this._oAuthProvider = provider;
+          this._authProvider = provider;
           this.oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if (provider === OAuthProviderType.CLEVER) {
+        } else if (provider === AuthProviderType.CLEVER) {
           const credential = OAuthProvider.credentialFromResult(adminResult);
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
-          this._oAuthProvider = provider;
+          this._authProvider = provider;
           this.oAuthAccessToken = credential?.accessToken;
           this.oidcIdToken = credential?.idToken;
           return credential;
@@ -281,14 +334,16 @@ export class RoarFirekit {
       .then(this.getMyData.bind(this));
   }
 
-  async initiateRedirect(provider: OAuthProviderType) {
+  async initiateRedirect(provider: AuthProviderType) {
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
+
     let authProvider;
-    if (provider === OAuthProviderType.GOOGLE) {
+    if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
-    } else if (provider === OAuthProviderType.CLEVER) {
+    } else if (provider === AuthProviderType.CLEVER) {
       authProvider = new OAuthProvider(RoarProviderId.CLEVER);
     } else {
-      throw new Error(`provider must be one of ${Object.values(OAuthProviderType)}. Received ${provider} instead.`);
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
 
     return signInWithRedirect(this.admin.auth, authProvider);
@@ -312,13 +367,13 @@ export class RoarFirekit {
           if (providerId === RoarProviderId.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Google Access Token. You can use it to access Google APIs.
-            this._oAuthProvider = OAuthProviderType.GOOGLE;
+            this._authProvider = AuthProviderType.GOOGLE;
             this.oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
-            this._oAuthProvider = OAuthProviderType.CLEVER;
+            this._authProvider = AuthProviderType.CLEVER;
             this.oAuthAccessToken = credential?.accessToken;
             this.oidcIdToken = credential?.idToken;
             return credential;
@@ -399,31 +454,69 @@ export class RoarFirekit {
       userData.externalData = externalData;
 
       return userData;
+    } else {
+      return {
+        userType: UserType.guest,
+        districts: emptyOrg(),
+        schools: emptyOrg(),
+        classes: emptyOrg(),
+        families: emptyOrg(),
+        studies: emptyOrg(),
+        archived: false,
+      };
     }
   }
 
   async getMyData() {
     this._verify_authentication();
     this.userData = await this._getUser(this.roarUid!);
+
     if (this.userData) {
-      this.roarAppUser = new RoarAppUser({
+      // Get current assignments by first getting all assignments and then filtering by dates
+      this.currentAssignments = {
+        assigned: _keys(this.userData?.assignmentsAssigned),
+        started: _keys(this.userData?.assignmentsStarted),
+        completed: _keys(this.userData?.assignmentCompleted),
+      };
+
+      // Create a list of all assignments
+      const allAssignments = _union(...Object.values(this.currentAssignments)) as string[];
+      // Map that list into an object with the assignment IDs as the keys and the
+      // assignment data as the values
+      const assignmentInfo = _fromPairs(
+        await Promise.all(_map(allAssignments, async (assignment) => [assignment, this._getAssignment(assignment)])),
+      );
+
+      // Loop through the assignments and filter out non-current ones
+      const now = new Date();
+      for (const assignmentStatus in this.currentAssignments) {
+        const key = assignmentStatus as keyof ICurrentAssignments;
+        this.currentAssignments[key] = _filter(this.currentAssignments[key], (assignmentId) => {
+          const { dateOpened, dateClosed } = assignmentInfo[assignmentId];
+          return dateOpened < now && dateClosed > now;
+        });
+      }
+
+      // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
+      // First, determine the PID based on the sign-in type
+      const emailPidProviderTypes = [AuthProviderType.GOOGLE, AuthProviderType.EMAIL, AuthProviderType.USERNAME];
+      let assessmentPid: string | undefined;
+      if (this._authProvider === AuthProviderType.CLEVER) {
+        // If using Clever OAuth, set PID to the clever id
+        assessmentPid = this.userData.externalData?.clever?.id as string | undefined;
+      } else if (_includes(emailPidProviderTypes, this._authProvider)) {
+        // If using Google OAuth or email/username, set PID to the local-part of
+        // the email (the part before the @)
+        assessmentPid = _nth(this.app.user!.email?.match(/^(.+)@/), 1);
+      }
+
+      this.roarAppUserInfo = {
         db: this.app.db,
+        roarUid: this.roarUid,
         assessmentUid: this.app.user!.uid,
-        roarUid: this.roarUid!,
-        // TODO: How do we figure out the pid
-        assessmentPid: this.app.user!.pid,
-        birthMonth: this.userData.dob?.getMonth(),
-        birthYear: this.userData.dob?.getFullYear(),
-        classIds: this.userData.classIds,
-        classes: this.userData.classes,
-        schoolId: this.userData.schoolId,
-        schools: this.userData.schools,
-        districtId: this.userData.districtId,
-        districts: this.userData.districts,
-        studies: this.userData.studies,
-        families: this.userData.families,
+        assessmentPid: assessmentPid,
         userType: this.userData.userType,
-      });
+      };
     }
   }
 
@@ -431,15 +524,19 @@ export class RoarFirekit {
   async listUsers() {
     this._verify_authentication();
 
+    throw new Error('Method not currently implemented.');
+
     const userCollectionRef = collection(this.admin.db, 'users');
-    const userQuery = query(userCollectionRef,
+    const userQuery = query(
+      userCollectionRef,
       or(
         where('districts', 'array-contains', this.roarUid!),
         where('schools', 'array-contains', this.roarUid!),
         where('classes', 'array-contains', this.roarUid!),
         where('studies', 'array-contains', this.roarUid!),
         where('families', 'array-contains', this.roarUid!),
-      ));
+      ),
+    );
     // TODO: Query all users within this user's admin orgs
     // TODO: Append the current user's uid to the list of UIDs
     return null;
@@ -449,18 +546,6 @@ export class RoarFirekit {
   getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
     this._verify_authentication();
     return uidArray.map((uid) => this._getUser(uid));
-  }
-
-  public get assignmentsAssigned() {
-    return this.userData?.assignmentsAssigned;
-  }
-
-  public get assignmentsStarted() {
-    return this.userData?.assignmentsStarted;
-  }
-
-  public get assignmentsCompleted() {
-    return this.userData?.assignmentsCompleted;
   }
 
   public get roarUid() {
@@ -492,15 +577,18 @@ export class RoarFirekit {
     }
   }
 
-  getMyAssignments(administrationIds: string[]): Promise<IAssignmentData | undefined>[] {
+  getAssignments(administrationIds: string[]): Promise<IAssignmentData | undefined>[] {
     this._verify_authentication();
     return administrationIds.map((id) => this._getAssignment(id));
   }
 
-  async appendAssignmentToStartedList(administrationId: string) {
+  async startAssignment(administrationId: string) {
     this._verify_authentication();
+    const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const userDocRef = this.dbRefs!.admin.user;
-    return updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() });
+    return updateDoc(assignmentDocRef, { started: true }).then(() =>
+      updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() }),
+    );
   }
 
   async completeAssignment(administrationId: string) {
@@ -561,7 +649,7 @@ export class RoarFirekit {
         const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
         const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
         if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
-          this.appendAssignmentToStartedList(administrationId);
+          this.startAssignment(administrationId);
         }
         allRunIdsForThisTask.push(runId);
 
@@ -572,19 +660,35 @@ export class RoarFirekit {
           runId: runId,
           allRunIds: allRunIdsForThisTask,
         }).then(() => {
-          if (this.roarAppUser === undefined) {
+          if (this.roarAppUserInfo === undefined) {
             this.getMyData();
           }
 
-          return new RoarRun({
-            user: this.roarAppUser!,
-            task:
-            studyId:
-            runId
-          })
+          const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+
+          // TODO: Fill in the rest of the task info
+          const taskInfo = {
+            db: this.app.db,
+            taskId,
+            taskName,
+            taskDescription,
+            variantName,
+            variantDescription,
+            variantParams: assessmentParams,
+          };
+
+          return new RoarAppkit({
+            auth: this.app.auth,
+            userInfo: this.roarAppUserInfo!,
+            assigningOrgs,
+            runId,
+            taskInfo,
+          });
         });
       } else {
-        throw new Error(`Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`);
+        throw new Error(
+          `Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`,
+        );
       }
     } else {
       throw new Error(`Could not find administration with id ${administrationId}`);
@@ -639,87 +743,35 @@ export class RoarFirekit {
     });
   }
 
-  // TODO: Assign the administration to orgs rather than individual users
-  // TODO: Write a cloud function that will modify each assigned user's local administrations
-  async assignAdministrationToUsers(administrationId: string, userIds: string[]) {
+  async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verify_authentication();
-    const users = await Promise.all(this.getUsers(userIds));
-    const studentData = _without(
-      users.map((user: IUserData | undefined) => user?.studentData),
-      undefined,
-    );
-
-    const studies = _uniq(studentData.map((user) => user!.studies));
-    const families = _uniq(studentData.map((user) => user!.families));
-    const classes = _uniq(studentData.map((user) => user!.classId));
-    const schools = _uniq(studentData.map((user) => user!.schoolId));
-    const districts = _uniq(studentData.map((user) => user!.districtId));
-    const grades = _uniq(studentData.map((user) => user!.grade));
-
+    this._verify_admin();
     const docRef = doc(this.admin.db, 'administrations', administrationId);
+
     await updateDoc(docRef, {
-      users: arrayUnion(userIds),
-      classes: arrayUnion(classes),
-      schools: arrayUnion(schools),
-      districts: arrayUnion(districts),
-      grades: arrayUnion(grades),
-      studies: arrayUnion(studies),
-      families: arrayUnion(families),
+      districts: arrayUnion(orgs.districts),
+      schools: arrayUnion(orgs.schools),
+      classes: arrayUnion(orgs.classes),
+      studies: arrayUnion(orgs.studies),
+      families: arrayUnion(orgs.families),
     });
   }
 
-  // TODO: Review this in light of the RBAC changes
-  async unassignAdministrationToUsers(administrationId: string, userIds: string[]) {
+  async unassignAdministrationToUsers(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verify_authentication();
-
-    const administrationInfo = await Promise.all(this.getAdministrations([administrationId]));
-    const currentlyAssignedUserIds = administrationInfo[0]?.assignedUsers;
-
-    // Remaining users that will survive this deletion
-    const remainingUserIds = _without(currentlyAssignedUserIds, ...userIds);
-    const remainingUsers = await Promise.all(this.getUsers(remainingUserIds));
-    const remainingUserData = _without(
-      remainingUsers.map((user: IUserData | undefined) => user?.studentData),
-      undefined,
-    );
-
-    // The users that will be deleted
-    const usersToRemove = await Promise.all(this.getUsers(userIds));
-    const userDataToRemove = _without(
-      usersToRemove.map((user: IUserData | undefined) => user?.studentData),
-      undefined,
-    );
-
-    // These are the org Ids that we need to keep even after removing the users
-    const classesToKeep = _uniq(remainingUserData.map((user) => user!.classId));
-    const schoolsToKeep = _uniq(remainingUserData.map((user) => user!.schoolId));
-    const districtsToKeep = _uniq(remainingUserData.map((user) => user!.districtId));
-    const gradesToKeep = _uniq(remainingUserData.map((user) => user!.grade));
-
-    // Initially, these are the org Ids for all of the users to be deleted
-    let classesToRemove = _uniq(userDataToRemove.map((user) => user!.classId));
-    let schoolsToRemove = _uniq(userDataToRemove.map((user) => user!.schoolId));
-    let districtsToRemove = _uniq(userDataToRemove.map((user) => user!.districtId));
-    let gradesToRemove = _uniq(userDataToRemove.map((user) => user!.grade));
-
-    // Now we remove the ones that we want to keep (from the remaining users)
-    // from the ones that we want to get rid of
-    classesToRemove = _without(classesToRemove, ...classesToKeep);
-    schoolsToRemove = _without(schoolsToRemove, ...schoolsToKeep);
-    districtsToRemove = _without(districtsToRemove, ...districtsToKeep);
-    gradesToRemove = _without(gradesToRemove, ...gradesToKeep);
+    this._verify_admin();
 
     const docRef = doc(this.admin.db, 'administrations', administrationId);
+
     await updateDoc(docRef, {
-      assignedUsers: arrayRemove(userIds),
-      assignedClasses: arrayRemove(classesToRemove),
-      assignedSchools: arrayRemove(schoolsToRemove),
-      assignedDistricts: arrayRemove(districtsToRemove),
-      assignedGrades: arrayRemove(gradesToRemove),
+      districts: arrayRemove(orgs.districts),
+      schools: arrayRemove(orgs.schools),
+      classes: arrayRemove(orgs.classes),
+      studies: arrayRemove(orgs.studies),
+      families: arrayRemove(orgs.families),
     });
   }
 
-  // TODO: Review this in light of the RBAC changes
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
     const docRef = doc(this.admin.db, 'users', uid, 'externalData', externalResourceId);
     const docSnap = await getDoc(docRef);
@@ -831,4 +883,35 @@ export class RoarFirekit {
 
   // TODO: Adam write the appFirekit
   // createAppFirekit(taskInfo: ITaskVariantInput);
+  //   // TODO: Elijah, finish this function or something like it.
+  //   async createUserWithUsernameAndPassword(
+  //     roarUid: string,
+  //     userData: IUserData,
+  //     externalResourceId?: string,
+  //     externalData?: { [x: string]: unknown },
+  //     username: string,
+  //     password: string,
+  //   ) {
+  //     throw new Error('Not yet implemented');
+  //     this._verify_authentication();
+
+  //     const userDocRef = doc(this.admin.db, 'users', roarUid);
+  //     await setDoc(userDocRef, userData);
+
+  //     if (externalResourceId !== undefined && externalData !== undefined) {
+  //       await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
+  //     }
+
+  //     // Add the new user to this admin's list of users in the assessment database ACL.
+  //     const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
+  //     await setDoc(
+  //       aclDocRef,
+  //       {
+  //         [roarUid]: true,
+  //       },
+  //       { merge: true },
+  //     );
+
+  //     // TODO Adam: Add the user to the assessment database as well.
+  //   }
 }

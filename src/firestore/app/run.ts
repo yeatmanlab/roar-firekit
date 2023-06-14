@@ -5,13 +5,17 @@ import {
   collection,
   doc,
   DocumentReference,
+  getDoc,
   increment,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import _intersection from 'lodash/intersection';
+import _pick from 'lodash/pick';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
+import { IOrgLists } from '../interfaces';
 
 /**
  * Convert a trial data to allow storage on Cloud Firestore.
@@ -48,7 +52,7 @@ export interface IRunScores extends DocumentData {
 export interface IRunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
-  studyId?: string;
+  assigningOrgs?: IOrgLists;
   runId?: string;
 }
 
@@ -62,19 +66,20 @@ export class RoarRun {
   user: RoarAppUser;
   task: RoarTaskVariant;
   runRef: DocumentReference;
-  studyId: string | null;
+  assigningOrgs?: IOrgLists;
   started: boolean;
+  completed: boolean;
   /** Create a ROAR run
    * @param {IRunInput} input
    * @param {RoarAppUser} input.user - The user running the task
    * @param {RoarTaskVariant} input.task - The task variant being run
-   * @param {string} input.studyId - The ID of the study to which this run belongs
+   * @param {IOrgLists} input.assigningOrgs - The ID of the study to which this run belongs
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ user, task, studyId, runId }: IRunInput) {
+  constructor({ user, task, assigningOrgs, runId }: IRunInput) {
     this.user = user;
     this.task = task;
-    this.studyId = studyId || null;
+    this.assigningOrgs = assigningOrgs;
 
     if (runId) {
       this.runRef = doc(this.user.userRef, 'runs', runId);
@@ -86,6 +91,7 @@ export class RoarRun {
       throw new Error('Task refs not set. Please use the task.setRefs method first.');
     }
     this.started = false;
+    this.completed = false;
   }
 
   /**
@@ -94,19 +100,29 @@ export class RoarRun {
    * @async
    */
   async startRun(additionalRunMetadata?: { [key: string]: unknown }) {
-    if (!this.user.isPushedToFirestore) {
-      await this.user.toAppFirestore();
-    }
+    await this.user.checkUserExists();
+
     if (this.task.variantRef === undefined) {
       await this.task.toFirestore();
     }
 
+    if (this.assigningOrgs) {
+      const userDocSnap = await getDoc(this.user.userRef);
+      if (userDocSnap.exists()) {
+        const userDocData = userDocSnap.data();
+        const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
+        for (const orgName of Object.keys(userOrgs)) {
+          this.assigningOrgs[orgName] = _intersection(userOrgs[orgName], this.assigningOrgs[orgName]);
+        }
+      } else {
+        // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
+        throw new Error('User does not exist');
+      }
+    }
+
     const runData = {
       ...additionalRunMetadata,
-      districtId: this.user.districtId,
-      schoolId: this.user.schoolId,
-      classIds: this.user.classIds,
-      studyId: this.studyId,
+      assigningOrgs: this.assigningOrgs || null,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
       taskRef: this.task.taskRef,
@@ -149,9 +165,9 @@ export class RoarRun {
     return updateDoc(this.runRef, {
       completed: true,
       timeFinished: serverTimestamp(),
-    }).then(() => {
-      return this.user.updateFirestoreTimestamp();
-    });
+    })
+      .then(() => this.user.updateFirestoreTimestamp())
+      .then(() => (this.completed = true));
   }
 
   /**
