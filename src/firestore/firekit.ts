@@ -55,9 +55,8 @@ import {
   UserType,
   IOrgLists,
 } from './interfaces';
-import { RoarAppUser } from './app/user';
-import { RoarRun } from './app/run';
-import { RoarTaskVariant } from './app/task';
+import { IUserInput } from './app/user';
+import { RoarAppkit } from './app/appkit';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -83,7 +82,7 @@ export class RoarFirekit {
   app: IFirekit;
   admin: IFirekit;
   userData?: IUserData;
-  roarAppUser?: RoarAppUser;
+  roarAppUserInfo?: IUserInput;
   adminClaims?: Record<string, string[]>;
   currentAssignments?: ICurrentAssignments;
   private _authProvider?: AuthProviderType;
@@ -479,7 +478,7 @@ export class RoarFirekit {
         });
       }
 
-      // Create a RoarAppUser instance
+      // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
       // First, determine the PID based on the sign-in type
       const emailPidProviderTypes = [AuthProviderType.GOOGLE, AuthProviderType.EMAIL, AuthProviderType.USERNAME];
       let assessmentPid: string | undefined;
@@ -492,13 +491,13 @@ export class RoarFirekit {
         assessmentPid = _nth(this.app.user!.email?.match(/^(.+)@/), 1);
       }
 
-      this.roarAppUser = new RoarAppUser({
+      this.roarAppUserInfo = {
         db: this.app.db,
         roarUid: this.roarUid,
         assessmentUid: this.app.user!.uid,
         assessmentPid: assessmentPid,
         userType: this.userData.userType,
-      });
+      };
     }
   }
 
@@ -642,13 +641,14 @@ export class RoarFirekit {
           runId: runId,
           allRunIds: allRunIdsForThisTask,
         }).then(() => {
-          if (this.roarAppUser === undefined) {
+          if (this.roarAppUserInfo === undefined) {
             this.getMyData();
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+
           // TODO: Fill in the rest of the task info
-          const task = new RoarTaskVariant({
+          const taskInfo = {
             db: this.app.db,
             taskId,
             taskName,
@@ -656,13 +656,14 @@ export class RoarFirekit {
             variantName,
             variantDescription,
             variantParams: assessmentParams,
-          });
+          };
 
-          return new RoarRun({
-            user: this.roarAppUser!,
-            task,
+          return new RoarAppkit({
+            auth: this.app.auth,
+            userInfo: this.roarAppUserInfo!,
             assigningOrgs,
             runId,
+            taskInfo,
           });
         });
       } else {
@@ -772,39 +773,35 @@ export class RoarFirekit {
     }
   }
 
-  // TODO: Review this in light of the RBAC changes
-  async createUserWithUsernameAndPassword(
-    roarUid: string,
-    userData: IUserData,
-    externalResourceId?: string,
-    externalData?: { [x: string]: unknown },
-    username: string,
-    password: string,
-  ) {
-    this._verify_authentication();
+  //   // TODO: Elijah, finish this function or something like it.
+  //   async createUserWithUsernameAndPassword(
+  //     roarUid: string,
+  //     userData: IUserData,
+  //     externalResourceId?: string,
+  //     externalData?: { [x: string]: unknown },
+  //     username: string,
+  //     password: string,
+  //   ) {
+  //     throw new Error('Not yet implemented');
+  //     this._verify_authentication();
 
-    const userDocRef = doc(this.admin.db, 'users', roarUid);
-    await setDoc(userDocRef, userData);
+  //     const userDocRef = doc(this.admin.db, 'users', roarUid);
+  //     await setDoc(userDocRef, userData);
 
-    if (externalResourceId !== undefined && externalData !== undefined) {
-      await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
-    }
+  //     if (externalResourceId !== undefined && externalData !== undefined) {
+  //       await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
+  //     }
 
-    // Add the new user to this admin's list of users in the assessment database ACL.
-    const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
-    await setDoc(
-      aclDocRef,
-      {
-        [roarUid]: true,
-      },
-      { merge: true },
-    );
+  //     // Add the new user to this admin's list of users in the assessment database ACL.
+  //     const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
+  //     await setDoc(
+  //       aclDocRef,
+  //       {
+  //         [roarUid]: true,
+  //       },
+  //       { merge: true },
+  //     );
 
-    // TODO Adam: Add the user to the assessment database as well.
-  }
-
-  // async updateUser();
-
-  // TODO: Adam write the appFirekit
-  // createAppFirekit(taskInfo: ITaskVariantInput);
+  //     // TODO Adam: Add the user to the assessment database as well.
+  //   }
 }
