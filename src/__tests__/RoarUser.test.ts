@@ -1,14 +1,22 @@
-import { doc, DocumentReference, getDoc, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, deleteUser, signOut } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import {
+  DocumentReference,
+  Timestamp,
+  connectFirestoreEmulator,
+  deleteDoc,
+  doc,
+  getDoc,
+  getFirestore,
+  setDoc,
+} from 'firebase/firestore';
+import { connectAuthEmulator, deleteUser, getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { RoarUser } from '../firestore/user';
-import { firebaseSignIn } from '../auth';
-import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
+import { RoarAppUser } from '../firestore/app/user';
+import { roarConfig, rootDoc } from './__utils__/firebaseConfig';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
+import { IFirekit, UserType } from '../firestore/interfaces';
 
-const auth = getAuth(firebaseApp);
-
-const getRandomUserInput = async (withSignIn = false) => {
+const getRandomUserInput = async () => {
   const uid = `ci-user-${uuidv4()}`;
   const userInput = {
     id: uid,
@@ -18,29 +26,44 @@ const getRandomUserInput = async (withSignIn = false) => {
     classId: 'test-class-id',
     schoolId: 'test-school-id',
     districtId: 'test-district-id',
-    studyId: 'test-study-id',
-    userCategory: 'student' as const,
+    studies: ['test-study-id1', 'test-study-id2'],
+    userCategory: UserType.student,
   };
-
-  if (withSignIn) {
-    await firebaseSignIn(uid);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    userInput.firebaseUid = auth.currentUser!.uid;
-  } else {
-    userInput.firebaseUid = 'test-firebase-uid';
-  }
 
   return userInput;
 };
 
-describe('RoarUser', () => {
+describe('RoarAppUser', () => {
+  let app: IFirekit;
+
+  beforeAll(() => {
+    const assessmentApp = initializeApp({ projectId: roarConfig.app.projectId, apiKey: roarConfig.app.apiKey }, 'app');
+
+    app = {
+      firebaseApp: assessmentApp,
+      auth: getAuth(assessmentApp),
+      db: getFirestore(assessmentApp),
+    };
+
+    const originalWarn = console.warn;
+    const originalInfo = console.info;
+    console.warn = jest.fn();
+    console.info = jest.fn();
+
+    connectAuthEmulator(app.auth, `http://127.0.0.1:${roarConfig.app.emulatorPorts.auth}`);
+    connectFirestoreEmulator(app.db, '127.0.0.1', roarConfig.app.emulatorPorts.db);
+
+    console.warn = originalWarn;
+    console.info = originalInfo;
+  });
+
   afterEach(async () => {
-    await signOut(auth);
+    await signOut(app.auth);
   });
 
   it('constructs a user', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     expect(user.id).toBe(userInput.id);
     expect(user.firebaseUid).toBe(userInput.firebaseUid);
     expect(user.birthMonth).toBe(userInput.birthMonth);
@@ -48,24 +71,26 @@ describe('RoarUser', () => {
     expect(user.classId).toBe(userInput.classId);
     expect(user.schoolId).toBe(userInput.schoolId);
     expect(user.districtId).toBe(userInput.districtId);
-    expect(user.studyId).toBe(userInput.studyId);
+    expect(user.studies).toBe(userInput.studies);
     expect(user.userCategory).toBe(userInput.userCategory);
     expect(user.isPushedToFirestore).toBe(false);
     expect(user.userRef).toBeUndefined();
   });
 
   it('validates userCategory input', async () => {
+    const allowedUserCategories = Object.values(UserType);
+    const errorMessage = `User category must be one of ${allowedUserCategories.join(', ')}.`;
     await expect(async () => {
       const userInput = await getRandomUserInput();
       const invalidInput = Object.create(userInput);
       invalidInput.userCategory = 'superhero';
-      new RoarUser(invalidInput);
-    }).rejects.toThrow('User category must be one of student, educator, researcher.');
+      new RoarAppUser(invalidInput);
+    }).rejects.toThrow(errorMessage);
   });
 
   it('sets Firestore document references', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
     expect(user.userRef).toBeInstanceOf(DocumentReference);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -74,33 +99,33 @@ describe('RoarUser', () => {
 
   it('throws if trying to write to Firestore before setting refs', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
-    await expect(async () => await user.toFirestore()).rejects.toThrow(
+    const user = new RoarAppUser(userInput);
+    await expect(async () => await user.toAppFirestore()).rejects.toThrow(
       'User refs not set. Please use the setRefs method first.',
     );
   });
 
   it('throws if trying to update timestamp before setting refs', async () => {
     const userInput = await getRandomUserInput();
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     await expect(async () => await user.updateFirestoreTimestamp()).rejects.toThrow(
       'User refs not set. Please use the setRefs method first.',
     );
   });
 
   it('creates a new Firestore document', async () => {
-    const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const userInput = await getRandomUserInput();
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
     try {
-      await user.toFirestore();
+      await user.toAppFirestore();
       expect(user.isPushedToFirestore).toBe(true);
 
       // Sign out this user and sign in the roar-ci-user,
       // which has special permissions to read and delete user data
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteUser(auth.currentUser!);
-      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+      await deleteUser(app.auth.currentUser!);
+      await signInWithEmailAndPassword(app.auth, ciEmail, ciPassword);
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -115,9 +140,8 @@ describe('RoarUser', () => {
           classId: user.classId,
           schoolId: user.schoolId,
           districtId: user.districtId,
-          studyId: user.studyId,
+          studies: user.studies,
           userCategory: user.userCategory,
-          studies: [user.studyId],
           districts: [user.districtId],
           schools: [user.schoolId],
           classes: [user.classId],
@@ -133,8 +157,8 @@ describe('RoarUser', () => {
   });
 
   it('updates an existing Firestore document', async () => {
-    const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const userInput = await getRandomUserInput();
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
 
     try {
@@ -143,14 +167,14 @@ describe('RoarUser', () => {
         firebaseUid: userInput.firebaseUid,
       });
 
-      await user.toFirestore();
+      await user.toAppFirestore();
       expect(user.isPushedToFirestore).toBe(true);
 
       // Sign out this user and sign in the roar-ci-user,
       // which has special permissions to read and delete user data
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteUser(auth.currentUser!);
-      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+      await deleteUser(app.auth.currentUser!);
+      await signInWithEmailAndPassword(app.auth, ciEmail, ciPassword);
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -165,9 +189,8 @@ describe('RoarUser', () => {
           classId: user.classId,
           schoolId: user.schoolId,
           districtId: user.districtId,
-          studyId: user.studyId,
+          studies: user.studies,
           userCategory: user.userCategory,
-          studies: [user.studyId],
           districts: [user.districtId],
           schools: [user.schoolId],
           classes: [user.classId],
@@ -182,8 +205,8 @@ describe('RoarUser', () => {
   });
 
   it('updates the server timestamp', async () => {
-    const userInput = await getRandomUserInput(true);
-    const user = new RoarUser(userInput);
+    const userInput = await getRandomUserInput();
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
 
     try {
@@ -196,8 +219,8 @@ describe('RoarUser', () => {
       // Sign out this user and sign in the roar-ci-user,
       // which has special permissions to read and delete user data
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await deleteUser(auth.currentUser!);
-      await signInWithEmailAndPassword(auth, ciEmail, ciPassword);
+      await deleteUser(app.auth.currentUser!);
+      await signInWithEmailAndPassword(app.auth, ciEmail, ciPassword);
 
       // Expect contents of user document to match
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -217,12 +240,12 @@ describe('RoarUser', () => {
   });
 
   it('prohibits writing data to other users', async () => {
-    const userInput = await getRandomUserInput(true);
+    const userInput = await getRandomUserInput();
     userInput.firebaseUid = 'other-user';
-    const user = new RoarUser(userInput);
+    const user = new RoarAppUser(userInput);
     user.setRefs(rootDoc);
-    await expect(async () => await user.toFirestore()).rejects.toThrow('Missing or insufficient permissions.');
+    await expect(async () => await user.toAppFirestore()).rejects.toThrow('Missing or insufficient permissions.');
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    await deleteUser(auth.currentUser!);
+    await deleteUser(app.auth.currentUser!);
   });
 });

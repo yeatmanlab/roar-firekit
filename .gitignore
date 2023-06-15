@@ -177,8 +177,8 @@ node_modules/
 # Ignore firebase emulator config for now
 .firebaserc
 firebase.json
-firestore.rules
-firestore.indexes.json
+firestore*.rules
+firestore*.indexes.json
 
 # Typedoc generated docs
 docs

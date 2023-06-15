@@ -6,7 +6,8 @@
         "outDir": "./lib",
         "strict": true,
         "esModuleInterop": true,
-        "noImplicitAny": false,
+        "resolveJsonModule": true,
+        "moduleResolution": "Node"
     },
     "include": [
         "src"
@@ -27,5 +28,5 @@
         "out": "docs",
         "includeVersion": true,
         "readme": "README.md"
-    }
+    },
 }

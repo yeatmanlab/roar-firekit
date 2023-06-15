@@ -14,11 +14,11 @@ import {
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { firebaseSignIn } from '../auth';
-import { RoarTaskVariant } from '../firestore/task';
-import { firebaseApp, rootDoc } from './__utils__/firebaseConfig';
+import { RoarTaskVariant } from '../firestore/app/task';
+import { firebaseApps, rootDoc } from './__utils__/firebaseConfig';
 import { email as ciEmail, password as ciPassword } from './__utils__/roarCIUser';
 
-const auth = getAuth(firebaseApp);
+const auth = getAuth(firebaseApps.app);
 const uid = `ci-user-task-tests`;
 
 const taskInput = {
@@ -28,13 +28,6 @@ const taskInput = {
   taskDescription: 'test-task-description',
   variantDescription: 'test-variant-description',
   srcHash: 'abcdefg',
-  blocks: [
-    {
-      blockNumber: 0,
-      trialMethod: 'random',
-      corpus: 'test-corpus',
-    },
-  ],
 };
 
 describe('RoarTaskVariant', () => {
@@ -49,23 +42,10 @@ describe('RoarTaskVariant', () => {
     expect(task.variantName).toBe(taskInput.variantName);
     expect(task.taskDescription).toBe(taskInput.taskDescription);
     expect(task.variantDescription).toBe(taskInput.variantDescription);
-    expect(task.blocks).toBe(taskInput.blocks);
     expect(task.taskRef).toBeUndefined();
     expect(task.variantId).toBeUndefined();
     expect(task.variantRef).toBeUndefined();
     expect(task.variantsCollectionRef).toBeUndefined();
-  });
-
-  it('adds a block', () => {
-    const task = new RoarTaskVariant(taskInput);
-    const newBlock = {
-      blockNumber: 1,
-      trialMethod: 'adaptive',
-      corpus: 'new-corpus',
-    };
-
-    task.addBlock(newBlock);
-    expect(task.blocks).toContainEqual(newBlock);
   });
 
   it('sets Firestore document references', () => {
@@ -124,8 +104,6 @@ describe('RoarTaskVariant', () => {
         expect.objectContaining({
           name: task.variantName,
           description: task.variantDescription,
-          blocks: task.blocks,
-          blocksString: JSON.stringify(task.blocks),
           srcHash: task.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
@@ -176,8 +154,6 @@ describe('RoarTaskVariant', () => {
         expect.objectContaining({
           name: task1.variantName,
           description: task1.variantDescription,
-          blocks: task1.blocks,
-          blocksString: JSON.stringify(task1.blocks),
           srcHash: task1.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
@@ -186,8 +162,6 @@ describe('RoarTaskVariant', () => {
         expect.objectContaining({
           name: task2.variantName,
           description: task2.variantDescription,
-          blocks: task2.blocks,
-          blocksString: JSON.stringify(task2.blocks),
           srcHash: task2.srcHash,
           lastPlayed: expect.any(Timestamp),
         }),
