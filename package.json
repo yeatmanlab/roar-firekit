@@ -50,6 +50,7 @@
     "@types/jest": "^27.4.1",
     "@types/js-yaml": "^4.0.5",
     "@types/lodash": "^4.14.192",
+    "@types/papaparse": "^5.3.7",
     "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^5.13.0",
     "@typescript-eslint/parser": "^5.13.0",
@@ -69,9 +70,11 @@
     "caller": "^1.1.0",
     "decomment": "^0.9.5",
     "dot-object": "^2.1.4",
+    "exponential-backoff": "^3.1.1",
     "firebase": "^9.18.0",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
+    "papaparse": "^5.4.1",
     "status-code-enum": "^1.0.0",
     "uuid": "^8.3.2"
   }
