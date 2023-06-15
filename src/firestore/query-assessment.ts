@@ -5,7 +5,11 @@ import {
   Query,
   Timestamp,
   collection,
+  doc,
+  getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
   where,
 } from 'firebase/firestore';
@@ -47,11 +51,10 @@ interface ITaskVariants {
 }
 
 export const getTasksVariants = async (db: Firestore, requireRegistered = true) => {
-  const variants: ITaskVariants[] = [];
+  const taskVariants: ITaskVariants[] = [];
 
   const tasks = await getTasks(db, requireRegistered);
   for (const task of tasks) {
-    const q = query(collection(db, 'tasks', task.id, 'variants'));
     let q: ReturnType<typeof query>;
     if (requireRegistered) {
       q = query(collection(db, 'tasks', task.id, 'variants'), where('registered', '==', true));
@@ -60,26 +63,27 @@ export const getTasksVariants = async (db: Firestore, requireRegistered = true) 
     }
     const snapshot = await getDocs(q);
 
-    const items: IVariant[] = [];
+    const variants: IVariant[] = [];
     snapshot.forEach((doc) => {
       if (doc.id !== 'empty') {
-        items.push({
+        const docData = doc.data() as DocumentData;
+        variants.push({
           id: doc.id,
-          name: doc.data().name,
-          nameId: `${doc.data().name}-${doc.id}`,
-          params: doc.data().params,
-          registered: doc.data().registered,
+          name: docData.name,
+          nameId: `${docData.name}-${doc.id}`,
+          params: docData.params,
+          registered: docData.registered,
         });
       }
     });
 
-    variants.push({
+    taskVariants.push({
       task: task.id,
-      items,
+      variants,
     });
   }
 
-  return variants;
+  return taskVariants;
 };
 
 interface IUser {
@@ -289,4 +293,46 @@ export const getRunTrials = async (rootDoc: DocumentReference, run: IRun) => {
       ...(firestoreTrial as ITrial),
     });
   });
+};
+
+export const getTaskAndVariant = async ({
+  db,
+  taskId,
+  variantParams,
+}: {
+  db: Firestore;
+  taskId: string;
+  variantParams: { [key: string]: unknown };
+}) => {
+  const taskRef = doc(db, 'tasks', taskId);
+  const variantsCollectionRef = collection(taskRef, 'variants');
+
+  const docSnap = await getDoc(taskRef);
+  if (docSnap.exists()) {
+    const taskData = docSnap.data();
+
+    // Check to see if variant exists already by querying for a match on the params.
+    const q = query(variantsCollectionRef, where('params', '==', variantParams), orderBy('lastUpdated'), limit(1));
+
+    const querySnapshot = await getDocs(q);
+
+    let variantData: DocumentData | undefined;
+
+    querySnapshot.forEach((docRef) => {
+      variantData = {
+        ...docRef.data(),
+        id: docRef.id,
+      };
+    });
+
+    return {
+      task: taskData,
+      variant: variantData,
+    };
+  }
+
+  return {
+    task: undefined,
+    variant: undefined,
+  };
 };
