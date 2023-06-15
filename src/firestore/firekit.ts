@@ -195,9 +195,6 @@ export class RoarFirekit {
     }
   }
 
-  // TODO: Write a getAssessment function
-  // Tasks should have: ID, name, dashboardDescription, imgUrl, version
-
   private async _syncCleverData() {
     if (this._authProvider === AuthProviderType.CLEVER) {
       this._verify_authentication();
@@ -683,7 +680,6 @@ export class RoarFirekit {
           const variantName = taskAndVariant.variant.name;
           const variantDescription = taskAndVariant.variant.description;
 
-          // TODO: Fill in the rest of the task info
           const taskInfo = {
             db: this.app.db,
             taskId,
