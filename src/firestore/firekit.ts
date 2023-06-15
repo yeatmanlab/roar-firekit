@@ -2,6 +2,7 @@
 import _filter from 'lodash/filter';
 import _fromPairs from 'lodash/fromPairs';
 import _get from 'lodash/get';
+import _set from 'lodash/set';
 import _includes from 'lodash/includes';
 import _isEmpty from 'lodash/isEmpty';
 import _keys from 'lodash/keys';
@@ -69,6 +70,26 @@ const RoarProviderId = {
   CLEVER: 'oidc.clever',
 };
 
+interface ICreateUserInput {
+  age_month: string | null,
+  age_year: string | null,
+  dob: string | null,
+  grade: string,
+  ell_status?: boolean,
+  iep_status?: boolean,
+  frl_status?: boolean,
+  gender?: string,
+  name?: {
+    first?: string,
+    middle?: string,
+    last?: string
+  },
+  school: string | null,
+  district: string | null,
+  class: string | null,
+  family: string | null,
+  study: string | null,
+}
 interface ICurrentAssignments {
   assigned: string[];
   started: string[];
@@ -786,6 +807,118 @@ export class RoarFirekit {
     }
   }
 
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
+    this._verify_authentication();
+
+    const isEmailAvailable = await this.isEmailAvailable(email)
+    if(isEmailAvailable){
+      let userObject: any = {
+        userType: "student",
+        studentData: {}
+      }
+      if(!_get(userData, 'age') && !_get(userData, 'dob')) {
+        throw new Error('Either age or date of birth must be supplied.')
+      }
+
+      if(_get(userData, 'name')) _set(userObject, 'name', userData.name);
+      if(_get(userData, 'age_year')){
+        const age: number = Number(userData.age_year);
+        const yearOffset = Math.floor(age);
+        const monthOffset = (age % yearOffset) * 10;
+        let calcDob = new Date();
+        calcDob.setFullYear(calcDob.getFullYear() - yearOffset);
+        calcDob.setMonth(calcDob.getMonth() - monthOffset);
+        _set(userObject, 'studentData.dob', calcDob);
+      }
+      if(_get(userData, 'age_month')){
+        const age: number = Number(userData.age_year);
+        const monthOffset = Math.floor(age);
+        let calcDob = new Date();
+        calcDob.setMonth(calcDob.getMonth() - monthOffset);
+        _set(userObject, 'studentData.dob', calcDob);
+      }
+      if(_get(userData, 'dob')) _set(userObject, 'studentData.dob', userData.dob);
+      if(_get(userData, 'gender')) _set(userObject, 'studentData.gender', userData.gender);
+      if(_get(userData, 'ell_status')) _set(userObject, 'studentData.ell_status', userData.ell_status);
+      if(_get(userData, 'iep_status')) _set(userObject, 'studentData.iep_status', userData.iep_status)
+      if(_get(userData, 'frl_status')) _set(userObject, 'studentData.frl_status', userData.frl_status);
+
+      const dateNow = Date.now()
+      // create district entry
+      const districtId = _get(userData, 'district');
+      if(districtId) {
+        _set(userObject, 'districts', {
+          current: [districtId],
+          all: [districtId],
+          dates: {
+            [districtId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        })
+      }
+      // create school entry
+      const schoolId = _get(userData, 'school');
+      if(schoolId){
+        _set(userObject, 'schools', {
+          current: [schoolId],
+          all: [schoolId],
+          dates: {
+            [schoolId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        })
+      }
+      // create class entry
+      const classId = _get(userData, 'class');
+      if(classId){
+        _set(userObject, 'classes', {
+          current: [classId],
+          all: [classId],
+          dates: {
+            [classId!]: {
+              from: dateNow,
+              to: null
+            }
+          }
+        })
+      }
+      const cloudCreateAdminStudent = httpsCallable(this.admin.functions, 'createstudent');
+      const adminResponse = await cloudCreateAdminStudent({email, password, userData});
+      const adminUid = _get(adminResponse, 'data.adminUid');
+
+      const cloudCreateAppStudent = httpsCallable(this.app.functions, 'createstudent');
+      const appResponse = await cloudCreateAppStudent({adminUid, email, password, userData});
+      // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
+      const assessmentUid = _get(appResponse, 'data.assessmentUid');
+
+      const cloudUpdateUserClaims = httpsCallable(this.admin.functions, 'associateAssessmentUid');
+      const claimsResponse = await cloudUpdateUserClaims({adminUid, assessmentUid})
+      
+    } else {
+      // Email is not available, reject
+      throw new Error(`The email ${email} is not available.`);
+    }
+  }
+
+  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput){
+    const isUsernameAvailable = await this.isUsernameAvailable(username);
+    if(isUsernameAvailable) {
+      const email = `${username}@roar-auth.com`;
+      await this.createStudentWithEmailPassword(email, password, userData)
+    } else {
+      // Username is not available, reject
+      throw new Error(`The username ${username} is not available.`);
+    }
+  }
+
+  // async updateUser();
+
+  // TODO: Adam write the appFirekit
+  // createAppFirekit(taskInfo: ITaskVariantInput);
   //   // TODO: Elijah, finish this function or something like it.
   //   async createUserWithUsernameAndPassword(
   //     roarUid: string,
