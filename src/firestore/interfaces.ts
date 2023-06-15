@@ -34,7 +34,9 @@ export interface IExtraMetadata extends DocumentData {
 }
 
 export interface IStudentData extends IExtraMetadata {
-  ell?: boolean;
+  ell_status?: string;
+  frl_status?: string;
+  iep_status?: string;
   dob: Date;
   gender?: string;
   grade: Grade;

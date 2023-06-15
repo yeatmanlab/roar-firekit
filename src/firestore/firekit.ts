@@ -52,6 +52,7 @@ import {
   IUserData,
   UserType,
   IOrgLists,
+  IStudentData,
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
@@ -71,25 +72,26 @@ const RoarProviderId = {
 };
 
 interface ICreateUserInput {
-  age_month: string | null,
-  age_year: string | null,
-  dob: string | null,
-  grade: string,
-  ell_status?: boolean,
-  iep_status?: boolean,
-  frl_status?: boolean,
-  gender?: string,
+  age_month: string | null;
+  age_year: string | null;
+  dob: string | null;
+  grade: string;
+  ell_status?: boolean;
+  iep_status?: boolean;
+  frl_status?: boolean;
+  gender?: string;
   name?: {
-    first?: string,
-    middle?: string,
-    last?: string
-  },
-  school: string | null,
-  district: string | null,
-  class: string | null,
-  family: string | null,
-  study: string | null,
+    first?: string;
+    middle?: string;
+    last?: string;
+  };
+  school: string | null;
+  district: string | null;
+  class: string | null;
+  family: string | null;
+  study: string | null;
 }
+
 interface ICurrentAssignments {
   assigned: string[];
   started: string[];
@@ -810,144 +812,109 @@ export class RoarFirekit {
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verify_authentication();
 
-    const isEmailAvailable = await this.isEmailAvailable(email)
-    if(isEmailAvailable){
-      let userObject: any = {
-        userType: "student",
-        studentData: {}
-      }
-      if(!_get(userData, 'age') && !_get(userData, 'dob')) {
-        throw new Error('Either age or date of birth must be supplied.')
+    const isEmailAvailable = await this.isEmailAvailable(email);
+    if (isEmailAvailable) {
+      if (!(_get(userData, 'age_year') || _get(userData, 'age_month') || _get(userData, 'dob'))) {
+        throw new Error('Either age or date of birth must be supplied.');
       }
 
-      if(_get(userData, 'name')) _set(userObject, 'name', userData.name);
-      if(_get(userData, 'age_year')){
-        const age: number = Number(userData.age_year);
-        const yearOffset = Math.floor(age);
-        const monthOffset = (age % yearOffset) * 10;
-        let calcDob = new Date();
-        calcDob.setFullYear(calcDob.getFullYear() - yearOffset);
-        calcDob.setMonth(calcDob.getMonth() - monthOffset);
-        _set(userObject, 'studentData.dob', calcDob);
-      }
-      if(_get(userData, 'age_month')){
-        const age: number = Number(userData.age_year);
-        const monthOffset = Math.floor(age);
-        let calcDob = new Date();
-        calcDob.setMonth(calcDob.getMonth() - monthOffset);
-        _set(userObject, 'studentData.dob', calcDob);
-      }
-      if(_get(userData, 'dob')) _set(userObject, 'studentData.dob', userData.dob);
-      if(_get(userData, 'gender')) _set(userObject, 'studentData.gender', userData.gender);
-      if(_get(userData, 'ell_status')) _set(userObject, 'studentData.ell_status', userData.ell_status);
-      if(_get(userData, 'iep_status')) _set(userObject, 'studentData.iep_status', userData.iep_status)
-      if(_get(userData, 'frl_status')) _set(userObject, 'studentData.frl_status', userData.frl_status);
+      const userDocData: IUserData = {
+        userType: UserType.student,
+        studentData: {} as IStudentData,
+        districts: emptyOrg(),
+        schools: emptyOrg(),
+        classes: emptyOrg(),
+        families: emptyOrg(),
+        studies: emptyOrg(),
+        archived: false,
+      };
 
-      const dateNow = Date.now()
+      if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
+      if (!_get(userData, 'dob')) {
+        let ageInMonths: number;
+        if (_get(userData, 'age_year')) {
+          ageInMonths = Math.round(Number(userData.age_year) * 12);
+        } else if (_get(userData, 'age_month')) {
+          ageInMonths = Math.round(Number(userData.age_month));
+        }
+        const calcDob = new Date();
+        calcDob.setMonth(calcDob.getMonth() - ageInMonths!);
+        _set(userDocData, 'studentData.dob', calcDob);
+      }
+      if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
+      if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
+      if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
+      if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
+      if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
+
+      const dateNow = Date.now();
       // create district entry
       const districtId = _get(userData, 'district');
-      if(districtId) {
-        _set(userObject, 'districts', {
+      if (districtId) {
+        _set(userDocData, 'districts', {
           current: [districtId],
           all: [districtId],
           dates: {
             [districtId!]: {
               from: dateNow,
-              to: null
-            }
-          }
-        })
+              to: null,
+            },
+          },
+        });
       }
       // create school entry
       const schoolId = _get(userData, 'school');
-      if(schoolId){
-        _set(userObject, 'schools', {
+      if (schoolId) {
+        _set(userDocData, 'schools', {
           current: [schoolId],
           all: [schoolId],
           dates: {
             [schoolId!]: {
               from: dateNow,
-              to: null
-            }
-          }
-        })
+              to: null,
+            },
+          },
+        });
       }
       // create class entry
       const classId = _get(userData, 'class');
-      if(classId){
-        _set(userObject, 'classes', {
+      if (classId) {
+        _set(userDocData, 'classes', {
           current: [classId],
           all: [classId],
           dates: {
             [classId!]: {
               from: dateNow,
-              to: null
-            }
-          }
-        })
+              to: null,
+            },
+          },
+        });
       }
       const cloudCreateAdminStudent = httpsCallable(this.admin.functions, 'createstudent');
-      const adminResponse = await cloudCreateAdminStudent({email, password, userData});
+      const adminResponse = await cloudCreateAdminStudent({ email, password, userDocData });
       const adminUid = _get(adminResponse, 'data.adminUid');
 
       const cloudCreateAppStudent = httpsCallable(this.app.functions, 'createstudent');
-      const appResponse = await cloudCreateAppStudent({adminUid, email, password, userData});
+      const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userDocData });
       // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
       const assessmentUid = _get(appResponse, 'data.assessmentUid');
 
       const cloudUpdateUserClaims = httpsCallable(this.admin.functions, 'associateAssessmentUid');
-      const claimsResponse = await cloudUpdateUserClaims({adminUid, assessmentUid})
-      
+      await cloudUpdateUserClaims({ adminUid, assessmentUid });
     } else {
       // Email is not available, reject
       throw new Error(`The email ${email} is not available.`);
     }
   }
 
-  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput){
+  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
     const isUsernameAvailable = await this.isUsernameAvailable(username);
-    if(isUsernameAvailable) {
+    if (isUsernameAvailable) {
       const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData)
+      await this.createStudentWithEmailPassword(email, password, userData);
     } else {
       // Username is not available, reject
       throw new Error(`The username ${username} is not available.`);
     }
   }
-
-  // async updateUser();
-
-  // TODO: Adam write the appFirekit
-  // createAppFirekit(taskInfo: ITaskVariantInput);
-  //   // TODO: Elijah, finish this function or something like it.
-  //   async createUserWithUsernameAndPassword(
-  //     roarUid: string,
-  //     userData: IUserData,
-  //     externalResourceId?: string,
-  //     externalData?: { [x: string]: unknown },
-  //     username: string,
-  //     password: string,
-  //   ) {
-  //     throw new Error('Not yet implemented');
-  //     this._verify_authentication();
-
-  //     const userDocRef = doc(this.admin.db, 'users', roarUid);
-  //     await setDoc(userDocRef, userData);
-
-  //     if (externalResourceId !== undefined && externalData !== undefined) {
-  //       await this.updateUserExternalData(userDocRef.id, externalResourceId, externalData);
-  //     }
-
-  //     // Add the new user to this admin's list of users in the assessment database ACL.
-  //     const aclDocRef = doc(this.app.db, 'accessControl', this.app.user!.uid);
-  //     await setDoc(
-  //       aclDocRef,
-  //       {
-  //         [roarUid]: true,
-  //       },
-  //       { merge: true },
-  //     );
-
-  //     // TODO Adam: Add the user to the assessment database as well.
-  //   }
 }

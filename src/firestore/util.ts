@@ -2,10 +2,7 @@ import { initializeApp, getApp } from 'firebase/app';
 import { inMemoryPersistence, getAuth, setPersistence, connectAuthEmulator } from 'firebase/auth';
 import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
-import _cloneDeep from 'lodash/cloneDeep';
-import _fromPairs from 'lodash/fromPairs';
 import _isEqual from 'lodash/isEqual';
-import _map from 'lodash/map';
 
 /** Remove null and undefined attributes from an object
  * @function

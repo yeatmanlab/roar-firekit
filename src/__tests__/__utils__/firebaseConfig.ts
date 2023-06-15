@@ -7,7 +7,7 @@ import * as assessmentFirebaseConfig from '../../../firebase/assessment/firebase
 import * as adminFirebaseConfig from '../../../firebase/admin/firebase.json';
 
 const appConfig: EmulatorConfigData = {
-  projectId: 'demo-gse-yeatmanlab',
+  projectId: 'demo-gse-roar-assessment',
   apiKey: 'any-string-value',
   emulatorPorts: {
     db: assessmentFirebaseConfig.emulators.firestore.port,
