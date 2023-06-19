@@ -124,6 +124,8 @@ export class RoarAppUser {
     return setDoc(this.userRef, {
       ...this.userData,
       created: serverTimestamp(),
+    }).then(() => {
+      this.onFirestore = true;
     });
   }
 

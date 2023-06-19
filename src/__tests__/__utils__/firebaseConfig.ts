@@ -36,6 +36,5 @@ export const firebaseApps = {
   admin: initializeApp(roarConfig.admin, 'test-admin'),
 };
 
-const db = getFirestore(firebaseApps.app);
+export const db = getFirestore(firebaseApps.app);
 connectFirestoreEmulator(db, '127.0.0.1', roarConfig.app.emulatorPorts.db);
-export const rootDoc = doc(collection(db, 'ci'), 'test-root-doc');

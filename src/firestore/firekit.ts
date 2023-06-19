@@ -155,7 +155,6 @@ export class RoarFirekit {
   }
 
   private _listenToClaims = (firekit: IFirekit) => {
-    this._verify_authentication();
     onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
       const data = doc.data();
       if (data!.lastUpdated) {
@@ -171,8 +170,10 @@ export class RoarFirekit {
 
   private _listenToTokenChange = (firekit: IFirekit) => {
     onIdTokenChanged(firekit.auth, async (user) => {
-      const idTokenResult = await user!.getIdTokenResult(false);
-      this.adminClaims = idTokenResult.claims.adminOrgs;
+      if (user) {
+        const idTokenResult = await user.getIdTokenResult(false);
+        this.adminClaims = idTokenResult.claims.adminOrgs;
+      }
     });
   };
 
