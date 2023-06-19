@@ -397,13 +397,34 @@ export class RoarFirekit {
       .then(this.getMyData.bind(this));
   }
 
-  async signOut() {
-    return signOut(this.app.auth).then(async () => {
-      this.app.user = undefined;
+  private async _signOutApp() {
+    if (this.app.auth.currentUser) {
+      await signOut(this.app.auth);
+    }
+    this.app.user = undefined;
+  }
+
+  private async _signOutAdmin() {
+    if (this.admin.auth.currentUser) {
       await signOut(this.admin.auth);
-      this.admin.user = undefined;
-      this.userData = undefined;
-    });
+    }
+    this.admin.user = undefined;
+  }
+
+  private _scrubAuthProperties() {
+    this.userData = undefined;
+    this.roarAppUserInfo = undefined;
+    this.adminClaims = undefined;
+    this.currentAssignments = undefined;
+    this._authProvider = undefined;
+    this.oAuthAccessToken = undefined;
+    this.oidcIdToken = undefined;
+  }
+
+  async signOut() {
+    await this._signOutApp();
+    await this._signOutAdmin();
+    this._scrubAuthProperties();
   }
 
   //           +--------------------------------+
