@@ -1,0 +1,53 @@
+import { initializeApp } from 'firebase/app';
+import { connectAuthEmulator, getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { faker } from '@faker-js/faker';
+import { RoarAppUser } from '../firestore/app/user';
+import { IFirekit } from '../firestore/interfaces';
+import { roarConfig } from './__utils__/firebaseConfig';
+
+describe('RoarAppUser', () => {
+  let app: IFirekit;
+  let email: string;
+  let password: string;
+
+  beforeAll(async () => {
+    const assessmentApp = initializeApp({ projectId: roarConfig.app.projectId, apiKey: roarConfig.app.apiKey }, 'app');
+
+    app = {
+      firebaseApp: assessmentApp,
+      auth: getAuth(assessmentApp),
+      db: getFirestore(assessmentApp),
+      functions: getFunctions(assessmentApp),
+    };
+
+    const originalWarn = console.warn;
+    const originalInfo = console.info;
+    console.warn = jest.fn();
+    console.info = jest.fn();
+
+    connectAuthEmulator(app.auth, `http://127.0.0.1:${roarConfig.app.emulatorPorts.auth}`);
+    connectFirestoreEmulator(app.db, '127.0.0.1', roarConfig.app.emulatorPorts.db);
+    connectFunctionsEmulator(app.functions, '127.0.0.1', roarConfig.app.emulatorPorts.functions);
+
+    console.warn = originalWarn;
+    console.info = originalInfo;
+
+    email = faker.internet.email();
+    password = faker.internet.password();
+    await createUserWithEmailAndPassword(app.auth, email, password);
+  });
+
+  it('constructs', () => {
+    const userInfo = {
+      assessmentUid: app.auth.currentUser!.uid,
+      assessmentPid: email.split('@')[0],
+      db: app.db,
+    };
+
+    const user = new RoarAppUser(userInfo);
+
+    expect(user.assessmentUid).toBe(userInfo.assessmentUid);
+  });
+});
