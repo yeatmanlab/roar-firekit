@@ -10,7 +10,6 @@ import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
 import dot from 'dot-object';
-import { StatusCode } from 'status-code-enum';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -24,6 +23,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  signOut,
 } from 'firebase/auth';
 import {
   addDoc,
@@ -155,17 +155,19 @@ export class RoarFirekit {
   }
 
   private _listenToClaims = (firekit: IFirekit) => {
-    onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
-      const data = doc.data();
-      if (data!.lastUpdated) {
-        const lastUpdated = new Date(data!.lastUpdated);
-        if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
-          // Update the user's ID token and refresh claimsLastUpdated.
-          firekit.user!.getIdToken(true);
-          firekit.claimsLastUpdated = lastUpdated;
+    if (firekit.user) {
+      onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
+        const data = doc.data();
+        if (data!.lastUpdated) {
+          const lastUpdated = new Date(data!.lastUpdated);
+          if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
+            // Update the user's ID token and refresh claimsLastUpdated.
+            firekit.user!.getIdToken(true);
+            firekit.claimsLastUpdated = lastUpdated;
+          }
         }
-      }
-    });
+      });
+    }
   };
 
   private _listenToTokenChange = (firekit: IFirekit) => {
@@ -183,16 +185,16 @@ export class RoarFirekit {
     const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user!.uid });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
-      throw new Error('Failed to associate admin and assessment UIDs.');
+    if (_get(adminResult.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to associate admin and assessment UIDs in the admin Firebase project.');
     }
 
     const setAppUidClaims = httpsCallable(this.app.functions, 'setuidclaims');
     const appResult = await setAppUidClaims({ adminUid: this.admin.user!.uid, roarUid: this.roarUid! });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
-      throw new Error('Failed to associate admin and assessment UIDs.');
+    if (_get(appResult.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
     }
   }
 
@@ -206,7 +208,7 @@ export class RoarFirekit {
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(adminResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
+      if (_get(adminResult.data as any, 'status') !== 'ok') {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
 
@@ -218,7 +220,7 @@ export class RoarFirekit {
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(appResult.data as any, 'status', StatusCode.ServerErrorInternal) !== StatusCode.SuccessOK) {
+      if (_get(appResult.data as any, 'status') !== 'ok') {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
     }
@@ -396,12 +398,11 @@ export class RoarFirekit {
   }
 
   async signOut() {
-    return this.app.auth.signOut().then(() => {
+    return signOut(this.app.auth).then(async () => {
       this.app.user = undefined;
-      return this.admin.auth.signOut().then(() => {
-        this.admin.user = undefined;
-        this.userData = undefined;
-      });
+      await signOut(this.admin.auth);
+      this.admin.user = undefined;
+      this.userData = undefined;
     });
   }
 
