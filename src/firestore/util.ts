@@ -1,5 +1,12 @@
 import { initializeApp, getApp } from 'firebase/app';
-import { inMemoryPersistence, getAuth, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  connectAuthEmulator,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+} from 'firebase/auth';
 import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _isEqual from 'lodash/isEqual';
@@ -73,7 +80,18 @@ export const safeInitializeApp = (config: RealConfigData, name: string) => {
   }
 };
 
-export const initializeProjectFirekit = (config: FirebaseConfigData, name: string, enableDbPersistence = true) => {
+export enum AuthPersistence {
+  local = 'local',
+  session = 'session',
+  none = 'none',
+}
+
+export const initializeProjectFirekit = (
+  config: FirebaseConfigData,
+  name: string,
+  enableDbPersistence = true,
+  authPersistence = AuthPersistence.session,
+) => {
   if ((config as EmulatorConfigData).emulatorPorts) {
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
     const ports = (config as EmulatorConfigData).emulatorPorts;
@@ -106,10 +124,16 @@ export const initializeProjectFirekit = (config: FirebaseConfigData, name: strin
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a
-    // user session is persisted on a device. We choose in memory persistence by
+    // user session is persisted on a device. We choose in session persistence by
     // default because many students will access the ROAR on shared devices in the
     // classroom.
-    // setPersistence(kit.auth, inMemoryPersistence);
+    if (authPersistence === AuthPersistence.session) {
+      setPersistence(kit.auth, browserSessionPersistence);
+    } else if (authPersistence === AuthPersistence.local) {
+      setPersistence(kit.auth, browserLocalPersistence);
+    } else if (authPersistence === AuthPersistence.none) {
+      setPersistence(kit.auth, inMemoryPersistence);
+    }
 
     if (enableDbPersistence) {
       // Firestore offline data persistence enables Cloud Firestore data caching
