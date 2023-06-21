@@ -159,6 +159,8 @@ export class RoarFirekit {
     });
 
     this._listenToTokenChange(this.admin);
+
+    return this;
   }
 
   //           +--------------------------------+
