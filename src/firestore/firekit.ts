@@ -179,7 +179,7 @@ export class RoarFirekit {
 
   private _isAuthenticated() {
     this._verify_init();
-    return this.admin!.user === undefined || this.app!.user === undefined;
+    return !(this.admin!.user === undefined || this.app!.user === undefined);
   }
 
   private _verify_authentication() {
