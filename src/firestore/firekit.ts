@@ -107,7 +107,6 @@ export class RoarFirekit {
   userData?: IUserData;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
-  private _authProvider?: AuthProviderType;
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
@@ -138,7 +137,6 @@ export class RoarFirekit {
     this.roarAppUserInfo = undefined;
     this._adminOrgs = undefined;
     this.currentAssignments = undefined;
-    this._authProvider = undefined;
     this.oAuthAccessToken = undefined;
   }
 
@@ -270,11 +268,11 @@ export class RoarFirekit {
     }
   }
 
-  private async _syncCleverData(oAuthAccessToken?: string) {
-    if (oAuthAccessToken === undefined) {
-      throw new Error('No OAuth access token provided.');
-    }
-    if (this._authProvider === AuthProviderType.CLEVER) {
+  private async _syncCleverData(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
+    if (authProvider === AuthProviderType.CLEVER) {
+      if (oAuthAccessToken === undefined) {
+        throw new Error('No OAuth access token provided.');
+      }
       this._verifyAuthentication();
       const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
       const adminResult = await syncAdminCleverData({
@@ -320,42 +318,22 @@ export class RoarFirekit {
         console.log(error.message);
       })
       .then(() => {
-        return createUserWithEmailAndPassword(this.app!.auth, email, password)
-          .then(() => {
-            // TODO: Find a way to put this in the onAuthStateChanged handler
-            this._authProvider = AuthProviderType.EMAIL;
-          })
-          .then(this._setUidCustomClaims.bind(this));
+        return createUserWithEmailAndPassword(this.app!.auth, email, password).then(
+          this._setUidCustomClaims.bind(this),
+        );
       });
   }
 
-  async logInWithEmailAndPassword({
-    email,
-    password,
-    fromUsername = false,
-  }: {
-    email: string;
-    password: string;
-    fromUsername?: boolean;
-  }) {
+  async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
-      return signInWithEmailAndPassword(this.app!.auth, email, password)
-        .then(() => {
-          // TODO: Find a way to put this in the onAuthStateChanged handler
-          if (fromUsername) {
-            this._authProvider = AuthProviderType.USERNAME;
-          } else {
-            this._authProvider = AuthProviderType.EMAIL;
-          }
-        })
-        .then(this._setUidCustomClaims.bind(this));
+      return signInWithEmailAndPassword(this.app!.auth, email, password).then(this._setUidCustomClaims.bind(this));
     });
   }
 
   async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
     const email = roarEmail(username);
-    return this.logInWithEmailAndPassword({ email, password, fromUsername: true });
+    return this.logInWithEmailAndPassword({ email, password });
   }
 
   async signInWithPopup(provider: AuthProviderType) {
@@ -386,14 +364,12 @@ export class RoarFirekit {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
           // TODO: Find a way to put this in the onAuthStateChanged handler
-          this._authProvider = provider;
           oAuthAccessToken = credential?.accessToken;
           return credential;
         } else if (provider === AuthProviderType.CLEVER) {
           const credential = OAuthProvider.credentialFromResult(adminResult);
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
           // TODO: Find a way to put this in the onAuthStateChanged handler
-          this._authProvider = provider;
           oAuthAccessToken = credential?.accessToken;
           return credential;
         }
@@ -405,7 +381,7 @@ export class RoarFirekit {
         }
       })
       .then(this._setUidCustomClaims.bind(this))
-      .then(this._syncCleverData.bind(this, oAuthAccessToken));
+      .then(this._syncCleverData.bind(this, oAuthAccessToken, provider));
   }
 
   async initiateRedirect(provider: AuthProviderType) {
@@ -435,6 +411,7 @@ export class RoarFirekit {
     };
 
     let oAuthAccessToken: string | undefined;
+    let authProvider: AuthProviderType | undefined;
 
     return getRedirectResult(this.admin!.auth)
       .then((adminRedirectResult) => {
@@ -444,14 +421,14 @@ export class RoarFirekit {
             const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
-            this._authProvider = AuthProviderType.GOOGLE;
+            authProvider = AuthProviderType.GOOGLE;
             oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
-            this._authProvider = AuthProviderType.CLEVER;
+            authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
             return credential;
           }
@@ -464,7 +441,7 @@ export class RoarFirekit {
         }
       })
       .then(this._setUidCustomClaims.bind(this))
-      .then(this._syncCleverData.bind(this, oAuthAccessToken));
+      .then(this._syncCleverData.bind(this, oAuthAccessToken, authProvider));
   }
 
   private async _signOutApp() {
