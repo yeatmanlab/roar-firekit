@@ -8,7 +8,7 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
@@ -47,25 +47,6 @@ export interface RealConfigData extends CommonFirebaseConfig {
 
 export type FirebaseConfigData = RealConfigData | EmulatorConfigData;
 
-export const roarEnableIndexedDbPersistence = (db: Firestore) => {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-      console.log(
-        "Couldn't enable indexed db persistence. This is probably because the browser has multiple roar tabs open.",
-      );
-      // Multiple tabs open, persistence can only be enabled
-      // in one tab at a a time.
-      // ...
-    } else if (err.code == 'unimplemented') {
-      console.log("Couldn't enable indexed db persistence. This is probably because the browser doesn't support it.");
-      // The current browser does not support all of the
-      // features required to enable persistence
-      // ...
-    }
-  });
-  // Subsequent queries will use persistence, if it was enabled successfully
-};
-
 export const safeInitializeApp = (config: RealConfigData, name: string) => {
   try {
     const app = getApp(name);
@@ -97,10 +78,9 @@ export interface MarkRawConfig {
 
 type FirebaseProduct = Auth | Firestore | Functions;
 
-export const initializeProjectFirekit = (
+export const initializeProjectFirekit = async (
   config: FirebaseConfigData,
   name: string,
-  enableDbPersistence = true,
   authPersistence = AuthPersistence.session,
   markRawConfig: MarkRawConfig = {},
 ) => {
@@ -148,17 +128,11 @@ export const initializeProjectFirekit = (
     // default because many students will access the ROAR on shared devices in the
     // classroom.
     if (authPersistence === AuthPersistence.session) {
-      setPersistence(kit.auth, browserSessionPersistence);
+      await setPersistence(kit.auth, browserSessionPersistence);
     } else if (authPersistence === AuthPersistence.local) {
-      setPersistence(kit.auth, browserLocalPersistence);
+      await setPersistence(kit.auth, browserLocalPersistence);
     } else if (authPersistence === AuthPersistence.none) {
-      setPersistence(kit.auth, inMemoryPersistence);
-    }
-
-    if (enableDbPersistence) {
-      // Firestore offline data persistence enables Cloud Firestore data caching
-      // when the device is offline.
-      roarEnableIndexedDbPersistence(kit.db);
+      await setPersistence(kit.auth, inMemoryPersistence);
     }
 
     return kit;

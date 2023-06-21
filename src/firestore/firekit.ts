@@ -99,16 +99,19 @@ interface ICurrentAssignments {
 }
 
 export class RoarFirekit {
-  roarConfig: IRoarConfigData;
-  app: IFirekit;
-  admin: IFirekit;
-  userData?: IUserData;
-  roarAppUserInfo?: IUserInput;
+  admin?: IFirekit;
   adminClaims?: Record<string, string[]>;
+  app?: IFirekit;
   currentAssignments?: ICurrentAssignments;
-  private _authProvider?: AuthProviderType;
   oAuthAccessToken?: string;
   oidcIdToken?: string;
+  private _authProvider?: AuthProviderType;
+  private _authPersistence: AuthPersistence;
+  private _markRawConfig: MarkRawConfig;
+  private _initialized: boolean;
+  roarAppUserInfo?: IUserInput;
+  roarConfig: IRoarConfigData;
+  userData?: IUserData;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[IRoarConfigData]] object.
@@ -117,35 +120,41 @@ export class RoarFirekit {
    */
   constructor({
     roarConfig,
-    enableDbPersistence,
     authPersistence = AuthPersistence.session,
     markRawConfig = {},
   }: {
     roarConfig: IRoarConfigData;
-    enableDbPersistence: boolean;
+    dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
   }) {
     this.roarConfig = roarConfig;
+    this._authPersistence = authPersistence;
+    this._markRawConfig = markRawConfig;
+    this._initialized = false;
+  }
 
-    this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence, authPersistence, markRawConfig);
-    this.admin = initializeProjectFirekit(
-      roarConfig.admin,
+  async init() {
+    this.app = await initializeProjectFirekit(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
+
+    this.admin = await initializeProjectFirekit(
+      this.roarConfig.admin,
       'admin',
-      enableDbPersistence,
-      authPersistence,
-      markRawConfig,
+      this._authPersistence,
+      this._markRawConfig,
     );
 
+    this._initialized = true;
+
     onAuthStateChanged(this.admin.auth, (user) => {
-      if (user) {
+      if (user && this.admin) {
         this._listenToClaims(this.admin);
       }
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
-      if (user) {
-        this._listenToClaims(this.app);
+      if (user && this.app) {
+        this._listenToClaims(this.app!);
       }
     });
 
@@ -156,8 +165,24 @@ export class RoarFirekit {
   // ----------|  Begin Authentication Methods  |----------
   //           +--------------------------------+
 
+  public get initialized() {
+    return this._initialized;
+  }
+
+  private _verify_init() {
+    if (!this._initialized) {
+      throw new Error('RoarFirekit has not been initialized. Use the `init` method.');
+    }
+  }
+
+  private _isAuthenticated() {
+    this._verify_init();
+    return this.admin!.user === undefined || this.app!.user === undefined;
+  }
+
   private _verify_authentication() {
-    if (this.admin.user === undefined || this.app.user === undefined) {
+    this._verify_init();
+    if (!this._isAuthenticated()) {
       throw new Error('User is not authenticated.');
     }
   }
@@ -171,6 +196,7 @@ export class RoarFirekit {
   }
 
   private _listenToClaims = (firekit: IFirekit) => {
+    this._verify_init();
     if (firekit.user) {
       onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
         const data = doc.data();
@@ -187,6 +213,7 @@ export class RoarFirekit {
   };
 
   private _listenToTokenChange = (firekit: IFirekit) => {
+    this._verify_init();
     onIdTokenChanged(firekit.auth, async (user) => {
       if (user) {
         const idTokenResult = await user.getIdTokenResult(false);
@@ -197,16 +224,17 @@ export class RoarFirekit {
 
   private async _setUidCustomClaims() {
     this._verify_authentication();
-    const setAdminUidClaims = httpsCallable(this.admin.functions, 'setuidclaims');
-    const adminResult = await setAdminUidClaims({ assessmentUid: this.app.user!.uid });
+
+    const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setuidclaims');
+    const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResult.data as any, 'status') !== 'ok') {
       throw new Error('Failed to associate admin and assessment UIDs in the admin Firebase project.');
     }
 
-    const setAppUidClaims = httpsCallable(this.app.functions, 'setuidclaims');
-    const appResult = await setAppUidClaims({ adminUid: this.admin.user!.uid, roarUid: this.roarUid! });
+    const setAppUidClaims = httpsCallable(this.app!.functions, 'setuidclaims');
+    const appResult = await setAppUidClaims({ adminUid: this.admin!.user!.uid, roarUid: this.roarUid! });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(appResult.data as any, 'status') !== 'ok') {
@@ -217,9 +245,9 @@ export class RoarFirekit {
   private async _syncCleverData() {
     if (this._authProvider === AuthProviderType.CLEVER) {
       this._verify_authentication();
-      const syncAdminCleverData = httpsCallable(this.admin.functions, 'synccleverdata');
+      const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
       const adminResult = await syncAdminCleverData({
-        assessmentUid: this.app.user!.uid,
+        assessmentUid: this.app!.user!.uid,
         accessToken: this.oAuthAccessToken,
       });
 
@@ -228,9 +256,9 @@ export class RoarFirekit {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
 
-      const syncAppCleverData = httpsCallable(this.app.functions, 'synccleverdata');
+      const syncAppCleverData = httpsCallable(this.app!.functions, 'synccleverdata');
       const appResult = await syncAppCleverData({
-        adminUid: this.admin.user!.uid,
+        adminUid: this.admin!.user!.uid,
         roarUid: this.roarUid,
         accessToken: this.oAuthAccessToken,
       });
@@ -243,25 +271,28 @@ export class RoarFirekit {
   }
 
   async isUsernameAvailable(username: string): Promise<boolean> {
-    return isUsernameAvailable(this.admin.auth, username);
+    this._verify_init();
+    return isUsernameAvailable(this.admin!.auth, username);
   }
 
   async isEmailAvailable(email: string): Promise<boolean> {
-    return isEmailAvailable(this.admin.auth, email);
+    this._verify_init();
+    return isEmailAvailable(this.admin!.auth, email);
   }
 
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
-    return createUserWithEmailAndPassword(this.admin.auth, email, password)
+    this._verify_init();
+    return createUserWithEmailAndPassword(this.admin!.auth, email, password)
       .catch((error: AuthError) => {
         console.log('Error creating user', error);
         console.log(error.code);
         console.log(error.message);
       })
       .then((adminUserCredential) => {
-        this.admin.user = adminUserCredential?.user;
-        return createUserWithEmailAndPassword(this.app.auth, email, password)
+        this.admin!.user = adminUserCredential?.user;
+        return createUserWithEmailAndPassword(this.app!.auth, email, password)
           .then((appUserCredential) => {
-            this.app.user = appUserCredential.user;
+            this.app!.user = appUserCredential.user;
             this._authProvider = AuthProviderType.EMAIL;
           })
           .then(this._setUidCustomClaims.bind(this))
@@ -278,11 +309,12 @@ export class RoarFirekit {
     password: string;
     fromUsername?: boolean;
   }) {
-    return signInWithEmailAndPassword(this.admin.auth, email, password).then((adminUserCredential) => {
-      this.admin.user = adminUserCredential.user;
-      return signInWithEmailAndPassword(this.app.auth, email, password)
+    this._verify_init();
+    return signInWithEmailAndPassword(this.admin!.auth, email, password).then((adminUserCredential) => {
+      this.admin!.user = adminUserCredential.user;
+      return signInWithEmailAndPassword(this.app!.auth, email, password)
         .then((appUserCredential) => {
-          this.app.user = appUserCredential.user;
+          this.app!.user = appUserCredential.user;
           if (fromUsername) {
             this._authProvider = AuthProviderType.USERNAME;
           } else {
@@ -300,6 +332,7 @@ export class RoarFirekit {
   }
 
   async signInWithPopup(provider: AuthProviderType) {
+    this._verify_init();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
 
     let authProvider;
@@ -318,9 +351,9 @@ export class RoarFirekit {
       }
     };
 
-    return signInWithPopup(this.admin.auth, authProvider)
+    return signInWithPopup(this.admin!.auth, authProvider)
       .then((adminResult) => {
-        this.admin.user = adminResult.user;
+        this.admin!.user = adminResult.user;
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
@@ -339,10 +372,10 @@ export class RoarFirekit {
       .catch(swallowAllowedErrors)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.app.auth, credential)
+          return signInWithCredential(this.app!.auth, credential)
             .then((appUserCredential) => {
               // credential = GoogleAuthProvider.credentialFromResult(result);
-              this.app.user = appUserCredential.user;
+              this.app!.user = appUserCredential.user;
             })
             .catch(swallowAllowedErrors);
         }
@@ -353,6 +386,7 @@ export class RoarFirekit {
   }
 
   async initiateRedirect(provider: AuthProviderType) {
+    this._verify_init();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
 
     let authProvider;
@@ -364,10 +398,11 @@ export class RoarFirekit {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
 
-    return signInWithRedirect(this.admin.auth, authProvider);
+    return signInWithRedirect(this.admin!.auth, authProvider);
   }
 
   async signInFromRedirectResult(enableCookiesCallback: () => void) {
+    this._verify_init();
     const catchEnableCookiesError = (error: AuthError) => {
       if (error.code == 'auth/web-storage-unsupported') {
         enableCookiesCallback();
@@ -376,10 +411,10 @@ export class RoarFirekit {
       }
     };
 
-    return getRedirectResult(this.admin.auth)
+    return getRedirectResult(this.admin!.auth)
       .then((adminRedirectResult) => {
         if (adminRedirectResult !== null) {
-          this.admin.user = adminRedirectResult.user;
+          this.admin!.user = adminRedirectResult.user;
 
           const providerId = adminRedirectResult.providerId;
           if (providerId === RoarProviderId.GOOGLE) {
@@ -401,9 +436,9 @@ export class RoarFirekit {
       .catch(catchEnableCookiesError)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.app.auth, credential).then((appUserCredential) => {
+          return signInWithCredential(this.app!.auth, credential).then((appUserCredential) => {
             if (appUserCredential !== null) {
-              this.app.user = appUserCredential.user;
+              this.app!.user = appUserCredential.user;
             }
           });
         }
@@ -414,17 +449,13 @@ export class RoarFirekit {
   }
 
   private async _signOutApp() {
-    if (this.app.auth.currentUser) {
-      await signOut(this.app.auth);
-    }
-    this.app.user = undefined;
+    await signOut(this.app!.auth);
+    this.app!.user = undefined;
   }
 
   private async _signOutAdmin() {
-    if (this.admin.auth.currentUser) {
-      await signOut(this.admin.auth);
-    }
-    this.admin.user = undefined;
+    await signOut(this.admin!.auth);
+    this.admin!.user = undefined;
   }
 
   private _scrubAuthProperties() {
@@ -438,6 +469,7 @@ export class RoarFirekit {
   }
 
   async signOut() {
+    this._verify_authentication();
     await this._signOutApp();
     await this._signOutAdmin();
     this._scrubAuthProperties();
@@ -453,7 +485,7 @@ export class RoarFirekit {
   //           +--------------------------------+
 
   public get dbRefs() {
-    if (this.admin.user && this.app.user) {
+    if (this.admin?.user && this.app?.user) {
       return {
         admin: {
           user: doc(this.admin.db, 'users', this.roarUid!),
@@ -471,7 +503,7 @@ export class RoarFirekit {
 
   private async _getUser(uid: string): Promise<IUserData | undefined> {
     this._verify_authentication();
-    const userDocRef = doc(this.admin.db, 'users', uid);
+    const userDocRef = doc(this.admin!.db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
@@ -545,13 +577,13 @@ export class RoarFirekit {
       } else if (_includes(emailPidProviderTypes, this._authProvider)) {
         // If using Google OAuth or email/username, set PID to the local-part of
         // the email (the part before the @)
-        assessmentPid = _nth(this.app.user!.email?.match(/^(.+)@/), 1);
+        assessmentPid = _nth(this.app!.user!.email?.match(/^(.+)@/), 1);
       }
 
       this.roarAppUserInfo = {
-        db: this.app.db,
+        db: this.app!.db,
         roarUid: this.roarUid,
-        assessmentUid: this.app.user!.uid,
+        assessmentUid: this.app!.user!.uid,
         assessmentPid: assessmentPid,
         userType: this.userData.userType,
       };
@@ -587,12 +619,12 @@ export class RoarFirekit {
   }
 
   public get roarUid() {
-    return this.admin.user?.uid;
+    return this.admin?.user?.uid;
   }
 
   private async _getAdministration(administrationId: string): Promise<IAdministrationData | undefined> {
     this._verify_authentication();
-    const docRef = doc(this.admin.db, 'administrations', administrationId);
+    const docRef = doc(this.admin!.db, 'administrations', administrationId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -662,7 +694,7 @@ export class RoarFirekit {
     this._verify_authentication();
 
     // First grab data about the administration
-    const administrationDocRef = doc(this.admin.db, 'administrations', administrationId);
+    const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
     const administrationDocSnap = await getDoc(administrationDocRef);
     let assessmentParams: { [x: string]: unknown } = {};
     if (administrationDocSnap.exists()) {
@@ -703,7 +735,7 @@ export class RoarFirekit {
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-          const taskAndVariant = await getTaskAndVariant({ db: this.app.db, taskId, variantParams: assessmentParams });
+          const taskAndVariant = await getTaskAndVariant({ db: this.app!.db, taskId, variantParams: assessmentParams });
           if (taskAndVariant.task === undefined) {
             throw new Error(`Could not find task ${taskId}`);
           }
@@ -720,7 +752,7 @@ export class RoarFirekit {
           const variantDescription = taskAndVariant.variant.description;
 
           const taskInfo = {
-            db: this.app.db,
+            db: this.app!.db,
             taskId,
             taskName,
             taskDescription,
@@ -730,7 +762,7 @@ export class RoarFirekit {
           };
 
           return new RoarAppkit({
-            auth: this.app.auth,
+            auth: this.app!.auth,
             userInfo: this.roarAppUserInfo!,
             assigningOrgs,
             runId,
@@ -748,6 +780,7 @@ export class RoarFirekit {
   }
 
   async completeAssessment(administrationId: string, taskId: string) {
+    this._verify_authentication();
     await this._updateAssessment(administrationId, taskId, { completedOn: new Date() });
 
     // Check to see if all of the assessments in this assignment have been completed,
@@ -786,7 +819,7 @@ export class RoarFirekit {
       assessments: assessments,
       sequential: sequential,
     };
-    const administrationDocRef = await addDoc(collection(this.admin.db, 'administrations'), administrationData);
+    const administrationDocRef = await addDoc(collection(this.admin!.db, 'administrations'), administrationData);
 
     // Then add the ID to the admin's list of administrationsCreated
     const userDocRef = this.dbRefs!.admin.user;
@@ -798,7 +831,7 @@ export class RoarFirekit {
   async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verify_authentication();
     this._verify_admin();
-    const docRef = doc(this.admin.db, 'administrations', administrationId);
+    const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
     await updateDoc(docRef, {
       districts: arrayUnion(orgs.districts),
@@ -813,7 +846,7 @@ export class RoarFirekit {
     this._verify_authentication();
     this._verify_admin();
 
-    const docRef = doc(this.admin.db, 'administrations', administrationId);
+    const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
     await updateDoc(docRef, {
       districts: arrayRemove(orgs.districts),
@@ -825,7 +858,10 @@ export class RoarFirekit {
   }
 
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
-    const docRef = doc(this.admin.db, 'users', uid, 'externalData', externalResourceId);
+    this._verify_authentication();
+    this._verify_admin();
+
+    const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       // We use the dot-object module to transform the potentially nested external data to
@@ -846,6 +882,7 @@ export class RoarFirekit {
 
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verify_authentication();
+    this._verify_admin();
 
     const isEmailAvailable = await this.isEmailAvailable(email);
     if (isEmailAvailable) {
@@ -925,16 +962,16 @@ export class RoarFirekit {
           },
         });
       }
-      const cloudCreateAdminStudent = httpsCallable(this.admin.functions, 'createstudent');
+      const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudent');
       const adminResponse = await cloudCreateAdminStudent({ email, password, userDocData });
       const adminUid = _get(adminResponse, 'data.adminUid');
 
-      const cloudCreateAppStudent = httpsCallable(this.app.functions, 'createstudent');
+      const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudent');
       const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userDocData });
       // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
       const assessmentUid = _get(appResponse, 'data.assessmentUid');
 
-      const cloudUpdateUserClaims = httpsCallable(this.admin.functions, 'associateAssessmentUid');
+      const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateAssessmentUid');
       await cloudUpdateUserClaims({ adminUid, assessmentUid });
     } else {
       // Email is not available, reject
@@ -943,6 +980,9 @@ export class RoarFirekit {
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
+    this._verify_authentication();
+    this._verify_admin();
+
     const isUsernameAvailable = await this.isUsernameAvailable(username);
     if (isUsernameAvailable) {
       const email = `${username}@roar-auth.com`;
