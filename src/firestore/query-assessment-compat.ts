@@ -13,26 +13,30 @@ import { RoarFirekit } from './firekit';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
 
 export const getRootDocs = async (firekit: RoarFirekit) => {
-  const result: { [x: string]: unknown } = {};
-  const prodDoc = doc(firekit.app.db, 'prod', 'roar-prod');
-  result[prodDoc.path] = prodDoc;
+  if (firekit.app) {
+    const result: { [x: string]: unknown } = {};
+    const prodDoc = doc(firekit.app.db, 'prod', 'roar-prod');
+    result[prodDoc.path] = prodDoc;
 
-  const devQuery = query(collection(firekit.app.db, 'dev'));
-  const devSnapshot = await getDocs(devQuery);
-  devSnapshot.forEach((doc) => {
-    result[doc.ref.path] = doc;
-  });
+    const devQuery = query(collection(firekit.app.db, 'dev'));
+    const devSnapshot = await getDocs(devQuery);
+    devSnapshot.forEach((doc) => {
+      result[doc.ref.path] = doc;
+    });
 
-  const extQuery = query(collection(firekit.app.db, 'external'));
-  const extSnapshot = await getDocs(extQuery);
-  extSnapshot.forEach((doc) => {
-    result[doc.ref.path] = doc;
-  });
+    const extQuery = query(collection(firekit.app.db, 'external'));
+    const extSnapshot = await getDocs(extQuery);
+    extSnapshot.forEach((doc) => {
+      result[doc.ref.path] = doc;
+    });
 
-  return {
-    rootDocs: result,
-    prodDoc: prodDoc,
-  };
+    return {
+      rootDocs: result,
+      prodDoc: prodDoc,
+    };
+  } else {
+    throw new Error('firekit.app is not initialized');
+  }
 };
 
 interface ITask {
