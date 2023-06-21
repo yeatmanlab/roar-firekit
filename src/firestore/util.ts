@@ -1,5 +1,6 @@
 import { initializeApp, getApp } from 'firebase/app';
 import {
+  Auth,
   browserLocalPersistence,
   browserSessionPersistence,
   connectAuthEmulator,
@@ -8,8 +9,10 @@ import {
   setPersistence,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, enableIndexedDbPersistence, Firestore, getFirestore } from 'firebase/firestore';
-import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
+import { markRaw } from 'vue';
 
 /** Remove null and undefined attributes from an object
  * @function
@@ -86,18 +89,35 @@ export enum AuthPersistence {
   none = 'none',
 }
 
+export interface MarkRawConfig {
+  auth?: boolean;
+  db?: boolean;
+  functions?: boolean;
+}
+
+type FirebaseProduct = Auth | Firestore | Functions;
+
 export const initializeProjectFirekit = (
   config: FirebaseConfigData,
   name: string,
   enableDbPersistence = true,
   authPersistence = AuthPersistence.session,
+  markRawConfig: MarkRawConfig = {},
 ) => {
+  const optionallyMarkRaw = <T extends FirebaseProduct>(productKey: string, productInstance: T): T => {
+    if (_get(markRawConfig, productKey)) {
+      return markRaw(productInstance);
+    } else {
+      return productInstance;
+    }
+  };
+
   if ((config as EmulatorConfigData).emulatorPorts) {
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
     const ports = (config as EmulatorConfigData).emulatorPorts;
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const functions = getFunctions(app);
+    const auth = optionallyMarkRaw('auth', getAuth(app));
+    const db = optionallyMarkRaw('db', getFirestore(app));
+    const functions = optionallyMarkRaw('functions', getFunctions(app));
 
     connectFirestoreEmulator(db, '127.0.0.1', ports.db);
     connectFunctionsEmulator(functions, '127.0.0.1', ports.functions);
@@ -118,9 +138,9 @@ export const initializeProjectFirekit = (
     const app = safeInitializeApp(config as RealConfigData, name);
     const kit = {
       firebaseApp: app,
-      auth: getAuth(app),
-      db: getFirestore(app),
-      functions: getFunctions(app),
+      auth: optionallyMarkRaw('auth', getAuth(app)),
+      db: optionallyMarkRaw('db', getFirestore(app)),
+      functions: optionallyMarkRaw('functions', getFunctions(app)),
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a

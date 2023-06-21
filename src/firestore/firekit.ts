@@ -40,7 +40,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, emptyOrg, emptyOrgList, initializeProjectFirekit, removeNull } from './util';
+import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeProjectFirekit, removeNull } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -118,16 +118,24 @@ export class RoarFirekit {
   constructor({
     roarConfig,
     enableDbPersistence,
-    authPersistence,
+    authPersistence = AuthPersistence.session,
+    markRawConfig = {},
   }: {
     roarConfig: IRoarConfigData;
     enableDbPersistence: boolean;
-    authPersistence: AuthPersistence;
+    authPersistence?: AuthPersistence;
+    markRawConfig?: MarkRawConfig;
   }) {
     this.roarConfig = roarConfig;
 
-    this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence, authPersistence);
-    this.admin = initializeProjectFirekit(roarConfig.admin, 'admin', enableDbPersistence, authPersistence);
+    this.app = initializeProjectFirekit(roarConfig.app, 'app', enableDbPersistence, authPersistence, markRawConfig);
+    this.admin = initializeProjectFirekit(
+      roarConfig.admin,
+      'admin',
+      enableDbPersistence,
+      authPersistence,
+      markRawConfig,
+    );
 
     onAuthStateChanged(this.admin.auth, (user) => {
       if (user) {
