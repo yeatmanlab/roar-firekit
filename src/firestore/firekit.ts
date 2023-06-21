@@ -99,17 +99,18 @@ interface ICurrentAssignments {
 
 export class RoarFirekit {
   admin?: IFirekit;
-  adminClaims?: Record<string, string[]>;
   app?: IFirekit;
   currentAssignments?: ICurrentAssignments;
   oAuthAccessToken?: string;
-  private _authProvider?: AuthProviderType;
-  private _authPersistence: AuthPersistence;
-  private _markRawConfig: MarkRawConfig;
-  private _initialized: boolean;
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  private _adminOrgs?: Record<string, string[]>;
+  private _authPersistence: AuthPersistence;
+  private _authProvider?: AuthProviderType;
+  private _initialized: boolean;
+  private _markRawConfig: MarkRawConfig;
+  private _superAdmin?: boolean;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[IRoarConfigData]] object.
@@ -135,7 +136,7 @@ export class RoarFirekit {
   private _scrubAuthProperties() {
     this.userData = undefined;
     this.roarAppUserInfo = undefined;
-    this.adminClaims = undefined;
+    this._adminOrgs = undefined;
     this.currentAssignments = undefined;
     this._authProvider = undefined;
     this.oAuthAccessToken = undefined;
@@ -191,34 +192,38 @@ export class RoarFirekit {
     return this._initialized;
   }
 
-  private _verify_init() {
+  private _verifyInit() {
     if (!this._initialized) {
       throw new Error('RoarFirekit has not been initialized. Use the `init` method.');
     }
   }
 
   private _isAuthenticated() {
-    this._verify_init();
+    this._verifyInit();
     return !(this.admin!.user === undefined || this.app!.user === undefined);
   }
 
-  private _verify_authentication() {
-    this._verify_init();
+  private _verifyAuthentication() {
+    this._verifyInit();
     if (!this._isAuthenticated()) {
       throw new Error('User is not authenticated.');
     }
   }
 
   private _verify_admin() {
-    if (this.adminClaims === undefined) {
-      throw new Error('User is not an administrator.');
-    } else if (_isEmpty(_union(...Object.values(this.adminClaims)))) {
-      throw new Error('User is not an administrator.');
+    if (!this._superAdmin) {
+      const errorMessage = 'User is not an administrator.';
+      const error = new Error(errorMessage);
+      if (this._adminOrgs === undefined) {
+        throw error;
+      } else if (_isEmpty(_union(...Object.values(this._adminOrgs)))) {
+        throw error;
+      }
     }
   }
 
   private _listenToClaims = (firekit: IFirekit) => {
-    this._verify_init();
+    this._verifyInit();
     if (firekit.user) {
       onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
         const data = doc.data();
@@ -235,17 +240,18 @@ export class RoarFirekit {
   };
 
   private _listenToTokenChange = (firekit: IFirekit) => {
-    this._verify_init();
+    this._verifyInit();
     onIdTokenChanged(firekit.auth, async (user) => {
       if (user) {
         const idTokenResult = await user.getIdTokenResult(false);
-        this.adminClaims = idTokenResult.claims.adminOrgs;
+        this._adminOrgs = idTokenResult.claims.adminOrgs;
+        this._superAdmin = Boolean(idTokenResult.claims.super_admin);
       }
     });
   };
 
   private async _setUidCustomClaims() {
-    this._verify_authentication();
+    this._verifyAuthentication();
 
     const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setuidclaims');
     const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
@@ -269,7 +275,7 @@ export class RoarFirekit {
       throw new Error('No OAuth access token provided.');
     }
     if (this._authProvider === AuthProviderType.CLEVER) {
-      this._verify_authentication();
+      this._verifyAuthentication();
       const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
       const adminResult = await syncAdminCleverData({
         assessmentUid: this.app!.user!.uid,
@@ -296,17 +302,17 @@ export class RoarFirekit {
   }
 
   async isUsernameAvailable(username: string): Promise<boolean> {
-    this._verify_init();
+    this._verifyInit();
     return isUsernameAvailable(this.admin!.auth, username);
   }
 
   async isEmailAvailable(email: string): Promise<boolean> {
-    this._verify_init();
+    this._verifyInit();
     return isEmailAvailable(this.admin!.auth, email);
   }
 
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
-    this._verify_init();
+    this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
       .catch((error: AuthError) => {
         console.log('Error creating user', error);
@@ -332,7 +338,7 @@ export class RoarFirekit {
     password: string;
     fromUsername?: boolean;
   }) {
-    this._verify_init();
+    this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
       return signInWithEmailAndPassword(this.app!.auth, email, password)
         .then(() => {
@@ -353,7 +359,7 @@ export class RoarFirekit {
   }
 
   async signInWithPopup(provider: AuthProviderType) {
-    this._verify_init();
+    this._verifyInit();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
 
     let authProvider;
@@ -403,7 +409,7 @@ export class RoarFirekit {
   }
 
   async initiateRedirect(provider: AuthProviderType) {
-    this._verify_init();
+    this._verifyInit();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
 
     let authProvider;
@@ -419,7 +425,7 @@ export class RoarFirekit {
   }
 
   async signInFromRedirectResult(enableCookiesCallback: () => void) {
-    this._verify_init();
+    this._verifyInit();
     const catchEnableCookiesError = (error: AuthError) => {
       if (error.code == 'auth/web-storage-unsupported') {
         enableCookiesCallback();
@@ -470,7 +476,7 @@ export class RoarFirekit {
   }
 
   async signOut() {
-    this._verify_authentication();
+    this._verifyAuthentication();
     await this._signOutApp();
     await this._signOutAdmin();
   }
@@ -483,6 +489,14 @@ export class RoarFirekit {
   // ----------| Begin Methods to Read User and |----------
   // ----------| Assignment/Administration Data |----------
   //           +--------------------------------+
+
+  public get superAdmin() {
+    return this._superAdmin;
+  }
+
+  public get adminOrgs() {
+    return this._adminOrgs;
+  }
 
   public get dbRefs() {
     if (this.admin?.user && this.app?.user) {
@@ -502,7 +516,7 @@ export class RoarFirekit {
   }
 
   private async _getUser(uid: string): Promise<IUserData | undefined> {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const userDocRef = doc(this.admin!.db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
 
@@ -538,7 +552,7 @@ export class RoarFirekit {
   }
 
   async getMyData() {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this.userData = await this._getUser(this.roarUid!);
 
     if (this.userData) {
@@ -592,7 +606,7 @@ export class RoarFirekit {
 
   /* Return a list of all UIDs for users that this user has access to */
   async listUsers() {
-    this._verify_authentication();
+    this._verifyAuthentication();
 
     throw new Error('Method not currently implemented.');
 
@@ -614,7 +628,7 @@ export class RoarFirekit {
 
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
   getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
-    this._verify_authentication();
+    this._verifyAuthentication();
     return uidArray.map((uid) => this._getUser(uid));
   }
 
@@ -623,7 +637,7 @@ export class RoarFirekit {
   }
 
   private async _getAdministration(administrationId: string): Promise<IAdministrationData | undefined> {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
     const docSnap = await getDoc(docRef);
 
@@ -633,12 +647,12 @@ export class RoarFirekit {
   }
 
   getAdministrations(administrationIds: string[]): Promise<IAdministrationData | undefined>[] {
-    this._verify_authentication();
+    this._verifyAuthentication();
     return administrationIds.map((id) => this._getAdministration(id));
   }
 
   private async _getAssignment(administrationId: string): Promise<IAssignmentData | undefined> {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
 
@@ -648,12 +662,12 @@ export class RoarFirekit {
   }
 
   getAssignments(administrationIds: string[]): Promise<IAssignmentData | undefined>[] {
-    this._verify_authentication();
+    this._verifyAuthentication();
     return administrationIds.map((id) => this._getAssignment(id));
   }
 
   async startAssignment(administrationId: string) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const userDocRef = this.dbRefs!.admin.user;
     return updateDoc(assignmentDocRef, { started: true }).then(() =>
@@ -662,7 +676,7 @@ export class RoarFirekit {
   }
 
   async completeAssignment(administrationId: string) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const userDocRef = this.dbRefs!.admin.user;
     return updateDoc(assignmentDocRef, { completed: true }).then(() =>
@@ -671,7 +685,7 @@ export class RoarFirekit {
   }
 
   private async _updateAssessment(administrationId: string, taskId: string, updates: { [x: string]: unknown }) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -691,7 +705,7 @@ export class RoarFirekit {
   }
 
   async startAssessment(administrationId: string, taskId: string) {
-    this._verify_authentication();
+    this._verifyAuthentication();
 
     // First grab data about the administration
     const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
@@ -780,7 +794,7 @@ export class RoarFirekit {
   }
 
   async completeAssessment(administrationId: string, taskId: string) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     await this._updateAssessment(administrationId, taskId, { completedOn: new Date() });
 
     // Check to see if all of the assessments in this assignment have been completed,
@@ -795,13 +809,13 @@ export class RoarFirekit {
   }
 
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     return this._updateAssessment(administrationId, taskId, { rewardShown: true });
   }
 
   // These are all methods that will be important for admins, but not necessary for students
   async createAdministration(assessments: IAssessmentData[], dateOpen: Date, dateClose: Date, sequential = true) {
-    this._verify_authentication();
+    this._verifyAuthentication();
 
     // First add the administration to the database
     const administrationData: IAdministrationData = {
@@ -829,7 +843,7 @@ export class RoarFirekit {
   }
 
   async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this._verify_admin();
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
@@ -843,7 +857,7 @@ export class RoarFirekit {
   }
 
   async unassignAdministrationToUsers(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this._verify_admin();
 
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
@@ -858,7 +872,7 @@ export class RoarFirekit {
   }
 
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this._verify_admin();
 
     const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
@@ -881,7 +895,7 @@ export class RoarFirekit {
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this._verify_admin();
 
     const isEmailAvailable = await this.isEmailAvailable(email);
@@ -980,7 +994,7 @@ export class RoarFirekit {
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
-    this._verify_authentication();
+    this._verifyAuthentication();
     this._verify_admin();
 
     const isUsernameAvailable = await this.isUsernameAvailable(username);
