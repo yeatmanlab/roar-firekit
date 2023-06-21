@@ -3,7 +3,6 @@ import _filter from 'lodash/filter';
 import _fromPairs from 'lodash/fromPairs';
 import _get from 'lodash/get';
 import _set from 'lodash/set';
-import _includes from 'lodash/includes';
 import _isEmpty from 'lodash/isEmpty';
 import _keys from 'lodash/keys';
 import _map from 'lodash/map';
@@ -104,7 +103,6 @@ export class RoarFirekit {
   app?: IFirekit;
   currentAssignments?: ICurrentAssignments;
   oAuthAccessToken?: string;
-  oidcIdToken?: string;
   private _authProvider?: AuthProviderType;
   private _authPersistence: AuthPersistence;
   private _markRawConfig: MarkRawConfig;
@@ -134,6 +132,15 @@ export class RoarFirekit {
     this._initialized = false;
   }
 
+  private _scrubAuthProperties() {
+    this.userData = undefined;
+    this.roarAppUserInfo = undefined;
+    this.adminClaims = undefined;
+    this.currentAssignments = undefined;
+    this._authProvider = undefined;
+    this.oAuthAccessToken = undefined;
+  }
+
   async init() {
     this.app = await initializeProjectFirekit(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
 
@@ -147,14 +154,27 @@ export class RoarFirekit {
     this._initialized = true;
 
     onAuthStateChanged(this.admin.auth, (user) => {
-      if (user && this.admin) {
-        this._listenToClaims(this.admin);
+      if (this.admin) {
+        if (user) {
+          this.admin.user = user;
+          this._listenToClaims(this.admin);
+          this.getMyData();
+        } else {
+          this.admin.user = undefined;
+          this._scrubAuthProperties();
+        }
       }
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
-      if (user && this.app) {
-        this._listenToClaims(this.app!);
+      if (this.app) {
+        if (user) {
+          this.app.user = user;
+          this._listenToClaims(this.app!);
+        } else {
+          this.app.user = undefined;
+          this._scrubAuthProperties();
+        }
       }
     });
 
@@ -244,13 +264,16 @@ export class RoarFirekit {
     }
   }
 
-  private async _syncCleverData() {
+  private async _syncCleverData(oAuthAccessToken?: string) {
+    if (oAuthAccessToken === undefined) {
+      throw new Error('No OAuth access token provided.');
+    }
     if (this._authProvider === AuthProviderType.CLEVER) {
       this._verify_authentication();
       const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
       const adminResult = await syncAdminCleverData({
         assessmentUid: this.app!.user!.uid,
-        accessToken: this.oAuthAccessToken,
+        accessToken: oAuthAccessToken,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,7 +285,7 @@ export class RoarFirekit {
       const appResult = await syncAppCleverData({
         adminUid: this.admin!.user!.uid,
         roarUid: this.roarUid,
-        accessToken: this.oAuthAccessToken,
+        accessToken: oAuthAccessToken,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,15 +313,13 @@ export class RoarFirekit {
         console.log(error.code);
         console.log(error.message);
       })
-      .then((adminUserCredential) => {
-        this.admin!.user = adminUserCredential?.user;
+      .then(() => {
         return createUserWithEmailAndPassword(this.app!.auth, email, password)
-          .then((appUserCredential) => {
-            this.app!.user = appUserCredential.user;
+          .then(() => {
+            // TODO: Find a way to put this in the onAuthStateChanged handler
             this._authProvider = AuthProviderType.EMAIL;
           })
-          .then(this._setUidCustomClaims.bind(this))
-          .then(this.getMyData.bind(this));
+          .then(this._setUidCustomClaims.bind(this));
       });
   }
 
@@ -312,19 +333,17 @@ export class RoarFirekit {
     fromUsername?: boolean;
   }) {
     this._verify_init();
-    return signInWithEmailAndPassword(this.admin!.auth, email, password).then((adminUserCredential) => {
-      this.admin!.user = adminUserCredential.user;
+    return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
       return signInWithEmailAndPassword(this.app!.auth, email, password)
-        .then((appUserCredential) => {
-          this.app!.user = appUserCredential.user;
+        .then(() => {
+          // TODO: Find a way to put this in the onAuthStateChanged handler
           if (fromUsername) {
             this._authProvider = AuthProviderType.USERNAME;
           } else {
             this._authProvider = AuthProviderType.EMAIL;
           }
         })
-        .then(this._setUidCustomClaims.bind(this))
-        .then(this.getMyData.bind(this));
+        .then(this._setUidCustomClaims.bind(this));
     });
   }
 
@@ -353,38 +372,34 @@ export class RoarFirekit {
       }
     };
 
+    let oAuthAccessToken: string | undefined;
+
     return signInWithPopup(this.admin!.auth, authProvider)
       .then((adminResult) => {
-        this.admin!.user = adminResult.user;
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
+          // TODO: Find a way to put this in the onAuthStateChanged handler
           this._authProvider = provider;
-          this.oAuthAccessToken = credential?.accessToken;
+          oAuthAccessToken = credential?.accessToken;
           return credential;
         } else if (provider === AuthProviderType.CLEVER) {
           const credential = OAuthProvider.credentialFromResult(adminResult);
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
+          // TODO: Find a way to put this in the onAuthStateChanged handler
           this._authProvider = provider;
-          this.oAuthAccessToken = credential?.accessToken;
-          this.oidcIdToken = credential?.idToken;
+          oAuthAccessToken = credential?.accessToken;
           return credential;
         }
       })
       .catch(swallowAllowedErrors)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.app!.auth, credential)
-            .then((appUserCredential) => {
-              // credential = GoogleAuthProvider.credentialFromResult(result);
-              this.app!.user = appUserCredential.user;
-            })
-            .catch(swallowAllowedErrors);
+          return signInWithCredential(this.app!.auth, credential).catch(swallowAllowedErrors);
         }
       })
       .then(this._setUidCustomClaims.bind(this))
-      .then(this._syncCleverData.bind(this))
-      .then(this.getMyData.bind(this));
+      .then(this._syncCleverData.bind(this, oAuthAccessToken));
   }
 
   async initiateRedirect(provider: AuthProviderType) {
@@ -413,24 +428,25 @@ export class RoarFirekit {
       }
     };
 
+    let oAuthAccessToken: string | undefined;
+
     return getRedirectResult(this.admin!.auth)
       .then((adminRedirectResult) => {
         if (adminRedirectResult !== null) {
-          this.admin!.user = adminRedirectResult.user;
-
           const providerId = adminRedirectResult.providerId;
           if (providerId === RoarProviderId.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Google Access Token. You can use it to access Google APIs.
+            // TODO: Find a way to put this in the onAuthStateChanged handler
             this._authProvider = AuthProviderType.GOOGLE;
-            this.oAuthAccessToken = credential?.accessToken;
+            oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
+            // TODO: Find a way to put this in the onAuthStateChanged handler
             this._authProvider = AuthProviderType.CLEVER;
-            this.oAuthAccessToken = credential?.accessToken;
-            this.oidcIdToken = credential?.idToken;
+            oAuthAccessToken = credential?.accessToken;
             return credential;
           }
         }
@@ -438,43 +454,25 @@ export class RoarFirekit {
       .catch(catchEnableCookiesError)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.app!.auth, credential).then((appUserCredential) => {
-            if (appUserCredential !== null) {
-              this.app!.user = appUserCredential.user;
-            }
-          });
+          return signInWithCredential(this.app!.auth, credential);
         }
       })
       .then(this._setUidCustomClaims.bind(this))
-      .then(this._syncCleverData.bind(this))
-      .then(this.getMyData.bind(this));
+      .then(this._syncCleverData.bind(this, oAuthAccessToken));
   }
 
   private async _signOutApp() {
     await signOut(this.app!.auth);
-    this.app!.user = undefined;
   }
 
   private async _signOutAdmin() {
     await signOut(this.admin!.auth);
-    this.admin!.user = undefined;
-  }
-
-  private _scrubAuthProperties() {
-    this.userData = undefined;
-    this.roarAppUserInfo = undefined;
-    this.adminClaims = undefined;
-    this.currentAssignments = undefined;
-    this._authProvider = undefined;
-    this.oAuthAccessToken = undefined;
-    this.oidcIdToken = undefined;
   }
 
   async signOut() {
     this._verify_authentication();
     await this._signOutApp();
     await this._signOutAdmin();
-    this._scrubAuthProperties();
   }
 
   //           +--------------------------------+
@@ -570,15 +568,15 @@ export class RoarFirekit {
       }
 
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
-      // First, determine the PID based on the sign-in type
-      const emailPidProviderTypes = [AuthProviderType.GOOGLE, AuthProviderType.EMAIL, AuthProviderType.USERNAME];
-      let assessmentPid: string | undefined;
-      if (this._authProvider === AuthProviderType.CLEVER) {
-        // If using Clever OAuth, set PID to the clever id
-        assessmentPid = this.userData.externalData?.clever?.id as string | undefined;
-      } else if (_includes(emailPidProviderTypes, this._authProvider)) {
-        // If using Google OAuth or email/username, set PID to the local-part of
-        // the email (the part before the @)
+      // First determine the PID. If the user has signed in through Clever, then
+      // the PID has been set to the Clever ID in the firebase cloud function.
+      // If the user signed in through another method, the PID **may** have been
+      // set to something else. Grab it if it's there.
+      // In either case, it will then be present in this.userData.
+      let assessmentPid: string | undefined = _get(this.userData, 'assessmentPid');
+
+      // If the assessmentPid is undefined, set it to the local part of the user's email.
+      if (!assessmentPid) {
         assessmentPid = _nth(this.app!.user!.email?.match(/^(.+)@/), 1);
       }
 
