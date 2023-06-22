@@ -281,6 +281,12 @@ service cloud.firestore {
 
       allow update: if isCurrentAdmin() || editingMyData();
 
+      match /externalData/{dataSource} {
+        allow read: if canReadExistingUser();
+        allow create: if canCreateUser();
+        allow update: if isCurrentAdmin() || editingMyData();
+      }
+
       // TODO: Adam start a Slack thread about admin access to assignments
       // TODO: Should current admins see previous assignments from other orgs (Adam's guess: yes???)
 
