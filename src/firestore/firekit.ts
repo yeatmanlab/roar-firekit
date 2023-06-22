@@ -157,7 +157,9 @@ export class RoarFirekit {
         if (user) {
           this.admin.user = user;
           this._listenToClaims(this.admin);
-          this.getMyData();
+          if (this.app?.user) {
+            this.getMyData();
+          }
         } else {
           this.admin.user = undefined;
           this._scrubAuthProperties();
@@ -169,7 +171,10 @@ export class RoarFirekit {
       if (this.app) {
         if (user) {
           this.app.user = user;
-          this._listenToClaims(this.app!);
+          this._listenToClaims(this.app);
+          if (this.admin?.user) {
+            this.getMyData();
+          }
         } else {
           this.app.user = undefined;
           this._scrubAuthProperties();
