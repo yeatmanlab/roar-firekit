@@ -46,7 +46,7 @@ service cloud.firestore {
     // We use the userClaims collection to store refresh timestamps to propogate
     // custom user claims back to the client.
     match /userClaims/{uid} {
-      allow get: if loggedIn() && uid == request.auth.uid;
+      allow read: if loggedIn() && uid == request.auth.uid;
       allow write: if false; // Only write in cloud functions using admin SDK
     }
 
@@ -112,7 +112,7 @@ service cloud.firestore {
           'assessmentsCompleted',
           'assessmentsAssigned',
           'administrationsAssigned',
-          'administrationsStarted'
+          'administrationsStarted',
           'administrationsCompleted',
         ]
       }
@@ -197,7 +197,7 @@ service cloud.firestore {
         let currentDistrictDoc = getOrgDoc('districts', currentDistrict);
 
         return (requestOrgsInAdminList('districts')
-        && currentSchools.hasOnly(currentDistrictDoc.get('schools', []))
+        && currentSchools.hasOnly(currentDistrictDoc.get('schools', [])));
       }
 
       function isEduAdminForNewUser() {
@@ -209,7 +209,7 @@ service cloud.firestore {
         let familyAdminCondition = (requestOrgsInAdminList('families') && requestHasOnlyFamilyKeys(true));
         let studyAdminCondition = (requestOrgsInAdminList('studies') && requestHasOnlyStudyKeys(true));
 
-        return (familyAdminCondition || studyAdminCondition || isEduAdminForNewUser();
+        return (familyAdminCondition || studyAdminCondition || isEduAdminForNewUser());
       }
 
       function canCreateUser() {
@@ -232,8 +232,8 @@ service cloud.firestore {
       }
 
       function orgTypeIsConsistent(orgType) {
-        let data = request.resource.data
-        return data.get([orgType, 'all'], []).hasAll(data.get([orgType, 'current'], []))
+        let data = request.resource.data;
+        return data.get([orgType, 'all'], []).hasAll(data.get([orgType, 'current'], []));
       }
 
       function orgsAreConsistent() {

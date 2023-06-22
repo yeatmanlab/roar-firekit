@@ -46,7 +46,7 @@ service cloud.firestore {
     // We use the userClaims collection to store refresh timestamps to propogate
     // custom user claims back to the client.
     match /userClaims/{uid} {
-      allow get: if loggedIn() && uid == request.auth.uid;
+      allow read: if loggedIn() && uid == request.auth.uid;
       allow write: if false; // Only write in cloud functions using admin SDK
     }
     
