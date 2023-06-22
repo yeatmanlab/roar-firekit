@@ -230,7 +230,7 @@ export class RoarFirekit {
     if (firekit.user) {
       onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
         const data = doc.data();
-        if (data!.lastUpdated) {
+        if (data?.lastUpdated) {
           const lastUpdated = new Date(data!.lastUpdated);
           if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
             // Update the user's ID token and refresh claimsLastUpdated.
