@@ -281,8 +281,29 @@ service cloud.firestore {
 
       allow update: if isCurrentAdmin() || editingMyData();
 
-      // TODO: Adam start a Slack thread about admin access to assignments
-      // TODO: Should current admins see previous assignments from other orgs (Adam's guess: yes???)
+      match /externalData/{externalDataId} {
+        // These are versions of the above rules with database reads. This is
+        // needed because resource.data for externalData documents will not contain
+        // `districts`, `classes`, etc.  So we must read the parent document first.
+        function isCurrentOrPreviousAdminWithDbRead() {
+          let targetUser = get(/databases/$(database)/documents/users/$(uid)).data;
+          return (targetOrgsInAdminList('districts', data.get(['districts', 'all'], []))
+          || targetOrgsInAdminList('schools', data.get(['schools', 'all'], []))
+          || targetOrgsInAdminList('classes', data.get(['classes', 'all'], []))
+          || targetOrgsInAdminList('families', data.get(['families', 'all'], []))
+          || targetOrgsInAdminList('studies', data.get(['studies', 'all'], [])));
+        }
+
+        function canReadExistingUserWithDbRead() {
+          return loggedIn() && (myData() || isCurrentOrPreviousAdminWithDbRead());
+        }
+
+        allow read: if canReadExistingUserWithDbRead();
+
+        // Allow only reads under the assumption that external data writes will
+        // be performed in cloud functions with the admin SDK.
+        allow write: if false;
+      }
 
       // Users should be able to read and write to their own assignments
       // Admins should be able to read (not write) assignments if they are an admin for one of the assigning orgs
