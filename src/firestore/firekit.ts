@@ -678,7 +678,7 @@ export class RoarFirekit {
     }
   }
 
-  private async _updateAssessment(
+  private async _updateAssignedAssessment(
     administrationId: string,
     taskId: string,
     updates: { [x: string]: unknown },
@@ -735,7 +735,7 @@ export class RoarFirekit {
 
           // Overwrite `runId` and append runId to `allRunIds` for this assessment
           // in the userId/assignments collection
-          return this._updateAssessment(
+          return this._updateAssignedAssessment(
             administrationId,
             taskId,
             {
@@ -811,7 +811,7 @@ export class RoarFirekit {
       const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
       const docSnap = await transaction.get(docRef);
 
-      await this._updateAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
+      await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
 
       if (docSnap.exists()) {
         if (docSnap.data().assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn))) {
@@ -824,7 +824,7 @@ export class RoarFirekit {
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
     this._verifyAuthentication();
     await runTransaction(this.admin!.db, async (transaction) => {
-      this._updateAssessment(administrationId, taskId, { rewardShown: true }, transaction);
+      this._updateAssignedAssessment(administrationId, taskId, { rewardShown: true }, transaction);
     });
   }
 
