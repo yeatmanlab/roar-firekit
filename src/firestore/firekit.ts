@@ -688,19 +688,15 @@ export class RoarFirekit {
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await transaction.get(docRef);
     if (docSnap.exists()) {
-      const assessmentInfo = docSnap.data().assessments.find((a: IAssignedAssessmentData) => a.taskId === taskId);
+      const assessments: IAssignedAssessmentData[] = docSnap.data().assessments;
+      const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
+      const oldAssessmentInfo = assessments[assessmentIdx];
       const newAssessmentInfo = {
-        ...assessmentInfo,
+        ...oldAssessmentInfo,
         ...updates,
       };
-      // First remove the old assessment to avoid duplication
-      return transaction
-        .update(docRef, {
-          assessments: arrayRemove(assessmentInfo),
-        })
-        .update(docRef, {
-          assessments: arrayUnion(newAssessmentInfo),
-        });
+      assessments[assessmentIdx] = newAssessmentInfo;
+      return transaction.update(docRef, { assessments });
     } else {
       return transaction;
     }
