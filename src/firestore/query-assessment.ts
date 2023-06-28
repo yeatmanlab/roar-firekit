@@ -9,7 +9,6 @@ import {
   getDoc,
   getDocs,
   limit,
-  orderBy,
   query,
   where,
 } from 'firebase/firestore';
@@ -312,7 +311,7 @@ export const getTaskAndVariant = async ({
     const taskData = docSnap.data();
 
     // Check to see if variant exists already by querying for a match on the params.
-    const q = query(variantsCollectionRef, where('params', '==', variantParams), orderBy('lastUpdated'), limit(1));
+    const q = query(variantsCollectionRef, where('params', '==', variantParams), limit(1));
 
     const querySnapshot = await getDocs(q);
 
