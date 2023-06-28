@@ -8,7 +8,6 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
-import dot from 'dot-object';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -25,7 +24,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
-  addDoc,
+  Transaction,
   arrayRemove,
   arrayUnion,
   collection,
@@ -33,13 +32,13 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  setDoc,
+  runTransaction,
   updateDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeProjectFirekit, removeNull } from './util';
+import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeProjectFirekit } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -588,10 +587,9 @@ export class RoarFirekit {
 
   /* Return a list of all UIDs for users that this user has access to */
   async listUsers() {
-    this._verifyAuthentication();
-
     throw new Error('Method not currently implemented.');
-
+    // this._verifyAuthentication();
+    //
     // const userCollectionRef = collection(this.admin.db, 'users');
     // const userQuery = query(
     //   userCollectionRef,
@@ -648,151 +646,190 @@ export class RoarFirekit {
     return administrationIds.map((id) => this._getAssignment(id));
   }
 
-  async startAssignment(administrationId: string) {
+  async startAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const userDocRef = this.dbRefs!.admin.user;
-    return updateDoc(assignmentDocRef, { started: true }).then(() =>
-      updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() }),
-    );
+
+    if (transaction) {
+      return transaction
+        .update(assignmentDocRef, { started: true })
+        .update(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() });
+    } else {
+      return updateDoc(assignmentDocRef, { started: true }).then(() =>
+        updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() }),
+      );
+    }
   }
 
-  async completeAssignment(administrationId: string) {
+  async completeAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const userDocRef = this.dbRefs!.admin.user;
-    return updateDoc(assignmentDocRef, { completed: true }).then(() =>
-      updateDoc(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() }),
-    );
+
+    if (transaction) {
+      return transaction
+        .update(assignmentDocRef, { completed: true })
+        .update(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() });
+    } else {
+      return updateDoc(assignmentDocRef, { completed: true }).then(() =>
+        updateDoc(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() }),
+      );
+    }
   }
 
-  private async _updateAssessment(administrationId: string, taskId: string, updates: { [x: string]: unknown }) {
+  private async _updateAssessment(
+    administrationId: string,
+    taskId: string,
+    updates: { [x: string]: unknown },
+    transaction: Transaction,
+  ) {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
-    const docSnap = await getDoc(docRef);
+    const docSnap = await transaction.get(docRef);
     if (docSnap.exists()) {
       const assessmentInfo = docSnap.data().assessments.find((a: IAssignedAssessmentData) => a.taskId === taskId);
-      // First remove the old assessment to avoid duplication
-      await updateDoc(docRef, {
-        assessments: arrayRemove(assessmentInfo),
-      });
       const newAssessmentInfo = {
         ...assessmentInfo,
         ...updates,
       };
-      await updateDoc(docRef, {
-        assessments: arrayUnion(newAssessmentInfo),
-      });
+      // First remove the old assessment to avoid duplication
+      return transaction
+        .update(docRef, {
+          assessments: arrayRemove(assessmentInfo),
+        })
+        .update(docRef, {
+          assessments: arrayUnion(newAssessmentInfo),
+        });
+    } else {
+      return transaction;
     }
   }
 
   async startAssessment(administrationId: string, taskId: string) {
     this._verifyAuthentication();
 
-    // First grab data about the administration
-    const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
-    const administrationDocSnap = await getDoc(administrationDocRef);
-    let assessmentParams: { [x: string]: unknown } = {};
-    if (administrationDocSnap.exists()) {
-      const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
-      const thisAssessment = assessments.find((a) => a.taskId === taskId);
-      if (thisAssessment) {
-        assessmentParams = thisAssessment.params;
-      } else {
-        throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
-      }
-
-      // Create the run in the assessment Firestore, record the runId and then
-      // pass it to the app
-      const runRef = doc(this.dbRefs!.app.runs);
-      const runId = runRef.id;
-
-      // Check the assignment to see if none of the assessments have been
-      // started yet. If not, start the assignment
-      const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
-      const assignmentDocSnap = await getDoc(assignmentDocRef);
-      if (assignmentDocSnap.exists()) {
-        const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
-        const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
-        if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
-          this.startAssignment(administrationId);
+    await runTransaction(this.admin!.db, async (transaction) => {
+      // First grab data about the administration
+      const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+      const administrationDocSnap = await transaction.get(administrationDocRef);
+      let assessmentParams: { [x: string]: unknown } = {};
+      if (administrationDocSnap.exists()) {
+        const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
+        const thisAssessment = assessments.find((a) => a.taskId === taskId);
+        if (thisAssessment) {
+          assessmentParams = thisAssessment.params;
+        } else {
+          throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
         }
-        allRunIdsForThisTask.push(runId);
 
-        // Overwrite `runId` and append runId to `allRunIds` for this assessment
-        // in the userId/assignments collection
-        return this._updateAssessment(administrationId, taskId, {
-          startedOn: new Date(),
-          runId: runId,
-          allRunIds: allRunIdsForThisTask,
-        }).then(async () => {
-          if (this.roarAppUserInfo === undefined) {
-            this.getMyData();
-          }
+        // Create the run in the assessment Firestore, record the runId and then
+        // pass it to the app
+        const runRef = doc(this.dbRefs!.app.runs);
+        const runId = runRef.id;
 
-          const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-          const taskAndVariant = await getTaskAndVariant({ db: this.app!.db, taskId, variantParams: assessmentParams });
-          if (taskAndVariant.task === undefined) {
-            throw new Error(`Could not find task ${taskId}`);
-          }
+        // Check the assignment to see if none of the assessments have been
+        // started yet. If not, start the assignment
+        const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+        const assignmentDocSnap = await transaction.get(assignmentDocRef);
+        if (assignmentDocSnap.exists()) {
+          const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
+          const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
+          allRunIdsForThisTask.push(runId);
 
-          if (taskAndVariant.variant === undefined) {
-            throw new Error(
-              `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
-            );
-          }
-
-          const taskName = taskAndVariant.task.name;
-          const taskDescription = taskAndVariant.task.description;
-          const variantName = taskAndVariant.variant.name;
-          const variantDescription = taskAndVariant.variant.description;
-
-          const taskInfo = {
-            db: this.app!.db,
+          // Overwrite `runId` and append runId to `allRunIds` for this assessment
+          // in the userId/assignments collection
+          return this._updateAssessment(
+            administrationId,
             taskId,
-            taskName,
-            taskDescription,
-            variantName,
-            variantDescription,
-            variantParams: assessmentParams,
-          };
+            {
+              startedOn: new Date(),
+              runId: runId,
+              allRunIds: allRunIdsForThisTask,
+            },
+            transaction,
+          ).then(async () => {
+            if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
+              await this.startAssignment(administrationId, transaction);
+            }
 
-          return new RoarAppkit({
-            auth: this.app!.auth,
-            userInfo: this.roarAppUserInfo!,
-            assigningOrgs,
-            runId,
-            taskInfo,
+            if (this.roarAppUserInfo === undefined) {
+              this.getMyData();
+            }
+
+            const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+            const taskAndVariant = await getTaskAndVariant({
+              db: this.app!.db,
+              taskId,
+              variantParams: assessmentParams,
+            });
+            if (taskAndVariant.task === undefined) {
+              throw new Error(`Could not find task ${taskId}`);
+            }
+
+            if (taskAndVariant.variant === undefined) {
+              throw new Error(
+                `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
+              );
+            }
+
+            const taskName = taskAndVariant.task.name;
+            const taskDescription = taskAndVariant.task.description;
+            const variantName = taskAndVariant.variant.name;
+            const variantDescription = taskAndVariant.variant.description;
+
+            const taskInfo = {
+              db: this.app!.db,
+              taskId,
+              taskName,
+              taskDescription,
+              variantName,
+              variantDescription,
+              variantParams: assessmentParams,
+            };
+
+            return new RoarAppkit({
+              auth: this.app!.auth,
+              userInfo: this.roarAppUserInfo!,
+              assigningOrgs,
+              runId,
+              taskInfo,
+            });
           });
-        });
+        } else {
+          throw new Error(
+            `Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`,
+          );
+        }
       } else {
-        throw new Error(
-          `Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`,
-        );
+        throw new Error(`Could not find administration with id ${administrationId}`);
       }
-    } else {
-      throw new Error(`Could not find administration with id ${administrationId}`);
-    }
+    });
   }
 
   async completeAssessment(administrationId: string, taskId: string) {
     this._verifyAuthentication();
-    await this._updateAssessment(administrationId, taskId, { completedOn: new Date() });
+    await runTransaction(this.admin!.db, async (transaction) => {
+      // Check to see if all of the assessments in this assignment have been completed,
+      // If so, complete the assignment
+      const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
+      const docSnap = await transaction.get(docRef);
 
-    // Check to see if all of the assessments in this assignment have been completed,
-    // If so, complete the assignment
-    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      if (docSnap.data().assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn))) {
-        this.completeAssignment(administrationId);
+      await this._updateAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
+
+      if (docSnap.exists()) {
+        if (docSnap.data().assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn))) {
+          this.completeAssignment(administrationId, transaction);
+        }
       }
-    }
+    });
   }
 
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
     this._verifyAuthentication();
-    return this._updateAssessment(administrationId, taskId, { rewardShown: true });
+    await runTransaction(this.admin!.db, async (transaction) => {
+      this._updateAssessment(administrationId, taskId, { rewardShown: true }, transaction);
+    });
   }
 
   // These are all methods that will be important for admins, but not necessary for students
@@ -815,12 +852,16 @@ export class RoarFirekit {
       assessments: assessments,
       sequential: sequential,
     };
-    const administrationDocRef = await addDoc(collection(this.admin!.db, 'administrations'), administrationData);
+    await runTransaction(this.admin!.db, async (transaction) => {
+      // Create the administration doc in the admin Firestore,
+      const administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
+      transaction.set(administrationDocRef, administrationData);
 
-    // Then add the ID to the admin's list of administrationsCreated
-    const userDocRef = this.dbRefs!.admin.user;
-    await updateDoc(userDocRef, {
-      'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
+      // Then add the ID to the admin's list of administrationsCreated
+      const userDocRef = this.dbRefs!.admin.user;
+      transaction.update(userDocRef, {
+        'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
+      });
     });
   }
 
@@ -853,27 +894,29 @@ export class RoarFirekit {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
-    this._verifyAuthentication();
-    this._verify_admin();
+    throw new Error('Method not currently implemented.');
+    // this._verifyAuthentication();
+    // this._verify_admin();
 
-    const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      // We use the dot-object module to transform the potentially nested external data to
-      // dot notation. This prevents overwriting extisting external data.
-      // See the note about dot notation in https://firebase.google.com/docs/firestore/manage-data/add-data#update_fields_in_nested_objects
-      await updateDoc(
-        docRef,
-        removeNull(
-          dot.dot({
-            [externalResourceId]: externalData,
-          }),
-        ),
-      );
-    } else {
-      await setDoc(docRef, removeNull(externalData));
-    }
+    // const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
+    // const docSnap = await getDoc(docRef);
+    // if (docSnap.exists()) {
+    //   // We use the dot-object module to transform the potentially nested external data to
+    //   // dot notation. This prevents overwriting extisting external data.
+    //   // See the note about dot notation in https://firebase.google.com/docs/firestore/manage-data/add-data#update_fields_in_nested_objects
+    //   await updateDoc(
+    //     docRef,
+    //     removeNull(
+    //       dot.dot({
+    //         [externalResourceId]: externalData,
+    //       }),
+    //     ),
+    //   );
+    // } else {
+    //   await setDoc(docRef, removeNull(externalData));
+    // }
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
