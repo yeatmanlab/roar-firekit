@@ -26,7 +26,6 @@ export interface ITaskVariantInput {
 }
 
 export interface IFirestoreTaskData {
-  id: string;
   name?: string;
   description?: string | null;
   lastUpdated: ReturnType<typeof serverTimestamp>;
@@ -95,7 +94,6 @@ export class RoarTaskVariant {
   async toFirestore() {
     // Push/update the task using the user provided task ID
     const taskData: IFirestoreTaskData = {
-      id: this.taskId,
       name: this.taskName,
       description: this.taskDescription,
       lastUpdated: serverTimestamp(),
