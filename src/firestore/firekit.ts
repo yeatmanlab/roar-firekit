@@ -705,12 +705,12 @@ export class RoarFirekit {
   async startAssessment(administrationId: string, taskId: string) {
     this._verifyAuthentication();
 
-    await runTransaction(this.admin!.db, async (transaction) => {
+    const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // First grab data about the administration
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
       const administrationDocSnap = await transaction.get(administrationDocRef);
-      let assessmentParams: { [x: string]: unknown } = {};
       if (administrationDocSnap.exists()) {
+        let assessmentParams: { [x: string]: unknown } = {};
         const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
         const thisAssessment = assessments.find((a) => a.taskId === taskId);
         if (thisAssessment) {
@@ -735,7 +735,7 @@ export class RoarFirekit {
 
           // Overwrite `runId` and append runId to `allRunIds` for this assessment
           // in the userId/assignments collection
-          return this._updateAssignedAssessment(
+          await this._updateAssignedAssessment(
             administrationId,
             taskId,
             {
@@ -744,53 +744,53 @@ export class RoarFirekit {
               allRunIds: allRunIdsForThisTask,
             },
             transaction,
-          ).then(async () => {
-            if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
-              await this.startAssignment(administrationId, transaction);
-            }
+          );
 
-            if (this.roarAppUserInfo === undefined) {
-              this.getMyData();
-            }
+          if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
+            await this.startAssignment(administrationId, transaction);
+          }
 
-            const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-            const taskAndVariant = await getTaskAndVariant({
-              db: this.app!.db,
-              taskId,
-              variantParams: assessmentParams,
-            });
-            if (taskAndVariant.task === undefined) {
-              throw new Error(`Could not find task ${taskId}`);
-            }
+          if (this.roarAppUserInfo === undefined) {
+            this.getMyData();
+          }
 
-            if (taskAndVariant.variant === undefined) {
-              throw new Error(
-                `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
-              );
-            }
+          const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+          const taskAndVariant = await getTaskAndVariant({
+            db: this.app!.db,
+            taskId,
+            variantParams: assessmentParams,
+          });
+          if (taskAndVariant.task === undefined) {
+            throw new Error(`Could not find task ${taskId}`);
+          }
 
-            const taskName = taskAndVariant.task.name;
-            const taskDescription = taskAndVariant.task.description;
-            const variantName = taskAndVariant.variant.name;
-            const variantDescription = taskAndVariant.variant.description;
+          if (taskAndVariant.variant === undefined) {
+            throw new Error(
+              `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
+            );
+          }
 
-            const taskInfo = {
-              db: this.app!.db,
-              taskId,
-              taskName,
-              taskDescription,
-              variantName,
-              variantDescription,
-              variantParams: assessmentParams,
-            };
+          const taskName = taskAndVariant.task.name;
+          const taskDescription = taskAndVariant.task.description;
+          const variantName = taskAndVariant.variant.name;
+          const variantDescription = taskAndVariant.variant.description;
 
-            return new RoarAppkit({
-              auth: this.app!.auth,
-              userInfo: this.roarAppUserInfo!,
-              assigningOrgs,
-              runId,
-              taskInfo,
-            });
+          const taskInfo = {
+            db: this.app!.db,
+            taskId,
+            taskName,
+            taskDescription,
+            variantName,
+            variantDescription,
+            variantParams: assessmentParams,
+          };
+
+          return new RoarAppkit({
+            auth: this.app!.auth,
+            userInfo: this.roarAppUserInfo!,
+            assigningOrgs,
+            runId,
+            taskInfo,
           });
         } else {
           throw new Error(
@@ -801,6 +801,8 @@ export class RoarFirekit {
         throw new Error(`Could not find administration with id ${administrationId}`);
       }
     });
+
+    return appKit;
   }
 
   async completeAssessment(administrationId: string, taskId: string) {
