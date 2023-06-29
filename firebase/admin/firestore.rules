@@ -36,7 +36,7 @@ service cloud.firestore {
     }
 
     function keysNotUpdated(keys) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+      return (!request.resource.data.diff(resource.data).affectedKeys().hasAny(keys));
     }
 
     function onlyTheseKeysUpdated(keys) {
@@ -331,7 +331,7 @@ service cloud.firestore {
         }
 
         function canUpdateAssignment() {
-          return myData() && lengthOfAssessmentsUnchanged() && keysNotUpdated('assigningOrgs');
+          return myData() && lengthOfAssessmentsUnchanged() && keysNotUpdated(['assigningOrgs']);
         }
 
         allow read: if canReadAssignment();
