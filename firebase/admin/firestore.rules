@@ -1,4 +1,4 @@
-rules_version = '2';
+rules_version = '2'; 
 service cloud.firestore {
   match /databases/{database}/documents {
     // Allow super_admins to do everything
@@ -14,10 +14,6 @@ service cloud.firestore {
       return request.auth.token.roarUid;
     }
 
-    function assessmentUid() {
-      return request.auth.token.assessmentUid;
-    }
-
     // The auth token has a custom claim for the organizations that the user is
     // an admin for. The expected data structure is
     // token.adminOrgs = {
@@ -28,11 +24,11 @@ service cloud.firestore {
     //   studies?: string[],
     // }
     function getAdminList(orgType) {
-      return request.auth.token.get(adminOrgs, {}).get(orgType, []).toSet();
+      return request.auth.token.get("adminOrgs", {}).get(orgType, []).toSet();
     }
 
     function targetOrgsInAdminList(orgType, targetOrgIds) {
-      return targetOrgIds && getAdminList(orgType).hasAny(targetOrgIds);
+      return targetOrgIds.size() > 0 && getAdminList(orgType).hasAny(targetOrgIds);
     }
 
     function keysNotUpdated(keys) {
@@ -130,9 +126,9 @@ service cloud.firestore {
       }
 
       function noPreviousOrgsOfThisType(orgType) {
-        let orgData = request.resource.data.get(orgType, true);
-        let currentIds = orgData.get('current', true);
-        return orgData && currentIds && orgData.get('all', []).hasOnly(currentIds) && data.get('dates', {}).keys().hasOnly(currentIds);
+        let orgData = request.resource.data.get(orgType, {});
+        let currentIds = orgData.get('current', []);
+        return orgData.keys().size() > 0 && currentIds.size() > 0 && orgData.get('all', []).hasOnly(currentIds) && orgData.get('dates', {}).keys().hasOnly(currentIds);
       }
 
       function requestHasOnlyCurrentOrgs() {
@@ -156,7 +152,7 @@ service cloud.firestore {
       }
 
       function orgHasMatchingKey(orgType, orgId, key, valueToMatch) {
-        return getOrgDoc().get(key, 'nullId') == valueToMatch;
+        return getOrgDoc(orgType, orgId).get(key, 'nullId') == valueToMatch;
       }
 
       function requestOrgsInAdminList(orgType) {
@@ -272,14 +268,14 @@ service cloud.firestore {
       }
 
       function isCurrentAdmin() {
-        return keysNotUpdated(readOnlyKeys().concat(userUpdateKeys())) && (isEduAdmin() || isFamilyAdmin())
+        return keysNotUpdated(readOnlyKeys().concat(userUpdateKeys())) && (isEduAdmin() || isFamilyAdmin() || isStudyAdmin())
       }
 
       function editingMyData() {
         return myData() && onlyTheseKeysUpdated(userUpdateKeys());
       }
 
-      allow update: if isCurrentAdmin() || editingMyData();
+      allow update: if (isCurrentAdmin() || editingMyData()) && orgsAreConsistent();
 
       match /externalData/{externalDataId} {
         // These are versions of the above rules with database reads. This is
@@ -287,11 +283,11 @@ service cloud.firestore {
         // `districts`, `classes`, etc.  So we must read the parent document first.
         function isCurrentOrPreviousAdminWithDbRead() {
           let targetUser = get(/databases/$(database)/documents/users/$(uid)).data;
-          return (targetOrgsInAdminList('districts', data.get(['districts', 'all'], []))
-          || targetOrgsInAdminList('schools', data.get(['schools', 'all'], []))
-          || targetOrgsInAdminList('classes', data.get(['classes', 'all'], []))
-          || targetOrgsInAdminList('families', data.get(['families', 'all'], []))
-          || targetOrgsInAdminList('studies', data.get(['studies', 'all'], [])));
+          return (targetOrgsInAdminList('districts', targetUser.get(['districts', 'all'], []))
+          || targetOrgsInAdminList('schools', targetUser.get(['schools', 'all'], []))
+          || targetOrgsInAdminList('classes', targetUser.get(['classes', 'all'], []))
+          || targetOrgsInAdminList('families', targetUser.get(['families', 'all'], []))
+          || targetOrgsInAdminList('studies', targetUser.get(['studies', 'all'], [])));
         }
 
         function canReadExistingUserWithDbRead() {
