@@ -13,7 +13,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
-import { IFirestoreTaskData } from './app/task';
+import { IFirestoreTaskData, ITaskData } from './app/task';
 
 export const getTasks = async (db: Firestore, requireRegistered = true) => {
   let q: ReturnType<typeof query>;
@@ -23,7 +23,7 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
     q = query(collection(db, 'tasks'));
   }
   const tasksSnapshot = await getDocs(q);
-  const tasks: IFirestoreTaskData[] = [];
+  const tasks: ITaskData[] = [];
   tasksSnapshot.forEach((doc) => {
     const docData = doc.data() as IFirestoreTaskData;
     tasks.push({

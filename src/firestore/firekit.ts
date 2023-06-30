@@ -541,7 +541,7 @@ export class RoarFirekit {
       this.currentAssignments = {
         assigned: _keys(this.userData?.assignmentsAssigned),
         started: _keys(this.userData?.assignmentsStarted),
-        completed: _keys(this.userData?.assignmentCompleted),
+        completed: _keys(this.userData?.assignmentsCompleted),
       };
 
       // Create a list of all assignments
@@ -549,7 +549,11 @@ export class RoarFirekit {
       // Map that list into an object with the assignment IDs as the keys and the
       // assignment data as the values
       const assignmentInfo = _fromPairs(
-        await Promise.all(_map(allAssignments, async (assignment) => [assignment, this._getAssignment(assignment)])),
+        await Promise.all(
+          _map(allAssignments, async (assignment) => {
+            return this._getAssignment(assignment).then((assignmentData) => [assignment, assignmentData]);
+          }),
+        ),
       );
 
       // Loop through the assignments and filter out non-current ones
@@ -558,7 +562,7 @@ export class RoarFirekit {
         const key = assignmentStatus as keyof ICurrentAssignments;
         this.currentAssignments[key] = _filter(this.currentAssignments[key], (assignmentId) => {
           const { dateOpened, dateClosed } = assignmentInfo[assignmentId];
-          return dateOpened < now && dateClosed > now;
+          return dateOpened.toDate() < now && dateClosed.toDate() > now;
         });
       }
 
@@ -649,32 +653,22 @@ export class RoarFirekit {
   async startAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
-    const userDocRef = this.dbRefs!.admin.user;
 
     if (transaction) {
-      return transaction
-        .update(assignmentDocRef, { started: true })
-        .update(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() });
+      return transaction.update(assignmentDocRef, { started: true });
     } else {
-      return updateDoc(assignmentDocRef, { started: true }).then(() =>
-        updateDoc(userDocRef, { [`assignmentsStarted.${administrationId}`]: new Date() }),
-      );
+      return updateDoc(assignmentDocRef, { started: true });
     }
   }
 
   async completeAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
     const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
-    const userDocRef = this.dbRefs!.admin.user;
 
     if (transaction) {
-      return transaction
-        .update(assignmentDocRef, { completed: true })
-        .update(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() });
+      return transaction.update(assignmentDocRef, { completed: true });
     } else {
-      return updateDoc(assignmentDocRef, { completed: true }).then(() =>
-        updateDoc(userDocRef, { [`assignmentsCompleted.${administrationId}`]: new Date() }),
-      );
+      return updateDoc(assignmentDocRef, { completed: true });
     }
   }
 

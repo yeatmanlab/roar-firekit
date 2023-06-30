@@ -31,6 +31,10 @@ export interface IFirestoreTaskData {
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
 
+export interface ITaskData extends IFirestoreTaskData {
+  id: string;
+}
+
 export interface IFirestoreVariantData {
   name?: string;
   description?: string | null;
