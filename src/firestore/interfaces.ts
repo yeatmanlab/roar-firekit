@@ -135,6 +135,7 @@ export interface IAssignmentData extends DocumentData {
   dateClosed: Date;
   assigningOrgs: IOrgLists;
   assessments: IAssignedAssessmentData[];
+  task?: DocumentData;
 }
 
 export interface IDistrict extends DocumentData {

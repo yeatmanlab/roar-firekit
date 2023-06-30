@@ -34,6 +34,7 @@ import {
   onSnapshot,
   runTransaction,
   updateDoc,
+  DocumentData
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -489,6 +490,7 @@ export class RoarFirekit {
         app: {
           user: doc(this.app.db, 'users', this.roarUid!),
           runs: collection(this.app.db, 'users', this.roarUid!, 'runs'),
+          tasks: collection(this.app.db, 'tasks'),
         },
       };
     } else {
@@ -639,9 +641,18 @@ export class RoarFirekit {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return docSnap.data() as IAssignmentData;
+    if(docSnap.exists()) {
+      const docData = docSnap.data() as IAssessmentData;
+      const taskId = _get(docData, 'taskId');
+      const taskDocRef = doc(this.dbRefs!.app.tasks, taskId);
+      const taskDocSnap = await getDoc(taskDocRef);
+      if(taskDocSnap.exists()){
+        const taskData = taskDocSnap.data() as DocumentData;
+        return {
+          ...docData,
+          task: taskData,
+        } as IAssignmentData;
+      }
     }
   }
 
