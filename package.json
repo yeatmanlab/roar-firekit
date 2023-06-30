@@ -15,7 +15,7 @@
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
     "version": "npm run format && git add -A src",
-    "postversion": "git push && git push --tags",
+    "postversion": "git push upstream && git push upstream --tags",
     "emulate:admin": "source src/__tests__/__utils__/emulate_admin.sh",
     "emulate:assessment": "source src/__tests__/__utils__/emulate_assessment.sh",
     "emulate:start": "npm run emulate:admin && npm run emulate:assessment",
