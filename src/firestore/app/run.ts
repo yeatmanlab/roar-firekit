@@ -125,8 +125,6 @@ export class RoarRun {
       assigningOrgs: this.assigningOrgs || null,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
-      taskRef: this.task.taskRef,
-      variantRef: this.task.variantRef,
       completed: false,
       timeStarted: serverTimestamp(),
       timeFinished: null,
@@ -143,8 +141,6 @@ export class RoarRun {
         return updateDoc(this.user.userRef, {
           tasks: arrayUnion(this.task.taskId),
           variants: arrayUnion(this.task.variantId),
-          taskRefs: arrayUnion(this.task.taskRef),
-          variantRefs: arrayUnion(this.task.variantRef),
         });
       })
       .then(() => this.user.updateFirestoreTimestamp());
