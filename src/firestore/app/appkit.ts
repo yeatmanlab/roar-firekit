@@ -1,4 +1,4 @@
-import { Auth } from 'firebase/auth';
+import { Auth, onAuthStateChanged } from 'firebase/auth';
 
 import { RoarRun } from './run';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
@@ -23,6 +23,8 @@ export class RoarAppkit {
   run: RoarRun;
   task: RoarTaskVariant;
   user: RoarAppUser;
+  private _authenticated: boolean;
+  private _initialized: boolean;
   private _started: boolean;
   /**
    * Create a RoarAppkit.
@@ -39,11 +41,22 @@ export class RoarAppkit {
     this.user = new RoarAppUser(userInfo);
     this.task = new RoarTaskVariant(taskInfo);
     this.run = new RoarRun({ user: this.user, task: this.task, assigningOrgs, runId });
+    this._authenticated = false;
+    this._initialized = false;
     this._started = false;
+
+    onAuthStateChanged(this.auth, (user) => {
+      this._authenticated = Boolean(user);
+    });
   }
 
-  get isAuthenticated(): boolean {
-    return this.auth.currentUser !== null;
+  private async _init() {
+    await this.user.init();
+    this._initialized = true;
+  }
+
+  get authenticated(): boolean {
+    return this._authenticated;
   }
 
   /**
@@ -57,8 +70,12 @@ export class RoarAppkit {
    * @async
    */
   async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
-    if (!this.isAuthenticated) {
+    if (!this.authenticated) {
       throw new Error('User must be authenticated to update their own data.');
+    }
+
+    if (this._initialized === undefined) {
+      await this._init();
     }
 
     return this.user.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
@@ -71,8 +88,12 @@ export class RoarAppkit {
    * @async
    */
   async startRun(additionalRunMetadata?: { [key: string]: string }) {
-    if (!this.isAuthenticated) {
+    if (!this.authenticated) {
       throw new Error('User must be authenticated to start a run.');
+    }
+
+    if (this._initialized === undefined) {
+      await this._init();
     }
 
     return this.run.startRun(additionalRunMetadata).then(() => (this._started = true));

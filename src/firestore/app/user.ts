@@ -93,12 +93,9 @@ export class RoarAppUser {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.userRef = doc(this.db, 'users', this.roarUid!);
     }
-
-    // See if this user is already in the database.
-    this._getUserData();
   }
 
-  private async _getUserData() {
+  async init() {
     return getDoc(this.userRef).then((docSnap) => {
       this.onFirestore = docSnap.exists();
       if (this.onFirestore) {
@@ -131,7 +128,7 @@ export class RoarAppUser {
 
   async checkUserExists() {
     if (this.onFirestore === undefined) {
-      await this._getUserData();
+      await this.init();
     }
 
     if (this.onFirestore === false) {
