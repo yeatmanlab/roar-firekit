@@ -62,7 +62,7 @@
   ],
   "dependencies": {
     "dot-object": "^2.1.4",
-    "firebase": "^9.18.0",
+    "firebase": "^9.23.0",
     "lodash": "^4.17.21",
     "vue": "^3.3.4"
   }
