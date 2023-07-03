@@ -651,7 +651,7 @@ export class RoarFirekit {
         return {
           ...docData,
           task: taskData,
-        } as IAssignmentData;
+        } as unknown as IAssignmentData;
       }
     }
   }
