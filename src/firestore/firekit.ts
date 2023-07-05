@@ -38,7 +38,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeProjectFirekit } from './util';
+import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -140,9 +140,9 @@ export class RoarFirekit {
   }
 
   async init() {
-    this.app = await initializeProjectFirekit(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
+    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
 
-    this.admin = await initializeProjectFirekit(
+    this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
       this._authPersistence,

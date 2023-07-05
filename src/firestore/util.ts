@@ -42,7 +42,7 @@ export interface RealConfigData extends CommonFirebaseConfig {
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
-  measurementId: string;
+  measurementId?: string;
 }
 
 export type FirebaseConfigData = RealConfigData | EmulatorConfigData;
@@ -78,7 +78,7 @@ export interface MarkRawConfig {
 
 type FirebaseProduct = Auth | Firestore | Functions;
 
-export const initializeProjectFirekit = async (
+export const initializeFirebaseProject = async (
   config: FirebaseConfigData,
   name: string,
   authPersistence = AuthPersistence.session,
