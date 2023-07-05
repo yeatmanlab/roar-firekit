@@ -8,6 +8,7 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
+import _forEach from 'lodash/forEach';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -643,16 +644,28 @@ export class RoarFirekit {
     const docSnap = await getDoc(docRef);
     if(docSnap.exists()) {
       const docData = docSnap.data() as IAssessmentData;
-      const taskId = _get(docData, 'taskId');
-      const taskDocRef = doc(this.dbRefs!.app.tasks, taskId);
-      const taskDocSnap = await getDoc(taskDocRef);
-      if(taskDocSnap.exists()){
-        const taskData = taskDocSnap.data() as DocumentData;
-        return {
-          ...docData,
-          task: taskData,
-        } as unknown as IAssignmentData;
-      }
+      const assessments = _get(docData, 'assessments', []);
+      const extendedAssessmentData = [] as IAssignedAssessmentData[];
+      // Loop through these assessments and append their task data to docData
+      _forEach(assessments, async (assessment) => {
+        const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
+        const taskDocSnap = await getDoc(taskDocRef);
+        if (taskDocSnap.exists()) {
+          extendedAssessmentData.push({
+            ...taskDocSnap.data(),
+            ...assessment,
+          });
+        } else {
+          // Doc not found. If we get here, it means that an assignment was somehow created with assessments that don't exist in the assessment firestore.
+          // Maybe we should throw an error. But it's not really the client's fault.
+          // A better solution would be to automatically open a ticket in some ticketing system that we haven't yet created.
+        }
+      });
+      
+      return {
+        ...docData,
+        assessments: extendedAssessmentData,
+      } as unknown as IAssignmentData
     }
   }
 
