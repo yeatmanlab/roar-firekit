@@ -109,12 +109,12 @@ export class RoarAppkit {
    * @async
    */
   async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
-    if (!this.authenticated) {
-      throw new Error('User must be authenticated to update their own data.');
-    }
-
     if (this._initialized === undefined) {
       await this._init();
+    }
+
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to update their own data.');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
