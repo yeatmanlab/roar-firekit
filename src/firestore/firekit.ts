@@ -641,7 +641,7 @@ export class RoarFirekit {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
-    if(docSnap.exists()) {
+    if (docSnap.exists()) {
       const docData = docSnap.data() as IAssignmentData;
       const assessments = _get(docData, 'assessments', []);
       const extendedAssessmentData = [] as IAssignedAssessmentData[];
@@ -660,11 +660,11 @@ export class RoarFirekit {
           // A better solution would be to automatically open a ticket in some ticketing system that we haven't yet created.
         }
       });
-      
+
       return {
         ...docData,
         assessments: extendedAssessmentData,
-      } as IAssignmentData
+      } as IAssignmentData;
     }
   }
 
