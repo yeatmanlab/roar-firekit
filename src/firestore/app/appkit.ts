@@ -128,12 +128,12 @@ export class RoarAppkit {
    * @async
    */
   async startRun(additionalRunMetadata?: { [key: string]: string }) {
-    if (!this.authenticated) {
-      throw new Error('User must be authenticated to start a run.');
-    }
-
     if (this._initialized === undefined) {
       await this._init();
+    }
+
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to start a run.');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
