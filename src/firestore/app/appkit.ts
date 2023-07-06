@@ -1,7 +1,7 @@
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { RoarRun } from './run';
-import { ITaskVariantInput, RoarTaskVariant } from './task';
+import { ITaskVariantInfo, RoarTaskVariant } from './task';
 import { IUserInfo, IUserUpdateInput, RoarAppUser } from './user';
 import { IFirekit, IOrgLists } from '../interfaces';
 import { FirebaseConfigData, initializeFirebaseProject } from '../util';
@@ -10,7 +10,7 @@ interface IAppkitConstructorParams {
   firebaseProject?: IFirekit;
   firebaseConfig?: FirebaseConfigData;
   userInfo: IUserInfo;
-  taskInfo: ITaskVariantInput;
+  taskInfo: ITaskVariantInfo;
   assigningOrgs?: IOrgLists;
   runId?: string;
 }
@@ -27,7 +27,7 @@ export class RoarAppkit {
   task?: RoarTaskVariant;
   user?: RoarAppUser;
   private _userInfo: IUserInfo;
-  private _taskInfo: ITaskVariantInput;
+  private _taskInfo: ITaskVariantInfo;
   private _assigningOrgs?: IOrgLists;
   private _runId?: string;
   private _authenticated: boolean;
@@ -38,7 +38,7 @@ export class RoarAppkit {
    *
    * @param {IAppkitConstructorParams} input
    * @param {IUserInfo} input.userInfo - The user input object
-   * @param {ITaskVariantInput} input.taskInfo - The task input object
+   * @param {ITaskVariantInfo} input.taskInfo - The task input object
    * @param {IOrgLists} input.assigningOrgs - The ID of the study to which this run belongs
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */

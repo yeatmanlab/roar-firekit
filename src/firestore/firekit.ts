@@ -668,9 +668,9 @@ export class RoarFirekit {
     }
   }
 
-  getAssignments(administrationIds: string[]): Promise<IAssignmentData | undefined>[] {
+  async getAssignments(administrationIds: string[]): Promise<(IAssignmentData | undefined)[]> {
     this._verifyAuthentication();
-    return administrationIds.map((id) => this._getAssignment(id));
+    return await Promise.all(_map(administrationIds, (id) => this._getAssignment(id)));
   }
 
   async startAssignment(administrationId: string, transaction?: Transaction) {
