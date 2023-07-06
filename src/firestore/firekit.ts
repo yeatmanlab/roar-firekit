@@ -8,6 +8,7 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
+import _forEach from 'lodash/forEach';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -489,6 +490,7 @@ export class RoarFirekit {
         app: {
           user: doc(this.app.db, 'users', this.roarUid!),
           runs: collection(this.app.db, 'users', this.roarUid!, 'runs'),
+          tasks: collection(this.app.db, 'tasks'),
         },
       };
     } else {
@@ -639,9 +641,30 @@ export class RoarFirekit {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return docSnap.data() as IAssignmentData;
+    if(docSnap.exists()) {
+      const docData = docSnap.data() as IAssignmentData;
+      const assessments = _get(docData, 'assessments', []);
+      const extendedAssessmentData = [] as IAssignedAssessmentData[];
+      // Loop through these assessments and append their task data to docData
+      _forEach(assessments, async (assessment) => {
+        const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
+        const taskDocSnap = await getDoc(taskDocRef);
+        if (taskDocSnap.exists()) {
+          extendedAssessmentData.push({
+            ...taskDocSnap.data(),
+            ...assessment,
+          });
+        } else {
+          // Doc not found. If we get here, it means that an assignment was somehow created with assessments that don't exist in the assessment firestore.
+          // Maybe we should throw an error. But it's not really the client's fault.
+          // A better solution would be to automatically open a ticket in some ticketing system that we haven't yet created.
+        }
+      });
+      
+      return {
+        ...docData,
+        assessments: extendedAssessmentData,
+      } as IAssignmentData
     }
   }
 
