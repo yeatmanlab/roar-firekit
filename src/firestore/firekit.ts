@@ -35,7 +35,6 @@ import {
   onSnapshot,
   runTransaction,
   updateDoc,
-  DocumentData
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -643,7 +642,7 @@ export class RoarFirekit {
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
     if(docSnap.exists()) {
-      const docData = docSnap.data() as IAssessmentData;
+      const docData = docSnap.data() as IAssignmentData;
       const assessments = _get(docData, 'assessments', []);
       const extendedAssessmentData = [] as IAssignedAssessmentData[];
       // Loop through these assessments and append their task data to docData
@@ -665,7 +664,7 @@ export class RoarFirekit {
       return {
         ...docData,
         assessments: extendedAssessmentData,
-      } as unknown as IAssignmentData
+      } as IAssignmentData
     }
   }
 
