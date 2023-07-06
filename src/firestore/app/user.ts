@@ -13,12 +13,15 @@ import _extend from 'lodash/extend';
 import { UserType } from '../interfaces';
 import { removeNull } from '../util';
 
-export interface IUserInput {
+export interface IUserInfo {
   roarUid?: string;
   assessmentUid: string;
   assessmentPid?: string;
   userType?: UserType;
   userMetadata?: { [key: string]: unknown };
+}
+
+export interface IUserInput extends IUserInfo {
   db: Firestore;
 }
 

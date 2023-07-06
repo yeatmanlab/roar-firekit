@@ -780,7 +780,7 @@ export class RoarFirekit {
           };
 
           return new RoarAppkit({
-            auth: this.app!.auth,
+            firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
             assigningOrgs,
             runId,

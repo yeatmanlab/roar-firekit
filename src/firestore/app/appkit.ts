@@ -1,13 +1,15 @@
-import { Auth, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 import { RoarRun } from './run';
 import { ITaskVariantInput, RoarTaskVariant } from './task';
-import { IUserInput, IUserUpdateInput, RoarAppUser } from './user';
-import { IOrgLists } from '../interfaces';
+import { IUserInfo, IUserUpdateInput, RoarAppUser } from './user';
+import { IFirekit, IOrgLists } from '../interfaces';
+import { FirebaseConfigData, initializeFirebaseProject } from '../util';
 
 interface IAppkitConstructorParams {
-  auth: Auth;
-  userInfo: IUserInput;
+  firebaseProject?: IFirekit;
+  firebaseConfig?: FirebaseConfigData;
+  userInfo: IUserInfo;
   taskInfo: ITaskVariantInput;
   assigningOrgs?: IOrgLists;
   runId?: string;
@@ -19,38 +21,75 @@ interface IAppkitConstructorParams {
  * provides methods for interacting with them.
  */
 export class RoarAppkit {
-  auth: Auth;
-  run: RoarRun;
-  task: RoarTaskVariant;
-  user: RoarAppUser;
+  firebaseProject?: IFirekit;
+  firebaseConfig?: FirebaseConfigData;
+  run?: RoarRun;
+  task?: RoarTaskVariant;
+  user?: RoarAppUser;
+  private _userInfo: IUserInfo;
+  private _taskInfo: ITaskVariantInput;
+  private _assigningOrgs?: IOrgLists;
+  private _runId?: string;
   private _authenticated: boolean;
   private _initialized: boolean;
   private _started: boolean;
   /**
    * Create a RoarAppkit.
    *
-   * @param {{userInfo: IUserInput, taskInfo: ITaskVariantInput}=} input
-   * @param {IUserInput} input.userInfo - The user input object
+   * @param {IAppkitConstructorParams} input
+   * @param {IUserInfo} input.userInfo - The user input object
    * @param {ITaskVariantInput} input.taskInfo - The task input object
    * @param {IOrgLists} input.assigningOrgs - The ID of the study to which this run belongs
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ auth, userInfo, taskInfo, assigningOrgs, runId }: IAppkitConstructorParams) {
-    this.auth = auth;
+  constructor({ firebaseProject, firebaseConfig, userInfo, taskInfo, assigningOrgs, runId }: IAppkitConstructorParams) {
+    if (!firebaseProject && !firebaseConfig) {
+      throw new Error('You must provide either a firebaseProjectKit or firebaseConfig');
+    }
 
-    this.user = new RoarAppUser(userInfo);
-    this.task = new RoarTaskVariant(taskInfo);
-    this.run = new RoarRun({ user: this.user, task: this.task, assigningOrgs, runId });
+    if (firebaseProject && firebaseConfig) {
+      throw new Error('You must provide either a firebaseProjectKit or firebaseConfig, not both');
+    }
+
+    this.firebaseConfig = firebaseConfig;
+    this.firebaseProject = firebaseProject;
+
+    this._userInfo = userInfo;
+    this._taskInfo = taskInfo;
+    this._assigningOrgs = assigningOrgs;
+    this._runId = runId;
+
     this._authenticated = false;
     this._initialized = false;
     this._started = false;
-
-    onAuthStateChanged(this.auth, (user) => {
-      this._authenticated = Boolean(user);
-    });
   }
 
   private async _init() {
+    if (this.firebaseConfig) {
+      this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    onAuthStateChanged(this.firebaseProject!.auth, (user) => {
+      this._authenticated = Boolean(user);
+    });
+
+    this.user = new RoarAppUser({
+      ...this._userInfo,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      db: this.firebaseProject!.db,
+    });
+    this.task = new RoarTaskVariant({
+      ...this._taskInfo,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      db: this.firebaseProject!.db,
+    });
+    this.run = new RoarRun({
+      user: this.user,
+      task: this.task,
+      assigningOrgs: this._assigningOrgs,
+      runId: this._runId,
+    });
     await this.user.init();
     this._initialized = true;
   }
@@ -78,7 +117,8 @@ export class RoarAppkit {
       await this._init();
     }
 
-    return this.user.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.user!.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
   }
 
   /**
@@ -96,7 +136,8 @@ export class RoarAppkit {
       await this._init();
     }
 
-    return this.run.startRun(additionalRunMetadata).then(() => (this._started = true));
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
   }
 
   /**
@@ -116,7 +157,8 @@ export class RoarAppkit {
    */
   async finishRun() {
     if (this._started) {
-      return this.run.finishRun();
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return this.run!.finishRun();
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
@@ -180,7 +222,8 @@ export class RoarAppkit {
    */
   async writeTrial(trialData: Record<string, unknown>) {
     if (this._started) {
-      return this.run.writeTrial(trialData);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return this.run!.writeTrial(trialData);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
