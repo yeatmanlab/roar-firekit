@@ -103,7 +103,7 @@ export class RoarRun {
   async startRun(additionalRunMetadata?: { [key: string]: unknown }) {
     await this.user.checkUserExists();
 
-    if (this.task.variantRef === undefined) {
+    if (!this.task.variantRef) {
       await this.task.toFirestore();
     }
 

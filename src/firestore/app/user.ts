@@ -130,11 +130,11 @@ export class RoarAppUser {
   }
 
   async checkUserExists() {
-    if (this.onFirestore === undefined) {
+    if (!this.onFirestore) {
       await this.init();
     }
 
-    if (this.onFirestore === false) {
+    if (!this.onFirestore) {
       throw new Error('This non-guest user is not in Firestore.');
     }
   }

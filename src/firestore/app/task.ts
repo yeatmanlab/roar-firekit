@@ -133,7 +133,7 @@ export class RoarTaskVariant {
 
     // no match, ask Firestore to generate a new document id for the variant
     // and push it to Firestore.
-    if (this.variantId === undefined) {
+    if (!this.variantId) {
       const variantData: IFirestoreVariantData = {
         name: this.variantName,
         description: this.variantDescription,
