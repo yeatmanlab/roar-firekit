@@ -8,7 +8,6 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
-import _forEach from 'lodash/forEach';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -644,23 +643,17 @@ export class RoarFirekit {
     if (docSnap.exists()) {
       const docData = docSnap.data() as IAssignmentData;
       const assessments = _get(docData, 'assessments', []);
-      const extendedAssessmentData = [] as IAssignedAssessmentData[];
       // Loop through these assessments and append their task data to docData
-      _forEach(assessments, async (assessment) => {
+      const extendedAssessmentData = await Promise.all(assessments.map(async (assessment) => {
         const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
         const taskDocSnap = await getDoc(taskDocRef);
-        if (taskDocSnap.exists()) {
-          extendedAssessmentData.push({
-            ...taskDocSnap.data(),
+        if (taskDocSnap.exists()){
+          return {
             ...assessment,
-          });
-        } else {
-          // Doc not found. If we get here, it means that an assignment was somehow created with assessments that don't exist in the assessment firestore.
-          // Maybe we should throw an error. But it's not really the client's fault.
-          // A better solution would be to automatically open a ticket in some ticketing system that we haven't yet created.
+            taskData: taskDocSnap.data()
+          };
         }
-      });
-
+      }));
       return {
         ...docData,
         assessments: extendedAssessmentData,
@@ -670,7 +663,7 @@ export class RoarFirekit {
 
   async getAssignments(administrationIds: string[]): Promise<(IAssignmentData | undefined)[]> {
     this._verifyAuthentication();
-    return await Promise.all(_map(administrationIds, (id) => this._getAssignment(id)));
+    return await Promise.all(_map(administrationIds, async (id) => await this._getAssignment(id)));
   }
 
   async startAssignment(administrationId: string, transaction?: Transaction) {
