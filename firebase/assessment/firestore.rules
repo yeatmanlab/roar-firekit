@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow super_admins to do everything
     match /{everythingInMyDatabase=**} {
-      allow read, write: if request.auth.token.super_admin == true;
+      allow read, write: if request.auth.token.get("super_admin", false) == true;
     }
 
     function loggedIn() {
@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     function roarUid() {
-      return request.auth.token.roarUid;
+      return request.auth.token.get("roarUid", "");
     }
 
     // The auth token has a custom claim for the organizations that the user is
@@ -389,18 +389,22 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
       }
 
-      function canWrite() {
-        return loggedIn() && keysNotUpdated(['registered']);
+      function canCreateTask() {
+        return loggedIn() && !request.resource.data.keys().hasAny(['registered'])
+      }
+
+      function canUpdateTask() {
+        return loggedIn() && keysNotUpdated(['registered']) && isUpdateToOnly(['description', 'lastUpdated']);
       }
 
       allow read: if loggedIn();
-      allow create: if canWrite();
-      allow update: if canWrite() && isUpdateToOnly(['description', 'lastUpdated']);
+      allow create: if canCreateTask();
+      allow update: if canUpdateTask();
       
       match /variants/{variantId} {
         allow read: if loggedIn();
-        allow create: if canWrite();
-        allow update: if canWrite() && isUpdateToOnly(['description', 'lastPlayed']);
+        allow create: if canCreateTask();
+        allow update: if canUpdateTask();
       }
     }
   }
