@@ -16,6 +16,7 @@ import _pick from 'lodash/pick';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
 import { IOrgLists } from '../interfaces';
+import { removeNull } from '../util';
 
 /**
  * Convert a trial data to allow storage on Cloud Firestore.
@@ -135,7 +136,7 @@ export class RoarRun {
       thetaSE: null,
     };
 
-    await setDoc(this.runRef, runData)
+    await setDoc(this.runRef, removeNull(runData))
       .then(() => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         return updateDoc(this.user.userRef, {

@@ -141,7 +141,7 @@ export class RoarTaskVariant {
         lastUpdated: serverTimestamp(),
       };
       this.variantRef = doc(this.variantsCollectionRef);
-      await setDoc(this.variantRef, variantData);
+      await setDoc(this.variantRef, removeNull(variantData));
       this.variantId = this.variantRef.id;
     }
   }
