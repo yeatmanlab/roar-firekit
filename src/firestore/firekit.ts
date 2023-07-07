@@ -8,7 +8,6 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
-import _forEach from 'lodash/forEach';
 import {
   AuthError,
   GoogleAuthProvider,
