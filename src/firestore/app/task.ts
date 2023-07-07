@@ -15,14 +15,17 @@ import {
 } from 'firebase/firestore';
 import { removeNull } from '../util';
 
-export interface ITaskVariantInput {
-  db: Firestore;
+export interface ITaskVariantInfo {
   taskId: string;
   taskName?: string;
   taskDescription?: string;
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
+}
+
+export interface ITaskVariantInput extends ITaskVariantInfo {
+  db: Firestore;
 }
 
 export interface IFirestoreTaskData {

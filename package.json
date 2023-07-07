@@ -1,6 +1,6 @@
 {
   "name": "@bdelab/roar-firekit",
-  "version": "3.1.0",
+  "version": "3.4.2",
   "description": "A library to facilitate Firebase authentication and Cloud Firestore interaction for ROAR apps",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -62,7 +62,7 @@
   ],
   "dependencies": {
     "dot-object": "^2.1.4",
-    "firebase": "^9.18.0",
+    "firebase": "^9.23.0",
     "lodash": "^4.17.21",
     "vue": "^3.3.4"
   }

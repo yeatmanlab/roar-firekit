@@ -39,7 +39,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeProjectFirekit } from './util';
+import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -141,9 +141,9 @@ export class RoarFirekit {
   }
 
   async init() {
-    this.app = await initializeProjectFirekit(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
+    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
 
-    this.admin = await initializeProjectFirekit(
+    this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
       this._authPersistence,
@@ -641,7 +641,7 @@ export class RoarFirekit {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
-    if(docSnap.exists()) {
+    if (docSnap.exists()) {
       const docData = docSnap.data() as IAssignmentData;
       const assessments = _get(docData, 'assessments', []);
       // Loop through these assessments and append their task data to docData
@@ -658,7 +658,7 @@ export class RoarFirekit {
       return {
         ...docData,
         assessments: extendedAssessmentData,
-      } as IAssignmentData
+      } as IAssignmentData;
     }
   }
 
@@ -797,7 +797,7 @@ export class RoarFirekit {
           };
 
           return new RoarAppkit({
-            auth: this.app!.auth,
+            firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
             assigningOrgs,
             runId,
