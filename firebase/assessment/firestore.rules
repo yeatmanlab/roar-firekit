@@ -354,7 +354,7 @@ service cloud.firestore {
         return guestData();
       }
 
-      allow read: if false;
+      allow read: if guestData();
       allow create: if canWriteGuests() && request.resource.data.get('userType', 'nullType') == 'guest';
       allow update: if canWriteGuests() && keysNotUpdated(['userType']);
       allow delete: if false;
