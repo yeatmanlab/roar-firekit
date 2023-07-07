@@ -109,7 +109,7 @@ export class RoarAppkit {
    * @async
    */
   async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
-    if (this._initialized === undefined) {
+    if (!this._initialized) {
       await this._init();
     }
 
@@ -128,7 +128,7 @@ export class RoarAppkit {
    * @async
    */
   async startRun(additionalRunMetadata?: { [key: string]: string }) {
-    if (this._initialized === undefined) {
+    if (!this._initialized) {
       await this._init();
     }
 
