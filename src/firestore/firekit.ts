@@ -654,7 +654,7 @@ export class RoarFirekit {
             taskData: taskDocSnap.data()
           };
         }
-      }))
+      }));
       return {
         ...docData,
         assessments: extendedAssessmentData,
