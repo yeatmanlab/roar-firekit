@@ -644,16 +644,18 @@ export class RoarFirekit {
       const docData = docSnap.data() as IAssignmentData;
       const assessments = _get(docData, 'assessments', []);
       // Loop through these assessments and append their task data to docData
-      const extendedAssessmentData = await Promise.all(assessments.map(async (assessment) => {
-        const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
-        const taskDocSnap = await getDoc(taskDocRef);
-        if (taskDocSnap.exists()){
-          return {
-            ...assessment,
-            taskData: taskDocSnap.data()
-          };
-        }
-      }));
+      const extendedAssessmentData = await Promise.all(
+        assessments.map(async (assessment) => {
+          const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
+          const taskDocSnap = await getDoc(taskDocRef);
+          if (taskDocSnap.exists()) {
+            return {
+              ...assessment,
+              taskData: taskDocSnap.data(),
+            };
+          }
+        }),
+      );
       return {
         ...docData,
         assessments: extendedAssessmentData,
