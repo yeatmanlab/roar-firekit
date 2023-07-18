@@ -224,7 +224,7 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToClaims = (firekit: IFirekit) => {
+  private _listenToClaims(firekit: IFirekit) {
     this._verifyInit();
     if (firekit.user) {
       onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
@@ -239,9 +239,9 @@ export class RoarFirekit {
         }
       });
     }
-  };
+  }
 
-  private _listenToTokenChange = (firekit: IFirekit) => {
+  private _listenToTokenChange(firekit: IFirekit) {
     this._verifyInit();
     onIdTokenChanged(firekit.auth, async (user) => {
       if (user) {
@@ -250,7 +250,7 @@ export class RoarFirekit {
         this._superAdmin = Boolean(idTokenResult.claims.super_admin);
       }
     });
-  };
+  }
 
   private async _setUidCustomClaims() {
     this._verifyAuthentication();
