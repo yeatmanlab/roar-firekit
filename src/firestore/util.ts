@@ -14,14 +14,24 @@ import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
 import { markRaw } from 'vue';
 
-/** Remove null and undefined attributes from an object
+/** Remove null attributes from an object
  * @function
  * @param {Object} obj - Object to remove null attributes from
  * @returns {Object} Object with null attributes removed
  */
 export const removeNull = (obj: object): object => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== null && v !== undefined));
+  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== null));
+};
+
+/** Remove undefined attributes from an object
+ * @function
+ * @param {Object} obj - Object to remove undefined attributes from
+ * @returns {Object} Object with undefined attributes removed
+ */
+export const removeUndefined = (obj: object): object => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined));
 };
 
 export interface CommonFirebaseConfig {

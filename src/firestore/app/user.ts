@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import _extend from 'lodash/extend';
 import { UserType } from '../interfaces';
-import { removeNull } from '../util';
+import { removeUndefined } from '../util';
 
 export interface IUserInfo {
   roarUid?: string;
@@ -115,7 +115,7 @@ export class RoarAppUser {
     if (this.userType !== UserType.guest) {
       throw new Error('Cannot set user data on a non-guest ROAR user.');
     }
-    this.userData = removeNull({
+    this.userData = removeUndefined({
       ...this.userMetadata,
       assessmentPid: this.assessmentPid,
       assessmentUid: this.assessmentUid,
@@ -174,7 +174,7 @@ export class RoarAppUser {
       assessmentPid,
     });
 
-    return updateDoc(this.userRef, removeNull(userData));
+    return updateDoc(this.userRef, removeUndefined(userData));
   }
 
   /**
