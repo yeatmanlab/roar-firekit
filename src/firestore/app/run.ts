@@ -49,7 +49,7 @@ export const convertTrialToFirestore = (trialData: object): object => {
 const requiredTrialFields = ['assessment_stage', 'correct'];
 
 interface ISummaryScores {
-  theta: number | null;
+  thetaEstimate: number | null;
   thetaSE: number | null;
   numAttempted: number;
   numCorrect: number;
@@ -241,7 +241,7 @@ export class RoarRun {
           // Then this subtask has already been added to this run.
           // Simply update the block's scores.
           this.scores.raw[subtask][stage] = {
-            theta: (trialData.theta as number) || null,
+            thetaEstimate: (trialData.thetaEstimate as number) || null,
             thetaSE: (trialData.thetaSE as number) || null,
             numAttempted: (this.scores.raw[subtask][stage]?.numAttempted || 0) + 1,
             numCorrect: (this.scores.raw[subtask][stage]?.numCorrect || 0) + +Boolean(trialData.correct),
@@ -250,7 +250,7 @@ export class RoarRun {
 
           // And populate the score update for Firestore.
           scoreUpdate = {
-            [`scores.raw.${subtask}.${stage}.theta`]: (trialData.theta as number) || null,
+            [`scores.raw.${subtask}.${stage}.thetaEstimate`]: (trialData.thetaEstimate as number) || null,
             [`scores.raw.${subtask}.${stage}.thetaSE`]: (trialData.thetaSE as number) || null,
             [`scores.raw.${subtask}.${stage}.numAttempted`]: increment(1),
             [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
@@ -260,7 +260,7 @@ export class RoarRun {
           // This is the first time this subtask has been added to this run.
           // Initialize the subtask scores.
           this.scores.raw[subtask][stage] = {
-            theta: (trialData.theta as number) || null,
+            thetaEstimate: (trialData.thetaEstimate as number) || null,
             thetaSE: (trialData.thetaSE as number) || null,
             numAttempted: 1,
             numCorrect: trialData.correct ? 1 : 0,
@@ -269,7 +269,7 @@ export class RoarRun {
 
           // And populate the score update for Firestore.
           scoreUpdate = {
-            [`scores.raw.${subtask}.${stage}.theta`]: null,
+            [`scores.raw.${subtask}.${stage}.thetaEstimate`]: null,
             [`scores.raw.${subtask}.${stage}.thetaSE`]: null,
             [`scores.raw.${subtask}.${stage}.numAttempted`]: 1,
             [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? 1 : 0,
