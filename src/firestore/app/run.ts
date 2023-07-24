@@ -97,7 +97,6 @@ export class RoarRun {
   assigningOrgs?: IOrgLists;
   started: boolean;
   completed: boolean;
-  subtasks: string[];
   scores: IRunScores;
   /** Create a ROAR run
    * @param {IRunInput} input
@@ -123,7 +122,6 @@ export class RoarRun {
     this.started = false;
     this.completed = false;
 
-    this.subtasks = [];
     this.scores = {
       raw: {},
       computed: {},
@@ -244,6 +242,7 @@ export class RoarRun {
             thetaEstimate: (trialData.thetaEstimate as number) || null,
             thetaSE: (trialData.thetaSE as number) || null,
             numAttempted: (this.scores.raw[subtask][stage]?.numAttempted || 0) + 1,
+            // For the next two, use the unary + operator to convert the boolean value to 0 or 1.
             numCorrect: (this.scores.raw[subtask][stage]?.numCorrect || 0) + +Boolean(trialData.correct),
             numIncorrect: (this.scores.raw[subtask][stage]?.numIncorrect || 0) + +!trialData.correct,
           };
@@ -280,19 +279,6 @@ export class RoarRun {
         if (computedScoreCallback) {
           // Use the user-provided callback to compute the computed scores.
           this.scores.computed = computedScoreCallback(this.scores.raw);
-
-          // And use dot-object to convert the computed scores into dotted-key/value pairs.
-          // First nest the computed scores into `scores.computed` so that they get updated
-          // in the correct location.
-          const fullUpdatePath = {
-            scores: {
-              computed: this.scores.computed,
-            },
-          };
-          scoreUpdate = {
-            ...scoreUpdate,
-            ...dot.dot(fullUpdatePath),
-          };
         } else {
           // If no computedScoreCallback is provided, we default to
           // numCorrect - numIncorrect for each subtask.
@@ -307,11 +293,23 @@ export class RoarRun {
           });
         }
 
+        // And use dot-object to convert the computed scores into dotted-key/value pairs.
+        // First nest the computed scores into `scores.computed` so that they get updated
+        // in the correct location.
+        const fullUpdatePath = {
+          scores: {
+            computed: this.scores.computed,
+          },
+        };
+        scoreUpdate = {
+          ...scoreUpdate,
+          ...dot.dot(fullUpdatePath),
+        };
+
         if (normedScoreCallback) {
-          this.scores.normed = normedScoreCallback(this.scores.computed);
           const fullUpdatePath = {
             scores: {
-              normed: this.scores.normed,
+              normed: normedScoreCallback(this.scores.computed),
             },
           };
           scoreUpdate = {
