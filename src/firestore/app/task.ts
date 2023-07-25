@@ -13,7 +13,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { removeNull } from '../util';
+import { removeUndefined } from '../util';
 
 export interface ITaskVariantInfo {
   taskId: string;
@@ -105,7 +105,7 @@ export class RoarTaskVariant {
       description: this.taskDescription,
       lastUpdated: serverTimestamp(),
     };
-    await setDoc(this.taskRef, removeNull(taskData), { merge: true });
+    await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
 
     // Check to see if variant exists already by querying for a match on the
     // params.
@@ -124,7 +124,7 @@ export class RoarTaskVariant {
       this.variantRef = doc(this.variantsCollectionRef, this.variantId);
       updateDoc(
         this.variantRef,
-        removeNull({
+        removeUndefined({
           description: this.variantDescription,
           lastUpdated: serverTimestamp(),
         }),
@@ -141,7 +141,7 @@ export class RoarTaskVariant {
         lastUpdated: serverTimestamp(),
       };
       this.variantRef = doc(this.variantsCollectionRef);
-      await setDoc(this.variantRef, removeNull(variantData));
+      await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
     }
   }

@@ -168,8 +168,10 @@ export class RoarAppkit {
    * Add new trial data to this run on Firestore.
    *
    * ROAR expects certain data to be added to each trial:
+   * - assessment_stage: string, either practice_response or test_response
    * - correct: boolean, whether the correct answer was correct
-   * - theta: number (optional), the ability estimate for adaptive assessments
+   * - subtask: string (optional), the name of the subtask
+   * - thetaEstimate: number (optional), the ability estimate for adaptive assessments
    * - thetaSE: number (optional), the standard error of the ability estimate for adaptive assessments
    *
    * This method can be added to individual jsPsych trials by calling it from
