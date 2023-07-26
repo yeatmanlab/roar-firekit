@@ -1,3 +1,6 @@
+[![npm version](https://badge.fury.io/js/@bdelab%2Froar-firekit.svg)](https://badge.fury.io/js/@bdelab%2Froar-firekit)
+![NPM License](https://img.shields.io/npm/l/@bdelab/roar-firekit)
+
 # roar-firekit
 
 Welcome to roar-firekit! Roar-firekit helps you store the data from your [ROAR application](https://dyslexia.stanford.edu/roar/) in [Cloud Firestore](https://cloud.google.com/firestore).
