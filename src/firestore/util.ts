@@ -214,3 +214,13 @@ export const emptyOrgList = () => {
     families: [],
   };
 };
+
+export const waitFor = (conditionFunction: () => boolean) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const poll = (resolve: any) => {
+    if (conditionFunction()) resolve();
+    else setTimeout(() => poll(resolve), 300);
+  };
+
+  return new Promise(poll);
+};
