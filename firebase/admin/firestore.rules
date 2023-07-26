@@ -344,7 +344,7 @@ service cloud.firestore {
     // Prohibit modification of the createdBy field.
     // N.B. This assumes that the assigningOrgs are exhaustively listed. E.g., if district 1 assigns an administration,
     // then schools A and B, which are in district 1, are assumed to also be listed in assigningOrgs.
-    match /administrations/{administrationId} {
+    match /administrations/{administrationId}/{document=**} {
       function userAssignedToAdministration() {
         return roarUid() in resource.data.users;
       }
