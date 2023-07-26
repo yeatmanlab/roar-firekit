@@ -14,6 +14,7 @@ import {
   OAuthProvider,
   ProviderId,
   createUserWithEmailAndPassword,
+  getIdToken,
   getRedirectResult,
   onAuthStateChanged,
   onIdTokenChanged,
@@ -55,6 +56,7 @@ import {
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getTaskAndVariant } from './query-assessment';
+import { waitFor } from './util';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -67,6 +69,7 @@ enum AuthProviderType {
 const RoarProviderId = {
   ...ProviderId,
   CLEVER: 'oidc.clever',
+  ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
 };
 
 interface ICreateUserInput {
@@ -363,7 +366,7 @@ export class RoarFirekit {
     let oAuthAccessToken: string | undefined;
 
     return signInWithPopup(this.admin!.auth, authProvider)
-      .then((adminResult) => {
+      .then(async (adminResult) => {
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminResult);
           // This gives you a Google Access Token. You can use it to access Google APIs.
@@ -375,7 +378,17 @@ export class RoarFirekit {
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
-          return credential;
+
+          const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+          console.log('Waiting for admin.auth.currentUser to be set');
+          await waitFor(() => Boolean(this.admin?.auth.currentUser));
+          console.log('getting IdToken for gse-roar-admin project');
+          const roarAdminIdToken = await getIdToken(this.admin!.auth.currentUser!);
+          const roarAdminCredential = roarAdminProvider.credential({
+            idToken: roarAdminIdToken,
+          });
+
+          return roarAdminCredential;
         }
       })
       .catch(swallowAllowedErrors)
@@ -418,8 +431,9 @@ export class RoarFirekit {
     let authProvider: AuthProviderType | undefined;
 
     return getRedirectResult(this.admin!.auth)
-      .then((adminRedirectResult) => {
+      .then(async (adminRedirectResult) => {
         if (adminRedirectResult !== null) {
+          console.log('Got admin redirection result: ', { adminRedirectResult });
           const providerId = adminRedirectResult.providerId;
           if (providerId === RoarProviderId.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
@@ -429,18 +443,34 @@ export class RoarFirekit {
             oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
+            console.log('Signed into admin project with Clever OIDC');
             const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
+            console.log('credential from redirect result', { credential });
             authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
-            return credential;
+
+            const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+            console.log('Waiting for admin.auth.currentUser to be set');
+            await waitFor(() => Boolean(this.admin?.auth.currentUser));
+            console.log('getting IdToken for gse-roar-admin project');
+            const roarAdminIdToken = await getIdToken(this.admin!.auth.currentUser!);
+            const roarAdminCredential = roarAdminProvider.credential({
+              idToken: roarAdminIdToken,
+            });
+
+            return roarAdminCredential;
           }
         }
       })
       .catch(catchEnableCookiesError)
       .then((credential) => {
         if (credential) {
+          console.log(
+            'Received credential from admin project. Attempting to sign in with credential into app project.',
+            { credential },
+          );
           return signInWithCredential(this.app!.auth, credential);
         }
       })
