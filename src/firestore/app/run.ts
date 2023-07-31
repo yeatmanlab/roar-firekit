@@ -13,6 +13,7 @@ import {
 import _intersection from 'lodash/intersection';
 import _mapValues from 'lodash/mapValues';
 import _pick from 'lodash/pick';
+import _set from 'lodash/set';
 import dot from 'dot-object';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
@@ -231,7 +232,8 @@ export class RoarRun {
         // E.g., ROAR-PA has three subtasks: FSM, LSM, and DEL. Each subtask has its own score.
         // Conversely, ROAR-SWR has no subtasks. It's scores are stored in the 'total' score field.
         // If no subtask is specified, the scores for the 'total' subtask will be updated.
-        const subtask = (trialData.subtask || 'total') as string;
+        const defaultSubtask = 'total';
+        const subtask = (trialData.subtask || defaultSubtask) as string;
         const stage = trialData.assessment_stage === 'test_response' ? 'test' : 'practice';
 
         let scoreUpdate: IScoreUpdate = {};
@@ -255,25 +257,60 @@ export class RoarRun {
             [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
             [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
           };
+
+          if (subtask !== defaultSubtask) {
+            this.scores.raw[defaultSubtask][stage] = {
+              numAttempted: (this.scores.raw[defaultSubtask][stage]?.numAttempted || 0) + 1,
+              // For the next two, use the unary + operator to convert the boolean value to 0 or 1.
+              numCorrect: (this.scores.raw[defaultSubtask][stage]?.numCorrect || 0) + +Boolean(trialData.correct),
+              numIncorrect: (this.scores.raw[defaultSubtask][stage]?.numIncorrect || 0) + +!trialData.correct,
+              thetaEstimate: null,
+              thetaSE: null,
+            };
+
+            scoreUpdate = {
+              ...scoreUpdate,
+              [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
+              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
+              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
+            };
+          }
         } else {
           // This is the first time this subtask has been added to this run.
           // Initialize the subtask scores.
-          this.scores.raw[subtask][stage] = {
+          _set(this.scores.raw, [subtask, stage], {
             thetaEstimate: (trialData.thetaEstimate as number) || null,
             thetaSE: (trialData.thetaSE as number) || null,
             numAttempted: 1,
             numCorrect: trialData.correct ? 1 : 0,
             numIncorrect: trialData.correct ? 0 : 1,
-          };
+          });
 
           // And populate the score update for Firestore.
           scoreUpdate = {
-            [`scores.raw.${subtask}.${stage}.thetaEstimate`]: null,
-            [`scores.raw.${subtask}.${stage}.thetaSE`]: null,
+            [`scores.raw.${subtask}.${stage}.thetaEstimate`]: (trialData.thetaEstimate as number) || null,
+            [`scores.raw.${subtask}.${stage}.thetaSE`]: (trialData.thetaSE as number) || null,
             [`scores.raw.${subtask}.${stage}.numAttempted`]: 1,
             [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? 1 : 0,
             [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? 0 : 1,
           };
+
+          if (subtask !== defaultSubtask) {
+            _set(this.scores.raw, [defaultSubtask, stage], {
+              numAttempted: 1,
+              numCorrect: trialData.correct ? 1 : 0,
+              numIncorrect: trialData.correct ? 0 : 1,
+              thetaEstimate: null,
+              thetaSE: null,
+            });
+
+            scoreUpdate = {
+              ...scoreUpdate,
+              [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
+              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
+              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
+            };
+          }
         }
 
         if (computedScoreCallback) {
@@ -283,13 +320,16 @@ export class RoarRun {
           // If no computedScoreCallback is provided, we default to
           // numCorrect - numIncorrect for each subtask.
           this.scores.computed = _mapValues(this.scores.raw, (subtaskScores) => {
-            if (subtaskScores.test?.numCorrect && subtaskScores.test?.numIncorrect) {
-              const computed = subtaskScores.test.numCorrect - subtaskScores.test.numIncorrect;
-              // Side effect: add the subtask computed scores to the scoreUpdate object.
-              scoreUpdate[`scores.computed.${subtask}`] = computed;
-              return computed;
+            let computed: number | null = null;
+            if (subtaskScores.test) {
+              const numCorrect = subtaskScores.test?.numCorrect || 0;
+              const numIncorrect = subtaskScores.test?.numIncorrect || 0;
+              computed = numCorrect - numIncorrect;
             }
-            return null;
+
+            // Side effect: add the subtask computed scores to the scoreUpdate object.
+            scoreUpdate[`scores.computed.${subtask}`] = computed;
+            return computed;
           });
         }
 
