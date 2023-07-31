@@ -935,8 +935,8 @@ export class RoarFirekit {
 
     const isEmailAvailable = await this.isEmailAvailable(email);
     if (isEmailAvailable) {
-      if (!(_get(userData, 'age_year') || _get(userData, 'age_month') || _get(userData, 'dob'))) {
-        throw new Error('Either age or date of birth must be supplied.');
+      if (!_get(userData, 'dob')) {
+        throw new Error('Student date of birth must be supplied.');
       }
 
       const userDocData: IUserData = {
@@ -951,19 +951,6 @@ export class RoarFirekit {
       };
 
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
-      if (!_get(userData, 'dob')) {
-        let ageInMonths: number;
-        if (_get(userData, 'age_year')) {
-          ageInMonths = Math.round(Number(userData.age_year) * 12);
-        }
-        // Default to age_month if given both fields
-        if (_get(userData, 'age_month')) {
-          ageInMonths = Math.round(Number(userData.age_month));
-        }
-        const calcDob = new Date();
-        calcDob.setMonth(calcDob.getMonth() - ageInMonths!);
-        _set(userDocData, 'studentData.dob', calcDob);
-      }
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
       if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
