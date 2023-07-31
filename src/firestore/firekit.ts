@@ -955,7 +955,9 @@ export class RoarFirekit {
         let ageInMonths: number;
         if (_get(userData, 'age_year')) {
           ageInMonths = Math.round(Number(userData.age_year) * 12);
-        } else if (_get(userData, 'age_month')) {
+        }
+        // Default to age_month if given both fields
+        if (_get(userData, 'age_month')) {
           ageInMonths = Math.round(Number(userData.age_month));
         }
         const calcDob = new Date();
@@ -1011,16 +1013,16 @@ export class RoarFirekit {
           },
         });
       }
-      const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudent');
+      const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
       const adminResponse = await cloudCreateAdminStudent({ email, password, userDocData });
       const adminUid = _get(adminResponse, 'data.adminUid');
 
-      const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudent');
+      const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
       const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userDocData });
       // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
       const assessmentUid = _get(appResponse, 'data.assessmentUid');
 
-      const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateAssessmentUid');
+      const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
       await cloudUpdateUserClaims({ adminUid, assessmentUid });
     } else {
       // Email is not available, reject
