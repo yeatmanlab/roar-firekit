@@ -898,13 +898,11 @@ export class RoarFirekit {
     // First add the administration to the database
     const administrationData: IAdministrationData = {
       createdBy: this.roarUid!,
-      users: [],
       studies: [],
       families: [],
       classes: [],
       schools: [],
       districts: [],
-      grades: [],
       dateCreated: new Date(),
       dateOpened: dateOpen,
       dateClosed: dateClose,
@@ -938,7 +936,7 @@ export class RoarFirekit {
     });
   }
 
-  async unassignAdministrationToUsers(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
+  async unassignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verify_admin();
 
