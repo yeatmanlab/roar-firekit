@@ -70,9 +70,7 @@ const RoarProviderId = {
 };
 
 interface ICreateUserInput {
-  age_month: string | null;
-  age_year: string | null;
-  dob: string | null;
+  dob: string;
   grade: string;
   ell_status?: boolean;
   iep_status?: boolean;
@@ -957,55 +955,18 @@ export class RoarFirekit {
       if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
       if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
 
-      const dateNow = Date.now();
-      // create district entry
-      const districtId = _get(userData, 'district');
-      if (districtId) {
-        _set(userDocData, 'districts', {
-          current: [districtId],
-          all: [districtId],
-          dates: {
-            [districtId!]: {
-              from: dateNow,
-              to: null,
-            },
-          },
-        });
-      }
-      // create school entry
-      const schoolId = _get(userData, 'school');
-      if (schoolId) {
-        _set(userDocData, 'schools', {
-          current: [schoolId],
-          all: [schoolId],
-          dates: {
-            [schoolId!]: {
-              from: dateNow,
-              to: null,
-            },
-          },
-        });
-      }
-      // create class entry
-      const classId = _get(userData, 'class');
-      if (classId) {
-        _set(userDocData, 'classes', {
-          current: [classId],
-          all: [classId],
-          dates: {
-            [classId!]: {
-              from: dateNow,
-              to: null,
-            },
-          },
-        });
-      }
+      if(_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
+      if(_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
+      if(_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
+      if(_get(userData, 'study')) _set(userDocData, 'orgIds.study', userData.study);
+      if(_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
+
       const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
-      const adminResponse = await cloudCreateAdminStudent({ email, password, userDocData });
+      const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
       const adminUid = _get(adminResponse, 'data.adminUid');
 
       const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
-      const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userDocData });
+      const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
       // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
       const assessmentUid = _get(appResponse, 'data.assessmentUid');
 
