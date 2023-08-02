@@ -346,9 +346,14 @@ service cloud.firestore {
     // then schools A and B, which are in district 1, are assumed to also be listed in assigningOrgs.
     match /administrations/{administrationId}/{document=**} {
       function userAssignedToAdministration() {
-        return roarUid() in resource.data.users;
+        let userData = get(/databases/$(database)/documents/users/$(roarUid())).data;
+        return userData.get(['districts', 'all'], []).toSet().hasAny(resource.data.districts)
+        || userData.get(['schools', 'all'], []).toSet().hasAny(resource.data.schools)
+        || userData.get(['classes', 'all'], []).toSet().hasAny(resource.data.classes)
+        || userData.get(['studies', 'all'], []).toSet().hasAny(resource.data.studies)
+        || userData.get(['families', 'all'], []).toSet().hasAny(resource.data.families);
       }
-      
+
       function userCreatedExistingAdministration() {
         return roarUid() == resource.data.createdBy;
       }
