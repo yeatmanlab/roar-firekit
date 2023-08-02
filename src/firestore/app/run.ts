@@ -82,7 +82,7 @@ export interface IRunInput {
 }
 
 interface IScoreUpdate {
-  [key: string]: number | FieldValue | null;
+  [key: string]: number | FieldValue | null | undefined;
 }
 
 /**
@@ -254,8 +254,8 @@ export class RoarRun {
             [`scores.raw.${subtask}.${stage}.thetaEstimate`]: (trialData.thetaEstimate as number) || null,
             [`scores.raw.${subtask}.${stage}.thetaSE`]: (trialData.thetaSE as number) || null,
             [`scores.raw.${subtask}.${stage}.numAttempted`]: increment(1),
-            [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
-            [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
+            [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
+            [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
           };
 
           if (subtask !== defaultSubtask) {
@@ -271,8 +271,8 @@ export class RoarRun {
             scoreUpdate = {
               ...scoreUpdate,
               [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
-              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
-              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
+              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
+              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
             };
           }
         } else {
@@ -307,8 +307,8 @@ export class RoarRun {
             scoreUpdate = {
               ...scoreUpdate,
               [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
-              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : null,
-              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? null : increment(1),
+              [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
+              [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
             };
           }
         }
