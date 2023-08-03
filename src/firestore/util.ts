@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { getPerformance } from 'firebase/performance';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
@@ -162,6 +163,7 @@ export const initializeFirebaseProject = async (
       auth: optionallyMarkRaw('auth', getAuth(app)),
       db: optionallyMarkRaw('db', getFirestore(app)),
       functions: optionallyMarkRaw('functions', getFunctions(app)),
+      perf: getPerformance(app),
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a
