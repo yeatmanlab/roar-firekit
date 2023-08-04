@@ -57,14 +57,14 @@ interface ISummaryScores {
   numIncorrect: number;
 }
 
-interface IRawScores {
+export interface IRawScores {
   [key: string]: {
     practice: ISummaryScores;
     test: ISummaryScores;
   };
 }
 
-interface IComputedScores {
+export interface IComputedScores {
   [key: string]: unknown;
 }
 
@@ -202,7 +202,7 @@ export class RoarRun {
    */
   async writeTrial(
     trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: IRawScores) => IComputedScores,
+    computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
   ) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
@@ -224,7 +224,7 @@ export class RoarRun {
       ...convertTrialToFirestore(trialData),
       serverTimestamp: serverTimestamp(),
     })
-      .then(() => {
+      .then(async () => {
         // Only update scores if the trial was a test or a practice response.
         if (trialData.assessment_stage === 'test_response' || trialData.assessment_stage === 'practice_response') {
           // Here we update the scores for this run. We create scores for each subtask in the task.
@@ -315,7 +315,7 @@ export class RoarRun {
 
           if (computedScoreCallback) {
             // Use the user-provided callback to compute the computed scores.
-            this.scores.computed = computedScoreCallback(this.scores.raw);
+            this.scores.computed = await computedScoreCallback(this.scores.raw);
           } else {
             // If no computedScoreCallback is provided, we default to
             // numCorrect - numIncorrect for each subtask.

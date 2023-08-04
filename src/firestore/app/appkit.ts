@@ -1,6 +1,6 @@
 import { onAuthStateChanged } from 'firebase/auth';
 
-import { RoarRun } from './run';
+import { IComputedScores, IRawScores, RoarRun } from './run';
 import { ITaskVariantInfo, RoarTaskVariant } from './task';
 import { IUserInfo, IUserUpdateInput, RoarAppUser } from './user';
 import { IFirekit, IOrgLists } from '../interfaces';
@@ -222,10 +222,13 @@ export class RoarAppkit {
    * @async
    * @param {*} trialData - An object containing trial data.
    */
-  async writeTrial(trialData: Record<string, unknown>) {
+  async writeTrial(
+    trialData: Record<string, unknown>,
+    computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
+  ) {
     if (this._started) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      return this.run!.writeTrial(trialData);
+      return this.run!.writeTrial(trialData, computedScoreCallback);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
