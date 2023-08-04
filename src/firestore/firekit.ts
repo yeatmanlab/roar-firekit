@@ -1002,11 +1002,11 @@ export class RoarFirekit {
       if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
       if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
 
-      if(_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
-      if(_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
-      if(_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
-      if(_get(userData, 'study')) _set(userDocData, 'orgIds.study', userData.study);
-      if(_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
+      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
+      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
+      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
+      if (_get(userData, 'study')) _set(userDocData, 'orgIds.study', userData.study);
+      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
 
       const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
       const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
