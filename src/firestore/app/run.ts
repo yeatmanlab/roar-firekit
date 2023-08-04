@@ -84,6 +84,14 @@ interface IScoreUpdate {
   [key: string]: number | FieldValue | null | undefined;
 }
 
+type ThetaValue = number | null | undefined;
+const castToTheta = (value: ThetaValue) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return value as number;
+};
+
 /**
  * Class representing a ROAR run.
  *
@@ -241,8 +249,8 @@ export class RoarRun {
             // Then this subtask has already been added to this run.
             // Simply update the block's scores.
             this.scores.raw[subtask][stage] = {
-              thetaEstimate: (trialData.thetaEstimate as number) || null,
-              thetaSE: (trialData.thetaSE as number) || null,
+              thetaEstimate: castToTheta(trialData.thetaEstimate as ThetaValue),
+              thetaSE: castToTheta(trialData.thetaSE as ThetaValue),
               numAttempted: (this.scores.raw[subtask][stage]?.numAttempted || 0) + 1,
               // For the next two, use the unary + operator to convert the boolean value to 0 or 1.
               numCorrect: (this.scores.raw[subtask][stage]?.numCorrect || 0) + +Boolean(trialData.correct),
@@ -251,8 +259,8 @@ export class RoarRun {
 
             // And populate the score update for Firestore.
             scoreUpdate = {
-              [`scores.raw.${subtask}.${stage}.thetaEstimate`]: (trialData.thetaEstimate as number) || null,
-              [`scores.raw.${subtask}.${stage}.thetaSE`]: (trialData.thetaSE as number) || null,
+              [`scores.raw.${subtask}.${stage}.thetaEstimate`]: castToTheta(trialData.thetaEstimate as ThetaValue),
+              [`scores.raw.${subtask}.${stage}.thetaSE`]: castToTheta(trialData.thetaSE as ThetaValue),
               [`scores.raw.${subtask}.${stage}.numAttempted`]: increment(1),
               [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
               [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
@@ -279,8 +287,8 @@ export class RoarRun {
             // This is the first time this subtask has been added to this run.
             // Initialize the subtask scores.
             _set(this.scores.raw, [subtask, stage], {
-              thetaEstimate: (trialData.thetaEstimate as number) || null,
-              thetaSE: (trialData.thetaSE as number) || null,
+              thetaEstimate: castToTheta(trialData.thetaEstimate as ThetaValue),
+              thetaSE: castToTheta(trialData.thetaSE as ThetaValue),
               numAttempted: 1,
               numCorrect: trialData.correct ? 1 : 0,
               numIncorrect: trialData.correct ? 0 : 1,
@@ -288,8 +296,8 @@ export class RoarRun {
 
             // And populate the score update for Firestore.
             scoreUpdate = {
-              [`scores.raw.${subtask}.${stage}.thetaEstimate`]: (trialData.thetaEstimate as number) || null,
-              [`scores.raw.${subtask}.${stage}.thetaSE`]: (trialData.thetaSE as number) || null,
+              [`scores.raw.${subtask}.${stage}.thetaEstimate`]: castToTheta(trialData.thetaEstimate as ThetaValue),
+              [`scores.raw.${subtask}.${stage}.thetaSE`]: castToTheta(trialData.thetaSE as ThetaValue),
               [`scores.raw.${subtask}.${stage}.numAttempted`]: 1,
               [`scores.raw.${subtask}.${stage}.numCorrect`]: trialData.correct ? 1 : 0,
               [`scores.raw.${subtask}.${stage}.numIncorrect`]: trialData.correct ? 0 : 1,
