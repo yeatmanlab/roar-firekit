@@ -64,14 +64,13 @@ interface IRawScores {
   };
 }
 
-interface IComputedOrNormedScores {
-  [key: string]: number | null;
+interface IComputedScores {
+  [key: string]: unknown;
 }
 
 export interface IRunScores {
   raw: IRawScores;
-  computed: IComputedOrNormedScores;
-  normed: IComputedOrNormedScores;
+  computed: IComputedScores;
 }
 
 export interface IRunInput {
@@ -126,7 +125,6 @@ export class RoarRun {
     this.scores = {
       raw: {},
       computed: {},
-      normed: {},
     };
   }
 
@@ -204,7 +202,7 @@ export class RoarRun {
    */
   async writeTrial(
     trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: IRawScores) => IComputedOrNormedScores,
+    computedScoreCallback?: (rawScores: IRawScores) => IComputedScores,
   ) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
@@ -236,7 +234,8 @@ export class RoarRun {
           const defaultSubtask = 'composite';
           const subtask = (trialData.subtask || defaultSubtask) as string;
 
-          const stage = trialData.assessment_stage.split('_')[0];
+          const stage = trialData.assessment_stage.split('_')[0] as 'test' | 'practice';
+
           let scoreUpdate: IScoreUpdate = {};
           if (subtask in this.scores.raw) {
             // Then this subtask has already been added to this run.
