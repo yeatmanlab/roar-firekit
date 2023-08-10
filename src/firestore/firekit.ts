@@ -35,6 +35,7 @@ import {
   onSnapshot,
   runTransaction,
   updateDoc,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -111,6 +112,9 @@ export class RoarFirekit {
   private _listeningToUserDoc: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
+  private _userDocListener?: Unsubscribe;
+  private _adminClaimsListener?: Unsubscribe;
+  private _appClaimsListener?: Unsubscribe;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[IRoarConfigData]] object.
@@ -140,6 +144,9 @@ export class RoarFirekit {
     this._adminOrgs = undefined;
     this.currentAssignments = undefined;
     this.oAuthAccessToken = undefined;
+    this._adminClaimsListener = undefined;
+    this._appClaimsListener = undefined;
+    this._userDocListener = undefined;
   }
 
   async init() {
@@ -158,12 +165,14 @@ export class RoarFirekit {
       if (this.admin) {
         if (user) {
           this.admin.user = user;
-          this._listenToClaims(this.admin);
+          this._adminClaimsListener = this._listenToClaims(this.admin);
           if (this.app?.user) {
-            this._listenToUserDoc();
+            this._userDocListener = this._listenToUserDoc();
           }
         } else {
           this.admin.user = undefined;
+          if (this._adminClaimsListener) this._adminClaimsListener();
+          if (this._userDocListener) this._userDocListener();
           this._scrubAuthProperties();
         }
       }
@@ -173,12 +182,14 @@ export class RoarFirekit {
       if (this.app) {
         if (user) {
           this.app.user = user;
-          this._listenToClaims(this.app);
+          this._appClaimsListener = this._listenToClaims(this.app);
           if (this.admin?.user) {
-            this._listenToUserDoc();
+            this._userDocListener = this._listenToUserDoc();
           }
         } else {
           this.app.user = undefined;
+          if (this._appClaimsListener) this._appClaimsListener();
+          if (this._userDocListener) this._userDocListener();
           this._scrubAuthProperties();
         }
       }
@@ -229,18 +240,17 @@ export class RoarFirekit {
 
   private _listenToUserDoc() {
     this._verifyAuthentication();
-    if (this.dbRefs && !this._listeningToUserDoc) {
-      onSnapshot(this.dbRefs.admin.user, () => {
+    if (this.dbRefs && !this._userDocListener) {
+      return onSnapshot(this.dbRefs.admin.user, () => {
         this.getMyData();
       });
-      this._listeningToUserDoc = true;
     }
   }
 
   private _listenToClaims(firekit: IFirekit) {
     this._verifyInit();
     if (firekit.user) {
-      onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
+      return onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
         const data = doc.data();
         if (data?.lastUpdated) {
           const lastUpdated = new Date(data!.lastUpdated);
