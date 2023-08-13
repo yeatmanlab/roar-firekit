@@ -22,7 +22,11 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
   } else {
     q = query(collection(db, 'tasks'));
   }
+
+  console.log('in getTasks, query: ', { q });
   const tasksSnapshot = await getDocs(q);
+
+  console.log('got Docs', { tasksSnapshot });
   const tasks: ITaskData[] = [];
   tasksSnapshot.forEach((doc) => {
     const docData = doc.data() as IFirestoreTaskData;
@@ -44,7 +48,7 @@ interface IVariant {
   registered?: boolean;
 }
 
-interface ITaskVariants {
+export interface ITaskVariants {
   task: string;
   variants: IVariant[];
 }
@@ -60,8 +64,11 @@ export const getTasksVariants = async (db: Firestore, requireRegistered = true) 
     } else {
       q = query(collection(db, 'tasks'));
     }
+
+    console.log('in getTasksVariants, query: ', { q });
     const snapshot = await getDocs(q);
 
+    console.log('got Docs', { snapshot });
     const variants: IVariant[] = [];
     snapshot.forEach((doc) => {
       if (doc.id !== 'empty') {
@@ -93,7 +100,7 @@ interface IUser {
   classes: string[];
 }
 
-export interface IUserQueryInput {
+interface IUserQueryInput {
   db: Firestore;
   districts: string[];
   schools: string[];
