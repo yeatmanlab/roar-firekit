@@ -882,10 +882,22 @@ export class RoarFirekit {
       const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
       const docSnap = await transaction.get(docRef);
 
+      // Update this assignment's `completedOn` timestamp
       await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
 
       if (docSnap.exists()) {
-        if (docSnap.data().assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn))) {
+        // Now check to see if all of the assessments in this assignment have
+        // been completed.  Because we do this all in one transaction, we have
+        // to put the `.get` call before any `.update` or `.set` calls. Thus, in
+        // the `docSnap` that we are referencing below, the current assessment
+        // will not have a `completedOn` timestamp yet (we set that after we
+        // called `.get`).  We therefore check to see if all of the assessments
+        // have been completed **or** have the current taskId.
+        if (
+          docSnap
+            .data()
+            .assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn) || a.taskId === taskId)
+        ) {
           this.completeAssignment(administrationId, transaction);
         }
       }
