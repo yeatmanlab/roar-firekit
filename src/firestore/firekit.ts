@@ -26,6 +26,7 @@ import {
 } from 'firebase/auth';
 import {
   Transaction,
+  addDoc,
   arrayRemove,
   arrayUnion,
   collection,
@@ -51,12 +52,14 @@ import {
   IRoarConfigData,
   IUserData,
   UserType,
+  IOrg,
   IOrgLists,
   IStudentData,
+  OrgType,
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
-import { getTaskAndVariant } from './query-assessment';
+import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { waitFor } from './util';
 
 enum AuthProviderType {
@@ -113,7 +116,6 @@ export class RoarFirekit {
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
   private _initialized: boolean;
-  private _listeningToUserDoc: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
   private _userDocListener?: Unsubscribe;
@@ -139,7 +141,6 @@ export class RoarFirekit {
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
     this._initialized = false;
-    this._listeningToUserDoc = false;
   }
 
   private _scrubAuthProperties() {
@@ -223,6 +224,13 @@ export class RoarFirekit {
     return !(this.admin!.user === undefined || this.app!.user === undefined);
   }
 
+  isAdmin() {
+    if (this.superAdmin) return true;
+    if (this._adminOrgs === undefined) return false;
+    if (_isEmpty(_union(...Object.values(this._adminOrgs)))) return false;
+    return true;
+  }
+
   private _verifyAuthentication() {
     this._verifyInit();
     if (!this._isAuthenticated()) {
@@ -230,15 +238,10 @@ export class RoarFirekit {
     }
   }
 
-  private _verify_admin() {
-    if (!this._superAdmin) {
-      const errorMessage = 'User is not an administrator.';
-      const error = new Error(errorMessage);
-      if (this._adminOrgs === undefined) {
-        throw error;
-      } else if (_isEmpty(_union(...Object.values(this._adminOrgs)))) {
-        throw error;
-      }
+  private _verifyAdmin() {
+    this._verifyAuthentication();
+    if (!this.isAdmin()) {
+      throw new Error('User is not an administrator.');
     }
   }
 
@@ -948,7 +951,7 @@ export class RoarFirekit {
 
   async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verifyAuthentication();
-    this._verify_admin();
+    this._verifyAdmin();
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
     await updateDoc(docRef, {
@@ -962,7 +965,7 @@ export class RoarFirekit {
 
   async unassignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verifyAuthentication();
-    this._verify_admin();
+    this._verifyAdmin();
 
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
@@ -979,7 +982,7 @@ export class RoarFirekit {
   async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
     throw new Error('Method not currently implemented.');
     // this._verifyAuthentication();
-    // this._verify_admin();
+    // this._verifyAdmin();
 
     // const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
     // const docSnap = await getDoc(docRef);
@@ -1002,7 +1005,7 @@ export class RoarFirekit {
 
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
-    this._verify_admin();
+    this._verifyAdmin();
 
     const isEmailAvailable = await this.isEmailAvailable(email);
     if (isEmailAvailable) {
@@ -1059,7 +1062,7 @@ export class RoarFirekit {
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
-    this._verify_admin();
+    this._verifyAdmin();
 
     const isUsernameAvailable = await this.isUsernameAvailable(username);
     if (isUsernameAvailable) {
@@ -1070,4 +1073,38 @@ export class RoarFirekit {
       throw new Error(`The username ${username} is not available.`);
     }
   }
+
+  async getTasks(requireRegistered = true) {
+    this._verifyAuthentication();
+    return getTasks(this.app!.db, requireRegistered);
+  }
+
+  async getVariants(requireRegistered = true) {
+    this._verifyAuthentication();
+    return getVariants(this.app!.db, requireRegistered);
+  }
+
+  async getOrgs(orgType: OrgType) {
+    this._verifyAuthentication();
+    if (this._superAdmin) {
+      return getOrganizations(this.admin!.db, orgType);
+    } else if (this._adminOrgs) {
+      const orgIds = this._adminOrgs[orgType];
+      return getOrganizations(this.admin!.db, orgType, orgIds);
+    } else {
+      throw new Error('You must be an admin to get organizations.');
+    }
+  }
+
+  async createOrg(orgType: OrgType, orgData: IOrg) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    await addDoc(collection(this.admin!.db, orgType), orgData);
+  }
+
+  // async createAdminUser(userData: IUserData) {
+  //   this._verifyAuthentication();
+  //   this._verifyAdmin();
+
+  // }
 }

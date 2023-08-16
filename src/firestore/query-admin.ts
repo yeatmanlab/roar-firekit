@@ -1,7 +1,7 @@
 import { Firestore, collection, getCountFromServer, getDocs, or, query, where } from 'firebase/firestore';
 import { IUserData } from './interfaces';
 
-export interface IUserQueryInput {
+interface IUserQueryInput {
   db: Firestore;
   districts: string[];
   schools: string[];

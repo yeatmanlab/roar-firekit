@@ -31,7 +31,9 @@ export interface ITaskVariantInput extends ITaskVariantInfo {
 export interface IFirestoreTaskData {
   name?: string;
   description?: string | null;
+  image?: string;
   lastUpdated: ReturnType<typeof serverTimestamp>;
+  registered?: boolean;
 }
 
 export interface ITaskData extends IFirestoreTaskData {
