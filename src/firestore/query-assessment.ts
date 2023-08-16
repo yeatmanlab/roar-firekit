@@ -1,6 +1,7 @@
 import {
   DocumentData,
   DocumentReference,
+  documentId,
   Firestore,
   Query,
   Timestamp,
@@ -13,7 +14,38 @@ import {
   where,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
+import { OrgType } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
+import _chunk from 'lodash/chunk';
+
+export const getOrganizations = async (db: Firestore, orgType: OrgType, orgIds?: string[]) => {
+  let q: ReturnType<typeof query>;
+  if (!orgIds) {
+    q = query(collection(db, orgType));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => {
+      const docData = doc.data() as DocumentData;
+      docData.id = doc.id;
+      return docData;
+    });
+  }
+
+  const orgs = [];
+  const maxQueryDisjunctions = 20;
+  for (const _orgsChunk of _chunk(orgIds, maxQueryDisjunctions)) {
+    q = query(collection(db, orgType), where(documentId(), 'in', _orgsChunk));
+    const snapshot = await getDocs(q);
+    orgs.push(
+      ...snapshot.docs.map((doc) => {
+        const docData = doc.data() as DocumentData;
+        docData.id = doc.id;
+        return docData;
+      }),
+    );
+  }
+
+  return orgs;
+};
 
 export const getTasks = async (db: Firestore, requireRegistered = true) => {
   let q: ReturnType<typeof query>;
@@ -23,18 +55,18 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
     q = query(collection(db, 'tasks'));
   }
 
-  console.log('in getTasks, query: ', { q });
   const tasksSnapshot = await getDocs(q);
 
-  console.log('got Docs', { tasksSnapshot });
   const tasks: ITaskData[] = [];
   tasksSnapshot.forEach((doc) => {
     const docData = doc.data() as IFirestoreTaskData;
     tasks.push({
       id: doc.id,
+      image: docData.image,
       name: docData.name,
       description: docData.description,
-      lastUpdated: docData.lastUpdated,
+      registered: docData.registered,
+      ...docData,
     });
   });
   return tasks;
@@ -43,18 +75,19 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
 interface IVariant {
   id: string;
   name: string;
-  nameId: string;
   params: { [key: string]: unknown };
   registered?: boolean;
+  lastUpdated?: Timestamp;
 }
 
-export interface ITaskVariants {
-  task: string;
-  variants: IVariant[];
+export interface ITaskVariant {
+  id: string;
+  task: ITaskData;
+  variant: IVariant;
 }
 
-export const getTasksVariants = async (db: Firestore, requireRegistered = true) => {
-  const taskVariants: ITaskVariants[] = [];
+export const getVariants = async (db: Firestore, requireRegistered = true) => {
+  const taskVariants: ITaskVariant[] = [];
 
   const tasks = await getTasks(db, requireRegistered);
   for (const task of tasks) {
@@ -62,30 +95,27 @@ export const getTasksVariants = async (db: Firestore, requireRegistered = true) 
     if (requireRegistered) {
       q = query(collection(db, 'tasks', task.id, 'variants'), where('registered', '==', true));
     } else {
-      q = query(collection(db, 'tasks'));
+      q = query(collection(db, 'tasks', task.id, 'variants'));
     }
 
-    console.log('in getTasksVariants, query: ', { q });
     const snapshot = await getDocs(q);
 
-    console.log('got Docs', { snapshot });
-    const variants: IVariant[] = [];
     snapshot.forEach((doc) => {
       if (doc.id !== 'empty') {
         const docData = doc.data() as DocumentData;
-        variants.push({
+        taskVariants.push({
           id: doc.id,
-          name: docData.name,
-          nameId: `${docData.name}-${doc.id}`,
-          params: docData.params,
-          registered: docData.registered,
+          task,
+          variant: {
+            id: doc.id,
+            name: docData.name,
+            params: docData.params,
+            registered: docData.registered,
+            lastUpdated: docData.lastUpdated,
+            ...docData,
+          },
         });
       }
-    });
-
-    taskVariants.push({
-      task: task.id,
-      variants,
     });
   }
 

@@ -138,19 +138,21 @@ export interface IAssignmentData extends DocumentData {
 }
 
 export interface IDistrict extends DocumentData {
-  districtName: string;
+  name: string;
   schools: string[];
   [x: string]: unknown;
 }
 
 export interface ISchool extends DocumentData {
-  schoolName: string;
+  name: string;
+  abbreviation: string;
   districtId: string;
   classes: string[];
   [x: string]: unknown;
 }
 
 export interface IClass extends DocumentData {
+  name: string;
   schoolId: string;
   districtId: string;
   grade: Grade;
@@ -162,5 +164,10 @@ export interface IFamily extends DocumentData {
 }
 
 export interface IStudy extends DocumentData {
+  name: string;
   [x: string]: unknown;
 }
+
+export type IOrg = IDistrict | ISchool | IClass | IFamily | IStudy;
+
+export type OrgType = 'district' | 'school' | 'class' | 'family' | 'study';
