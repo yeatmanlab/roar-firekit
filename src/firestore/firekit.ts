@@ -79,6 +79,7 @@ const RoarProviderId = {
 interface ICreateUserInput {
   dob: string;
   grade: string;
+  pid?: string;
   ell_status?: boolean;
   iep_status?: boolean;
   frl_status?: boolean;
@@ -147,6 +148,7 @@ export class RoarFirekit {
     this.userData = undefined;
     this.roarAppUserInfo = undefined;
     this._adminOrgs = undefined;
+    this._superAdmin = undefined;
     this.currentAssignments = undefined;
     this.oAuthAccessToken = undefined;
     this._adminClaimsListener = undefined;
@@ -1039,7 +1041,13 @@ export class RoarFirekit {
         archived: false,
       };
 
-      // TODO: this can probably be optimized.
+      if (_get(userData, 'pid')){
+        _set(userDocData, 'pid', userData.pid)
+      } else {
+        // Adam: create a PID, set it like on L#1005
+      }
+
+      // TODO: this can probably be optimized. 
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
