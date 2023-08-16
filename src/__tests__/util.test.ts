@@ -1,4 +1,4 @@
-import { removeNull, removeUndefined } from '../firestore/util';
+import { getObjectDiff, removeNull, removeUndefined } from '../firestore/util';
 
 describe('removeNull', () => {
   it('removes null values', () => {
@@ -65,5 +65,28 @@ describe('removeUndefined', () => {
     };
 
     expect(removeUndefined(input)).toStrictEqual(expected);
+  });
+});
+
+describe('getObjectDiff', () => {
+  it('detects changed keys', () => {
+    const obj1 = {
+      a: 1,
+      b: 2,
+      c: { foo: 1, bar: 2 },
+      d: { baz: 1, bat: 2 },
+    };
+
+    const obj2 = {
+      b: 2,
+      c: { foo: 1, bar: 'monkey' },
+      d: { baz: 1, bat: 2 },
+      e: 1,
+    };
+
+    const result = getObjectDiff(obj1, obj2);
+    const expected = ['c', 'e', 'a'];
+
+    expect(result.sort()).toEqual(expected.sort());
   });
 });

@@ -13,6 +13,6 @@
   "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "moduleDirectories": ["node_modules"],
-  "testPathIgnorePatterns": ["/__fixtures__/", "/__utils__/", "/__mocks__/"],
+  "testPathIgnorePatterns": ["/__fixtures__/", "/__utils__/", "/__mocks__/", "lib/"],
   "testTimeout": 20000
 }

@@ -394,7 +394,15 @@ service cloud.firestore {
       }
 
       function canUpdateTask() {
-        return loggedIn() && keysNotUpdated(['registered']) && isUpdateToOnly(['description', 'lastUpdated']);
+        let newParams = request.resource.data.get("params", {});
+        let oldParams = resource.data.get("params", {});
+        let noAddedParams = newParams.diff(oldParams).addedKeys().size() == 0;
+        let noDeletedParams = newParams.diff(oldParams).removedKeys().size() == 0;
+        return (loggedIn()
+          && keysNotUpdated(['registered'])
+          && isUpdateToOnly(['description', 'lastUpdated', 'params'])
+          && noAddedParams
+          && noDeletedParams);
       }
 
       allow read: if loggedIn();
