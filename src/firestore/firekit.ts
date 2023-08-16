@@ -8,6 +8,8 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
+import _head from 'lodash/head';
+import _split from 'lodash/split';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -1045,6 +1047,8 @@ export class RoarFirekit {
         _set(userDocData, 'pid', userData.pid)
       } else {
         // Adam: create a PID, set it like on L#1005
+        _set(userDocData, '', _head(_split(email, "@")))
+        // Also _head and _split imports can be excluded if not used here.
       }
 
       // TODO: this can probably be optimized. 
