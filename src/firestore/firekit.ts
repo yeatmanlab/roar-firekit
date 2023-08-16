@@ -1044,10 +1044,10 @@ export class RoarFirekit {
       };
 
       if (_get(userData, 'pid')){
-        _set(userDocData, 'pid', userData.pid)
+        _set(userDocData, 'assessmentPid', userData.pid)
       } else {
         // Adam: create a PID, set it like on L#1005
-        _set(userDocData, '', _head(_split(email, "@")))
+        _set(userDocData, 'assessmentPid', _head(_split(email, "@")))
         // Also _head and _split imports can be excluded if not used here.
       }
 
