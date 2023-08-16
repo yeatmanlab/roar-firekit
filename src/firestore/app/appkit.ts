@@ -141,6 +141,22 @@ export class RoarAppkit {
   }
 
   /**
+   * Update the ROAR task's game parameters.
+   * This must be called after the startRun() method.
+   *
+   * @method
+   * @async
+   */
+  async updateTaskParams(newParams: { [key: string]: unknown }) {
+    if (this._started) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return this.task!.updateTaskParams(newParams);
+    } else {
+      throw new Error('This run has not started. Use the startRun method first.');
+    }
+  }
+
+  /**
    * Finish the ROAR run by marking it as finished in Firestore.
    * Call this method after the jsPsych experiment finishes. For example:
    *
