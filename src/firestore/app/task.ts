@@ -13,7 +13,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { removeUndefined } from '../util';
+import { getObjectDiff, removeUndefined } from '../util';
 
 export interface ITaskVariantInfo {
   taskId: string;
@@ -146,5 +146,35 @@ export class RoarTaskVariant {
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
     }
+  }
+
+  /**
+   * Update variant params in Firestore
+   * @method
+   * @param {object} newParams - The parameters of the task variant
+   * @async
+   */
+  async updateTaskParams(newParams: { [key: string]: unknown }) {
+    if (this.variantRef === undefined) {
+      throw new Error(
+        'Cannot update task params before writing task to Firestore. Please call `.toFirestore()` first.',
+      );
+    }
+
+    // Only allow updating the task params if we are updating previously null values.
+    const changedParams = getObjectDiff(this.variantParams, newParams);
+    const allowedUpdate = changedParams.every((key) => {
+      return this.variantParams[key] === null && newParams[key] !== undefined;
+    });
+    if (!allowedUpdate) {
+      throw new Error(
+        'Cannot update task params. Only previously null parameters can be updated. You must create a new variant.',
+      );
+    }
+
+    return updateDoc(this.variantRef, {
+      params: removeUndefined(newParams),
+      lastUpdated: serverTimestamp(),
+    });
   }
 }
