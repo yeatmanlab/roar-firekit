@@ -1024,13 +1024,14 @@ export class RoarFirekit {
         archived: false,
       };
 
-      // TODO: this can probably be optimized. 
+      // TODO: this can probably be optimized.
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
       if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
       if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
-      if (_get(userData, 'hispanic_ethnicity')) _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
+      if (_get(userData, 'hispanic_ethnicity'))
+        _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
       if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
       if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
       if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
