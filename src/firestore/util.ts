@@ -14,6 +14,7 @@ import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
 import { markRaw } from 'vue';
+import { str as crc32 } from 'crc-32';
 
 /** Remove null attributes from an object
  * @function
@@ -272,4 +273,16 @@ export const getObjectDiff = (obj1: { [key: string]: unknown }, obj2: { [key: st
   }, Object.keys(obj2));
 
   return diff;
+};
+
+export const crc32String = (inputString: string) => {
+  const modulo = (a: number, b: number) => {
+    return a - Math.floor(a / b) * b;
+  };
+
+  const toUint32 = (x: number) => {
+    return modulo(x, Math.pow(2, 32));
+  };
+
+  return toUint32(crc32(inputString)).toString(16);
 };

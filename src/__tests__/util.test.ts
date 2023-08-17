@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 import { getObjectDiff, removeNull, removeUndefined, replaceValues } from '../firestore/util';
+||||||| parent of 44ab7fd (Add crc32String and compute checksum of email as PID)
+import { removeNull, removeUndefined } from '../firestore/util';
+=======
+import { crc32String, removeNull, removeUndefined } from '../firestore/util';
+>>>>>>> 44ab7fd (Add crc32String and compute checksum of email as PID)
 
 describe('removeNull', () => {
   it('removes null values', () => {
@@ -119,5 +125,14 @@ describe('replaceValues', () => {
 
     expect(result1).toStrictEqual(expected1);
     expect(result2).toStrictEqual(expected2);
+  });
+});
+
+describe('crc32String', () => {
+  it('computes a checksum of emails', () => {
+    const input = 'roar@stanford.edu';
+    const expected = '5a036850';
+
+    expect(crc32String(input)).toBe(expected);
   });
 });

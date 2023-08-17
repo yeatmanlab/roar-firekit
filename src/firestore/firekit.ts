@@ -8,8 +8,6 @@ import _keys from 'lodash/keys';
 import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
-import _head from 'lodash/head';
-import _split from 'lodash/split';
 import {
   AuthError,
   GoogleAuthProvider,
@@ -43,7 +41,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
+import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -1043,15 +1041,14 @@ export class RoarFirekit {
         archived: false,
       };
 
-      if (_get(userData, 'pid')){
-        _set(userDocData, 'assessmentPid', userData.pid)
+      if (_get(userData, 'pid')) {
+        _set(userDocData, 'assessmentPid', userData.pid);
       } else {
-        // Adam: create a PID, set it like on L#1005
-        _set(userDocData, 'assessmentPid', _head(_split(email, "@")))
-        // Also _head and _split imports can be excluded if not used here.
+        const emailCheckSum = crc32String(email);
+        _set(userDocData, 'assessmentPid', emailCheckSum);
       }
 
-      // TODO: this can probably be optimized. 
+      // TODO: this can probably be optimized.
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
