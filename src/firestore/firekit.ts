@@ -919,17 +919,32 @@ export class RoarFirekit {
   }
 
   // These are all methods that will be important for admins, but not necessary for students
-  async createAdministration(assessments: IAssessmentData[], dateOpen: Date, dateClose: Date, sequential = true) {
+  async createAdministration({
+    name,
+    assessments,
+    dateOpen,
+    dateClose,
+    sequential = true,
+    orgs = emptyOrgList(),
+  }: {
+    name: string;
+    assessments: IAssessmentData[];
+    dateOpen: Date;
+    dateClose: Date;
+    sequential: boolean;
+    orgs: IOrgLists;
+  }) {
     this._verifyAuthentication();
 
     // First add the administration to the database
     const administrationData: IAdministrationData = {
+      name,
       createdBy: this.roarUid!,
-      studies: [],
-      families: [],
-      classes: [],
-      schools: [],
-      districts: [],
+      studies: orgs.studies ?? [],
+      families: orgs.families ?? [],
+      classes: orgs.classes ?? [],
+      schools: orgs.schools ?? [],
+      districts: orgs.districts ?? [],
       dateCreated: new Date(),
       dateOpened: dateOpen,
       dateClosed: dateClose,

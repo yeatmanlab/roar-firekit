@@ -109,6 +109,7 @@ export interface IOrgLists extends DocumentData {
 }
 
 export interface IAdministrationData extends IOrgLists {
+  name: string;
   createdBy: string;
   dateCreated: Date;
   dateOpened: Date;
