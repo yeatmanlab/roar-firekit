@@ -174,7 +174,10 @@ export class RoarTaskVariant {
     }
 
     return updateDoc(this.variantRef, {
-      params: cleanParams,
+      params: {
+        ...oldParams,
+        ...cleanParams,
+      },
       lastUpdated: serverTimestamp(),
     });
   }
