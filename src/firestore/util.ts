@@ -12,6 +12,7 @@ import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/fire
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
+import _isPlainObject from 'lodash/isPlainObject';
 import { markRaw } from 'vue';
 
 /** Remove null attributes from an object
@@ -32,6 +33,28 @@ export const removeNull = (obj: object): object => {
 export const removeUndefined = (obj: object): object => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined));
+};
+
+/** Recursively replace values in an object
+ * @function
+ * @param {Object} obj - Object to recursively replace values in
+ * @param {unknown} valueToReplace - Value to replace
+ * @param {unknown} replacementValue - Replacement value
+ * @returns {Object} Object with values recursively replaced
+ */
+export const replaceValues = (
+  obj: { [key: string]: unknown },
+  valueToReplace: unknown = undefined,
+  replacementValue: unknown = null,
+): { [key: string]: unknown } => {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => {
+      if (_isPlainObject(value)) {
+        return [key, replaceValues(value as { [key: string]: unknown }, valueToReplace, replacementValue)];
+      }
+      return [key, value === valueToReplace ? replacementValue : value];
+    }),
+  );
 };
 
 export interface CommonFirebaseConfig {
