@@ -1,4 +1,4 @@
-import { getObjectDiff, removeNull, removeUndefined } from '../firestore/util';
+import { getObjectDiff, removeNull, removeUndefined, replaceValues } from '../firestore/util';
 
 describe('removeNull', () => {
   it('removes null values', () => {
@@ -88,5 +88,36 @@ describe('getObjectDiff', () => {
     const expected = ['c', 'e', 'a'];
 
     expect(result.sort()).toEqual(expected.sort());
+  });
+});
+
+describe('replaceValues', () => {
+  it('replaces values with default args', () => {
+    const input = {
+      a: undefined,
+      b: 1,
+      c: { foo: 1, bar: undefined },
+      d: { baz: 1, bat: { e: 42, f: undefined } },
+    };
+
+    const expected1 = {
+      a: null,
+      b: 1,
+      c: { foo: 1, bar: null },
+      d: { baz: 1, bat: { e: 42, f: null } },
+    };
+
+    const expected2 = {
+      a: undefined,
+      b: '1',
+      c: { foo: '1', bar: undefined },
+      d: { baz: '1', bat: { e: 42, f: undefined } },
+    };
+
+    const result1 = replaceValues(input);
+    const result2 = replaceValues(input, 1, '1');
+
+    expect(result1).toStrictEqual(expected1);
+    expect(result2).toStrictEqual(expected2);
   });
 });

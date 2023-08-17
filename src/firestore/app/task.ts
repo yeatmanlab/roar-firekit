@@ -13,7 +13,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { getObjectDiff, removeUndefined } from '../util';
+import { getObjectDiff, removeUndefined, replaceValues } from '../util';
 
 export interface ITaskVariantInfo {
   taskId: string;
@@ -161,11 +161,12 @@ export class RoarTaskVariant {
       );
     }
 
+    const oldParams = replaceValues(this.variantParams);
+    const cleanParams = replaceValues(newParams);
+
     // Only allow updating the task params if we are updating previously null values.
-    const changedParams = getObjectDiff(this.variantParams, newParams);
-    const allowedUpdate = changedParams.every((key) => {
-      return this.variantParams[key] === null && newParams[key] !== undefined;
-    });
+    const changedParams = getObjectDiff(oldParams, cleanParams);
+    const allowedUpdate = changedParams.every((key) => oldParams[key] === null);
     if (!allowedUpdate) {
       throw new Error(
         'Cannot update task params. Only previously null parameters can be updated. You must create a new variant.',
@@ -173,7 +174,7 @@ export class RoarTaskVariant {
     }
 
     return updateDoc(this.variantRef, {
-      params: removeUndefined(newParams),
+      params: cleanParams,
       lastUpdated: serverTimestamp(),
     });
   }
