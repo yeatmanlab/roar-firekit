@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
+import { updateDoc, arrayUnion } from 'firebase/firestore';
 
 import { IComputedScores, IRawScores, RoarRun } from './run';
 import { ITaskVariantInfo, RoarTaskVariant } from './task';
@@ -69,19 +71,16 @@ export class RoarAppkit {
       this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     onAuthStateChanged(this.firebaseProject!.auth, (user) => {
       this._authenticated = Boolean(user);
     });
 
     this.user = new RoarAppUser({
       ...this._userInfo,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       db: this.firebaseProject!.db,
     });
     this.task = new RoarTaskVariant({
       ...this._taskInfo,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       db: this.firebaseProject!.db,
     });
     this.run = new RoarRun({
@@ -117,7 +116,6 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to update their own data.');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return this.user!.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
   }
 
@@ -136,7 +134,6 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to start a run.');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
   }
 
@@ -149,8 +146,13 @@ export class RoarAppkit {
    */
   async updateTaskParams(newParams: { [key: string]: unknown }) {
     if (this._started) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      return this.task!.updateTaskParams(newParams);
+      return this.task!.updateTaskParams(newParams)
+        .then(() => {
+          return updateDoc(this.user!.userRef, { variants: arrayUnion(this.task!.variantId) });
+        })
+        .then(() => {
+          return updateDoc(this.run!.runRef, { variantId: this.task!.variantId });
+        });
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
@@ -173,7 +175,6 @@ export class RoarAppkit {
    */
   async finishRun() {
     if (this._started) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       return this.run!.finishRun();
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
@@ -243,7 +244,6 @@ export class RoarAppkit {
     computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
   ) {
     if (this._started) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       return this.run!.writeTrial(trialData, computedScoreCallback);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');

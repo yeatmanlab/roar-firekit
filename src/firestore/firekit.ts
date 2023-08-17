@@ -955,11 +955,11 @@ export class RoarFirekit {
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
     await updateDoc(docRef, {
-      districts: arrayUnion(orgs.districts),
-      schools: arrayUnion(orgs.schools),
-      classes: arrayUnion(orgs.classes),
-      studies: arrayUnion(orgs.studies),
-      families: arrayUnion(orgs.families),
+      districts: arrayUnion(...orgs.districts),
+      schools: arrayUnion(...orgs.schools),
+      classes: arrayUnion(...orgs.classes),
+      studies: arrayUnion(...orgs.studies),
+      families: arrayUnion(...orgs.families),
     });
   }
 
@@ -970,11 +970,11 @@ export class RoarFirekit {
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
 
     await updateDoc(docRef, {
-      districts: arrayRemove(orgs.districts),
-      schools: arrayRemove(orgs.schools),
-      classes: arrayRemove(orgs.classes),
-      studies: arrayRemove(orgs.studies),
-      families: arrayRemove(orgs.families),
+      districts: arrayRemove(...orgs.districts),
+      schools: arrayRemove(...orgs.schools),
+      classes: arrayRemove(...orgs.classes),
+      studies: arrayRemove(...orgs.studies),
+      families: arrayRemove(...orgs.families),
     });
   }
 

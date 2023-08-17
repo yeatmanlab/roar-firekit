@@ -173,12 +173,6 @@ export class RoarTaskVariant {
       );
     }
 
-    return updateDoc(this.variantRef, {
-      params: {
-        ...oldParams,
-        ...cleanParams,
-      },
-      lastUpdated: serverTimestamp(),
-    });
+    await this.toFirestore();
   }
 }
