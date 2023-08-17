@@ -1,10 +1,4 @@
-<<<<<<< HEAD
-import { getObjectDiff, removeNull, removeUndefined, replaceValues } from '../firestore/util';
-||||||| parent of 44ab7fd (Add crc32String and compute checksum of email as PID)
-import { removeNull, removeUndefined } from '../firestore/util';
-=======
-import { crc32String, removeNull, removeUndefined } from '../firestore/util';
->>>>>>> 44ab7fd (Add crc32String and compute checksum of email as PID)
+import { crc32String, getObjectDiff, removeNull, removeUndefined, replaceValues } from '../firestore/util';
 
 describe('removeNull', () => {
   it('removes null values', () => {
