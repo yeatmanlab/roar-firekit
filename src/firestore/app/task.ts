@@ -173,6 +173,7 @@ export class RoarTaskVariant {
       );
     }
 
+    this.variantParams = cleanParams;
     await this.toFirestore();
   }
 }
