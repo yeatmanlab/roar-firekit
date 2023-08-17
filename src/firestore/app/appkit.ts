@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
-import { updateDoc, arrayUnion } from 'firebase/firestore';
+import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 
 import { IComputedScores, IRawScores, RoarRun } from './run';
 import { ITaskVariantInfo, RoarTaskVariant } from './task';
@@ -146,7 +146,11 @@ export class RoarAppkit {
    */
   async updateTaskParams(newParams: { [key: string]: unknown }) {
     if (this._started) {
+      const oldVariantId = this.task!.variantId;
       return this.task!.updateTaskParams(newParams)
+        .then(() => {
+          return updateDoc(this.user!.userRef, { variants: arrayRemove(oldVariantId) });
+        })
         .then(() => {
           return updateDoc(this.user!.userRef, { variants: arrayUnion(this.task!.variantId) });
         })
