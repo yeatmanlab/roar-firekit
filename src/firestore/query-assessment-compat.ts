@@ -100,7 +100,7 @@ interface IUser {
   roarUid: string;
   districts: string[];
   schools: string[];
-  studies: string[];
+  groups: string[];
   classes: string[];
 }
 
@@ -109,7 +109,7 @@ export interface IUserQueryInput {
   districts: string[];
   schools: string[];
   classes: string[];
-  studies: string[];
+  groups: string[];
   families: string[];
 }
 
@@ -126,13 +126,13 @@ export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], 
 
     const usersSnapshot = await getDocs(userQuery);
     usersSnapshot.forEach((doc) => {
-      const { districtIds, schoolIds, studyIds, classIds } = getOrgs(doc.data() as IUserDocument);
+      const { districtIds, schoolIds, groupIds, classIds } = getOrgs(doc.data() as IUserDocument);
 
       users.push({
         roarUid: doc.id,
         districts: districtIds,
         schools: schoolIds,
-        studies: studyIds,
+        groups: groupIds,
         classes: classIds,
       });
     });
@@ -145,7 +145,7 @@ interface IUserFilter {
   districts: string[];
   schools: string[];
   classes: string[];
-  studies: string[];
+  groups: string[];
 }
 
 export const formatDate = (date: Date | undefined) => date?.toLocaleString('en-US');
@@ -158,7 +158,7 @@ interface IRunDocument {
   districtId?: string;
   schoolId?: string;
   classId?: string;
-  studyId?: string;
+  groupId?: string;
   taskRef?: DocumentReference;
   variantRef?: DocumentReference;
   [x: string]: unknown;
@@ -174,7 +174,7 @@ interface IRun {
   district?: { id?: string };
   school?: { id?: string };
   class?: { id?: string };
-  study?: { id?: string };
+  group?: { id?: string };
   [x: string]: unknown;
 }
 
@@ -186,13 +186,13 @@ export const getUserRuns = async (
   variantIds: string[],
 ) => {
   const runs: IRun[] = [];
-  const { roarUid, districts, schools, classes, studies } = user;
+  const { roarUid, districts, schools, classes, groups } = user;
 
   const filterOrgs = [
     userHasSelectedOrgs(districts, filters.districts),
     userHasSelectedOrgs(schools, filters.schools),
     userHasSelectedOrgs(classes, filters.classes),
-    userHasSelectedOrgs(studies, filters.studies),
+    userHasSelectedOrgs(groups, filters.groups),
   ];
   const isUserSelected = filterOrgs.every((element) => element === true);
 
@@ -219,7 +219,7 @@ export const getUserRuns = async (
       runData.district = { id: firestoreRun.districtId };
       runData.school = { id: firestoreRun.schoolId };
       runData.class = { id: firestoreRun.classId };
-      runData.study = { id: firestoreRun.studyId };
+      runData.group = { id: firestoreRun.groupId };
 
       delete firestoreRun.taskRef;
       delete firestoreRun.variantRef;
@@ -228,7 +228,7 @@ export const getUserRuns = async (
       delete firestoreRun.districtId;
       delete firestoreRun.schoolId;
       delete firestoreRun.classId;
-      delete firestoreRun.studyId;
+      delete firestoreRun.groupId;
       delete firestoreRun.timeStarted;
       delete firestoreRun.timeFinished;
 
@@ -250,7 +250,7 @@ interface ITrialDocument {
   districtId?: string;
   schoolId?: string;
   classId?: string;
-  studyId?: string;
+  groupId?: string;
   [x: string]: unknown;
 }
 
@@ -264,7 +264,7 @@ interface ITrial {
   district?: { id?: string };
   school?: { id?: string };
   class?: { id?: string };
-  study?: { id?: string };
+  group?: { id?: string };
   [x: string]: unknown;
 }
 
@@ -287,14 +287,14 @@ export const getRunTrials = async (rootDoc: DocumentReference, run: IRun) => {
     trialData.district = { id: firestoreTrial.districtId };
     trialData.school = { id: firestoreTrial.schoolId };
     trialData.class = { id: firestoreTrial.classId };
-    trialData.study = { id: firestoreTrial.studyId };
+    trialData.group = { id: firestoreTrial.groupId };
 
     delete firestoreTrial.taskId;
     delete firestoreTrial.variantId;
     delete firestoreTrial.districtId;
     delete firestoreTrial.schoolId;
     delete firestoreTrial.classId;
-    delete firestoreTrial.studyId;
+    delete firestoreTrial.groupId;
     delete firestoreTrial.timeStarted;
     delete firestoreTrial.timeFinished;
 

@@ -97,7 +97,7 @@ interface ICreateUserInput {
   district: string | null;
   class: string | null;
   family: string | null;
-  study: string | null;
+  group: string | null;
 }
 
 interface ICurrentAssignments {
@@ -593,7 +593,7 @@ export class RoarFirekit {
         schools: emptyOrg(),
         classes: emptyOrg(),
         families: emptyOrg(),
-        studies: emptyOrg(),
+        groups: emptyOrg(),
         archived: false,
       };
     }
@@ -668,7 +668,7 @@ export class RoarFirekit {
     //     where('districts', 'array-contains', this.roarUid!),
     //     where('schools', 'array-contains', this.roarUid!),
     //     where('classes', 'array-contains', this.roarUid!),
-    //     where('studies', 'array-contains', this.roarUid!),
+    //     where('groups', 'array-contains', this.roarUid!),
     //     where('families', 'array-contains', this.roarUid!),
     //   ),
     // );
@@ -942,7 +942,7 @@ export class RoarFirekit {
     const administrationData: IAdministrationData = {
       name,
       createdBy: this.roarUid!,
-      studies: orgs.studies ?? [],
+      groups: orgs.groups ?? [],
       families: orgs.families ?? [],
       classes: orgs.classes ?? [],
       schools: orgs.schools ?? [],
@@ -975,7 +975,7 @@ export class RoarFirekit {
       districts: arrayUnion(...orgs.districts),
       schools: arrayUnion(...orgs.schools),
       classes: arrayUnion(...orgs.classes),
-      studies: arrayUnion(...orgs.studies),
+      groups: arrayUnion(...orgs.groups),
       families: arrayUnion(...orgs.families),
     });
   }
@@ -990,7 +990,7 @@ export class RoarFirekit {
       districts: arrayRemove(...orgs.districts),
       schools: arrayRemove(...orgs.schools),
       classes: arrayRemove(...orgs.classes),
-      studies: arrayRemove(...orgs.studies),
+      groups: arrayRemove(...orgs.groups),
       families: arrayRemove(...orgs.families),
     });
   }
@@ -1037,7 +1037,7 @@ export class RoarFirekit {
         schools: emptyOrg(),
         classes: emptyOrg(),
         families: emptyOrg(),
-        studies: emptyOrg(),
+        groups: emptyOrg(),
         archived: false,
       };
 
@@ -1065,7 +1065,7 @@ export class RoarFirekit {
       if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
       if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
       if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
-      if (_get(userData, 'study')) _set(userDocData, 'orgIds.study', userData.study);
+      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group);
       if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
 
       const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');

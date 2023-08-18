@@ -43,7 +43,7 @@ const fullUserInfo = {
   classId: 'roar-class-id',
   schoolId: 'roar-school-id',
   districtId: 'roar-district-id',
-  studyId: 'roar-study-id',
+  groupId: 'roar-group-id',
   userCategory: 'student',
 }
 ```
