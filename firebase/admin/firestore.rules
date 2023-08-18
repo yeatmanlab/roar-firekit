@@ -21,7 +21,7 @@ service cloud.firestore {
     //   schools?: string[],
     //   classes?: string[],
     //   families?: string[],
-    //   studies?: string[],
+    //   groups?: string[],
     // }
     function getAdminList(orgType) {
       return request.auth.token.get("adminOrgs", {}).get(orgType, []).toSet();
@@ -58,7 +58,7 @@ service cloud.firestore {
         || targetOrgsInAdminList('schools', resource.data.get(['schools', 'all'], []))
         || targetOrgsInAdminList('classes', resource.data.get(['classes', 'all'], []))
         || targetOrgsInAdminList('families', resource.data.get(['families', 'all'], []))
-        || targetOrgsInAdminList('studies', resource.data.get(['studies', 'all'], [])));
+        || targetOrgsInAdminList('groups', resource.data.get(['groups', 'all'], [])));
       }
 
       function canReadExistingUser() {
@@ -70,11 +70,11 @@ service cloud.firestore {
       // We now address creating a new user:
       // If the authenticated user (requestor) is creating a new user (target), then
       // the requestor must satisfy one of the following conditions
-      // - the requestor is a district admin for the districtId of the target. The schoolId and classId must be in that district. And families and studies must be empty.
+      // - the requestor is a district admin for the districtId of the target. The schoolId and classId must be in that district. And families and groups must be empty.
       // - the requestor is a school admin for the schoolId of the target. The districtId of the target must match that of the school. And the classId must be in the school.
       // - the requestor is a class admin for the classId of the target. The districtId and schoolId of the target must match that of the class.
       // - the requestor is a family admin and the target is in the same family. No educational orgs can be set
-      // - the requestor is a study admin for the studyId of the target. No educational orgs can be set
+      // - the requestor is a group admin for the groupId of the target. No educational orgs can be set
 
       function commonKeys() {
         return ['userType', 'name', 'assessmentPid', 'studentData', 'educatorData', 'caregiverData', 'adminData'];
@@ -94,8 +94,8 @@ service cloud.firestore {
         return newUser ? allowedKeys.concat(['assessmentUid']) : allowedKeys;
       }
 
-      function allowedStudyKeys(newUser) {
-        let allowedKeys = commonKeys().concat(['studies']);
+      function allowedGroupKeys(newUser) {
+        let allowedKeys = commonKeys().concat(['groups']);
         return newUser ? allowedKeys.concat(['assessmentUid']) : allowedKeys;
       }
 
@@ -114,8 +114,8 @@ service cloud.firestore {
         return request.resource.data.keys().hasOnly(allowedEduKeys(newUser));
       }
 
-      function requestHasOnlyStudyKeys(newUser) {
-        return request.resource.data.keys().hasAny(allowedStudyKeys(newUser));
+      function requestHasOnlyGroupKeys(newUser) {
+        return request.resource.data.keys().hasAny(allowedGroupKeys(newUser));
       }
 
       function requestHasOnlyFamilyKeys(newUser) {
@@ -132,7 +132,7 @@ service cloud.firestore {
         return noPreviousOrgsOfThisType('districts')
         && noPreviousOrgsOfThisType('schools')
         && noPreviousOrgsOfThisType('classes')
-        && noPreviousOrgsOfThisType('studies')
+        && noPreviousOrgsOfThisType('groups')
         && noPreviousOrgsOfThisType('families');
       }
 
@@ -200,9 +200,9 @@ service cloud.firestore {
 
       function isAdminForNewUser() {
         let familyAdminCondition = (requestOrgsInAdminList('families') && requestHasOnlyFamilyKeys(true));
-        let studyAdminCondition = (requestOrgsInAdminList('studies') && requestHasOnlyStudyKeys(true));
+        let groupAdminCondition = (requestOrgsInAdminList('groups') && requestHasOnlyGroupKeys(true));
 
-        return (familyAdminCondition || studyAdminCondition || isEduAdminForNewUser());
+        return (familyAdminCondition || groupAdminCondition || isEduAdminForNewUser());
       }
 
       function canCreateUser() {
@@ -218,7 +218,7 @@ service cloud.firestore {
       // - the requestor is a school admin for the schoolId of the target. They may not update district info. They can only update common + educational keys. Any added classes must be in the school.
       // - the requestor is a class admin for the classId of the target. The districtId and schoolId of the target must match that of the class.
       // - the requestor is a family admin for a current family of the target. No educational orgs can be set
-      // - the requestor is a study admin for a current study of the target. No educational orgs can be set
+      // - the requestor is a group admin for a current group of the target. No educational orgs can be set
 
       function resourceOrgsInAdminList(orgType) {
         return targetOrgsInAdminList(orgType, resource.data.get([orgType, 'current'], []));
@@ -234,7 +234,7 @@ service cloud.firestore {
         && orgTypeIsConsistent('schools')
         && orgTypeIsConsistent('classes')
         && orgTypeIsConsistent('families')
-        && orgTypeIsConsistent('studies');
+        && orgTypeIsConsistent('groups');
       }
 
       function isDistrictAdmin() {
@@ -260,12 +260,12 @@ service cloud.firestore {
         return resourceOrgsInAdminList('families') && requestHasOnlyFamilyKeys(false)
       }
 
-      function isStudyAdmin() {
-        return resourceOrgsInAdminList('studies') && requestHasOnlyStudyKeys(false)
+      function isGroupAdmin() {
+        return resourceOrgsInAdminList('groups') && requestHasOnlyGroupKeys(false)
       }
 
       function isCurrentAdmin() {
-        return keysNotUpdated(readOnlyKeys().concat(userUpdateKeys())) && (isEduAdmin() || isFamilyAdmin() || isStudyAdmin())
+        return keysNotUpdated(readOnlyKeys().concat(userUpdateKeys())) && (isEduAdmin() || isFamilyAdmin() || isGroupAdmin())
       }
 
       function editingMyData() {
@@ -284,7 +284,7 @@ service cloud.firestore {
           || targetOrgsInAdminList('schools', targetUser.get(['schools', 'all'], []))
           || targetOrgsInAdminList('classes', targetUser.get(['classes', 'all'], []))
           || targetOrgsInAdminList('families', targetUser.get(['families', 'all'], []))
-          || targetOrgsInAdminList('studies', targetUser.get(['studies', 'all'], [])));
+          || targetOrgsInAdminList('groups', targetUser.get(['groups', 'all'], [])));
         }
 
         function canReadExistingUserWithDbRead() {
@@ -311,7 +311,7 @@ service cloud.firestore {
           return (isAdminForAssigningOrg('districts')
           || isAdminForAssigningOrg('schools')
           || isAdminForAssigningOrg('classes')
-          || isAdminForAssigningOrg('studies')
+          || isAdminForAssigningOrg('groups')
           || isAdminForAssigningOrg('families'));
         }
 
@@ -350,7 +350,7 @@ service cloud.firestore {
         return userData.get(['districts', 'all'], []).toSet().hasAny(resource.data.districts)
         || userData.get(['schools', 'all'], []).toSet().hasAny(resource.data.schools)
         || userData.get(['classes', 'all'], []).toSet().hasAny(resource.data.classes)
-        || userData.get(['studies', 'all'], []).toSet().hasAny(resource.data.studies)
+        || userData.get(['groups', 'all'], []).toSet().hasAny(resource.data.groups)
         || userData.get(['families', 'all'], []).toSet().hasAny(resource.data.families);
       }
 
@@ -366,7 +366,7 @@ service cloud.firestore {
         return targetOrgsInAdminList('districts', resource.data.districts)
         || targetOrgsInAdminList('schools', resource.data.schools)
         || targetOrgsInAdminList('classes', resource.data.classes)
-        || targetOrgsInAdminList('studies', resource.data.studies)
+        || targetOrgsInAdminList('groups', resource.data.groups)
         || targetOrgsInAdminList('families', resource.data.families);
       }
 
@@ -374,7 +374,7 @@ service cloud.firestore {
         return targetOrgsInAdminList('districts', request.resource.data.districts)
         || targetOrgsInAdminList('schools', request.resource.data.schools)
         || targetOrgsInAdminList('classes', request.resource.data.classes)
-        || targetOrgsInAdminList('studies', request.resource.data.studies)
+        || targetOrgsInAdminList('groups', request.resource.data.groups)
         || targetOrgsInAdminList('families', request.resource.data.families);
       }
       
@@ -426,11 +426,11 @@ service cloud.firestore {
       || targetOrgsInAdminList('schools', [resource.data.get('schoolId', 'nullId')]);
     }
 
-    // Anyone in a study can read that study's info
-    // Anyone who is an admin for this study can write to it
-    match /studies/{studyId} {
-      allow read: if loggedIn() && getAllOrgs('studies').hasAll([studyId]);
-      allow write: if targetOrgsInAdminList('studies', [studyId]);
+    // Anyone in a group can read that group's info
+    // Anyone who is an admin for this group can write to it
+    match /groups/{groupId} {
+      allow read: if loggedIn() && getAllOrgs('groups').hasAll([groupId]);
+      allow write: if targetOrgsInAdminList('groups', [groupId]);
     }
 
     // Anyone in a family can read that family's info

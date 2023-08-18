@@ -174,8 +174,8 @@ def user_studentData(schoolId, classId, grade, districtId, prevSchools, prevClas
         "previousSchoolIds": list(set(prevSchoolIds)),
         "districtId": districtId,
         "previousDistrictIds": list(set(prevDistricts)),
-        "studies": list_of_doc_ids(random.randint(0, 6)),
-        "previousStudies": list_of_doc_ids(random.randint(1, 6)),
+        "groups": list_of_doc_ids(random.randint(0, 6)),
+        "previousGroups": list_of_doc_ids(random.randint(1, 6)),
     }
 
 
@@ -191,8 +191,8 @@ def user_educatorData(schoolId, districtId, prevSchools):
         "previousSchoolIds": prevSchoolIds,
         "districtId": districtId,
         "previousDistrictIds": prevDistricts,
-        "studies": list_of_doc_ids(random.randint(0, 4)),
-        "previousStudies": list_of_doc_ids(random.randint(2, 6)),
+        "groups": list_of_doc_ids(random.randint(0, 4)),
+        "previousGroups": list_of_doc_ids(random.randint(2, 6)),
     }
 
 
@@ -205,10 +205,10 @@ def user_adminData(districtId, schoolList, classList, usersList):
         "administrationsCreated": [],
         "permissions": arrayOfStrings(random.randint(1, 4), 16),
         "classes": classList,
-        "studies": list_of_doc_ids(random.randint(10, 20)),
+        "groups": list_of_doc_ids(random.randint(10, 20)),
         "districts": districtId,
         "schools": schoolList,
-        "adminLevel": random.choice(["classes", "schools", "districts", "studies"]),
+        "adminLevel": random.choice(["classes", "schools", "districts", "groups"]),
         "users": usersList,
     }
 
@@ -234,8 +234,8 @@ def classId(schoolId):
     return {"schoolId": schoolId, "grade": random.randint(0, 12)}
 
 
-def studies():
-    return {"studyId": random_doc_id()}
+def groups():
+    return {"groupId": random_doc_id()}
 
 
 def administrationId(users, classes, schools, districts, grades, assessment):
@@ -276,12 +276,12 @@ def gse_run(runId, taskId, varientId, completed, trials, classId, districtId, sc
         "classId": classId,
         "districtId": districtId,
         "schoolId": schoolId,
-        "studyId": "",
+        "groupId": "",
         "__collections__": {"trials": trials},
     }
 
 
-def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, variants):
+def gse_user(userId, birthday, classId, schoolId, districtId, groups, tasks, variants):
     birthdayDatetime = datetime.strptime(birthday, "%d/%m/%Y")
     return {
         "roarUid": userId,
@@ -291,8 +291,8 @@ def gse_user(userId, birthday, classId, schoolId, districtId, studies, tasks, va
         "districtId": districtId,
         "assessmentUid": "",
         "schoolId": schoolId,
-        "studyId": "",
-        "studies": studies,
+        "groupId": "",
+        "groups": groups,
         "tasks": tasks,
         "taskRefs": [],
         "variants": variants,

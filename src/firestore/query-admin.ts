@@ -6,7 +6,7 @@ interface IUserQueryInput {
   districts: string[];
   schools: string[];
   classes: string[];
-  studies: string[];
+  groups: string[];
   families: string[];
 }
 
@@ -15,7 +15,7 @@ export const buildUserQueryForAdminDb = ({
   districts = [],
   schools = [],
   classes = [],
-  studies = [],
+  groups = [],
   families = [],
 }: IUserQueryInput) => {
   const userCollectionRef = collection(db, 'users');
@@ -23,7 +23,7 @@ export const buildUserQueryForAdminDb = ({
   if (districts) orgQueryParams.push(where('districts', 'array-contains', districts));
   if (schools) orgQueryParams.push(where('schools', 'array-contains', schools));
   if (classes) orgQueryParams.push(where('classes', 'array-contains', classes));
-  if (studies) orgQueryParams.push(where('studies', 'array-contains', studies));
+  if (groups) orgQueryParams.push(where('groups', 'array-contains', groups));
   if (families) orgQueryParams.push(where('families', 'array-contains', families));
 
   if (orgQueryParams.length === 0) return undefined;
@@ -31,8 +31,8 @@ export const buildUserQueryForAdminDb = ({
   return query(userCollectionRef, or(...orgQueryParams));
 };
 
-export const countUsersInAdminDb = async ({ db, districts, schools, classes, studies, families }: IUserQueryInput) => {
-  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, studies, families });
+export const countUsersInAdminDb = async ({ db, districts, schools, classes, groups, families }: IUserQueryInput) => {
+  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, groups, families });
   if (userQuery) {
     const snapshot = await getCountFromServer(userQuery);
     return snapshot.data().count;
@@ -41,8 +41,8 @@ export const countUsersInAdminDb = async ({ db, districts, schools, classes, stu
   }
 };
 
-export const getUsersInAdminDb = async ({ db, districts, schools, classes, studies, families }: IUserQueryInput) => {
-  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, studies, families });
+export const getUsersInAdminDb = async ({ db, districts, schools, classes, groups, families }: IUserQueryInput) => {
+  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, groups, families });
   if (userQuery) {
     const snapshot = await getDocs(userQuery);
     const users: IUserData[] = [];

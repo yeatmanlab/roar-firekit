@@ -193,22 +193,22 @@ export interface IUserDocument {
   schools?: string[];
   classId?: string;
   classes?: string[];
-  studyId?: string;
-  studies?: string[];
+  groupId?: string;
+  groups?: string[];
 }
 
 export const getOrgs = (docData: IUserDocument) => {
-  const { districtId, schoolId, schools, classId, classes, studyId, studies } = docData;
+  const { districtId, schoolId, schools, classId, classes, groupId, groups } = docData;
   const districtIds = mergeIds(districtId, undefined);
   const schoolIds = mergeIds(schoolId, schools);
   const classIds = mergeIds(classId, classes);
-  const studyIds = mergeIds(studyId, studies);
+  const groupIds = mergeIds(groupId, groups);
 
   return {
     districtIds,
     schoolIds,
     classIds,
-    studyIds,
+    groupIds,
   };
 };
 
@@ -233,7 +233,7 @@ export const emptyOrgList = () => {
     districts: [],
     schools: [],
     classes: [],
-    studies: [],
+    groups: [],
     families: [],
   };
 };

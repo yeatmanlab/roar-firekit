@@ -82,7 +82,7 @@ export interface IUserData extends DocumentData {
   classes: IOrgs;
   schools: IOrgs;
   districts: IOrgs;
-  studies: IOrgs;
+  groups: IOrgs;
   families: IOrgs;
   archived: boolean;
   studentData?: IStudentData;
@@ -104,7 +104,7 @@ export interface IOrgLists extends DocumentData {
   districts: string[];
   schools: string[];
   classes: string[];
-  studies: string[];
+  groups: string[];
   families: string[];
 }
 
@@ -164,11 +164,11 @@ export interface IFamily extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IStudy extends DocumentData {
+export interface IGroup extends DocumentData {
   name: string;
   [x: string]: unknown;
 }
 
-export type IOrg = IDistrict | ISchool | IClass | IFamily | IStudy;
+export type IOrg = IDistrict | ISchool | IClass | IFamily | IGroup;
 
-export type OrgType = 'district' | 'school' | 'class' | 'family' | 'study';
+export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';

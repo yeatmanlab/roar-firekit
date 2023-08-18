@@ -41,7 +41,7 @@ export class RoarAppkit {
    * @param {IAppkitConstructorParams} input
    * @param {IUserInfo} input.userInfo - The user input object
    * @param {ITaskVariantInfo} input.taskInfo - The task input object
-   * @param {IOrgLists} input.assigningOrgs - The ID of the study to which this run belongs
+   * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
   constructor({ firebaseProject, firebaseConfig, userInfo, taskInfo, assigningOrgs, runId }: IAppkitConstructorParams) {
