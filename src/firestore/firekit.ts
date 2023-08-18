@@ -41,7 +41,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
+import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
   IAssessmentData,
@@ -79,6 +79,7 @@ const RoarProviderId = {
 interface ICreateUserInput {
   dob: string;
   grade: string;
+  pid?: string;
   ell_status?: boolean;
   iep_status?: boolean;
   frl_status?: boolean;
@@ -147,6 +148,7 @@ export class RoarFirekit {
     this.userData = undefined;
     this.roarAppUserInfo = undefined;
     this._adminOrgs = undefined;
+    this._superAdmin = undefined;
     this.currentAssignments = undefined;
     this.oAuthAccessToken = undefined;
     this._adminClaimsListener = undefined;
@@ -1018,7 +1020,7 @@ export class RoarFirekit {
     // }
   }
 
-  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput, pidPrefix = '') {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1038,6 +1040,13 @@ export class RoarFirekit {
         studies: emptyOrg(),
         archived: false,
       };
+
+      if (_get(userData, 'pid')) {
+        _set(userDocData, 'assessmentPid', userData.pid);
+      } else {
+        const emailCheckSum = crc32String(email);
+        _set(userDocData, 'assessmentPid', pidPrefix + emailCheckSum);
+      }
 
       // TODO: this can probably be optimized.
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
@@ -1076,14 +1085,19 @@ export class RoarFirekit {
     }
   }
 
-  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
+  async createStudentWithUsernamePassword(
+    username: string,
+    password: string,
+    userData: ICreateUserInput,
+    pidPrefix = '',
+  ) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const isUsernameAvailable = await this.isUsernameAvailable(username);
     if (isUsernameAvailable) {
       const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData);
+      await this.createStudentWithEmailPassword(email, password, userData, pidPrefix);
     } else {
       // Username is not available, reject
       throw new Error(`The username ${username} is not available.`);
