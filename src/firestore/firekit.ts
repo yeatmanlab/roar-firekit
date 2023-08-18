@@ -61,6 +61,7 @@ import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { waitFor } from './util';
+import { getAdministrations } from './query-admin';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -1112,6 +1113,20 @@ export class RoarFirekit {
   async getVariants(requireRegistered = true) {
     this._verifyAuthentication();
     return getVariants(this.app!.db, requireRegistered);
+  }
+
+  async getMyAdministrations(includeStats = true) {
+    this._verifyAuthentication();
+    if (this._superAdmin || this._adminOrgs) {
+      return getAdministrations({
+        db: this.admin!.db,
+        isSuperAdmin: this._superAdmin || false,
+        orgs: (this._adminOrgs as IOrgLists) || undefined,
+        includeStats,
+      });
+    } else {
+      throw new Error('You must be an admin to get organizations.');
+    }
   }
 
   async getOrgs(orgType: OrgType) {

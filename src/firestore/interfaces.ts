@@ -108,7 +108,10 @@ export interface IOrgLists extends DocumentData {
   families: string[];
 }
 
+export type OrgListKey = 'districts' | 'schools' | 'classes' | 'groups' | 'families';
+
 export interface IAdministrationData extends IOrgLists {
+  id?: string;
   name: string;
   createdBy: string;
   dateCreated: Date;

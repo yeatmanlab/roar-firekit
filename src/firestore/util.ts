@@ -10,12 +10,14 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
-import _cloneDeep from 'lodash/cloneDeep';
+import _chunk from 'lodash/chunk';
 import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
+import _union from 'lodash/union';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
+import { IOrgLists, OrgListKey } from './interfaces';
 
 /** Remove null attributes from an object
  * @function
@@ -230,7 +232,7 @@ export const emptyOrg = () => {
   };
 };
 
-export const emptyOrgList = () => {
+export const emptyOrgList = (): IOrgLists => {
   return {
     districts: [],
     schools: [],
@@ -293,51 +295,110 @@ interface IMap {
   [key: string]: unknown;
 }
 
-interface IMapWithChildren extends IMap {
-  children?: IMap[];
-}
-
-interface IMapWithGrandchildren extends IMap {
-  children?: IMapWithChildren[];
-}
-
 interface IOrgMaps {
-  districts: IMapWithGrandchildren[];
-  schools: IMapWithChildren[];
+  districts: IMap[];
+  schools: IMap[];
   classes: IMap[];
   groups?: IMap[];
   families?: IMap[];
 }
 
-export const getHierarchicalOrgs = (orgs: IOrgMaps) => {
-  const { districts, schools, classes, groups, families } = orgs;
-  const eduOrgs = _cloneDeep(districts) as IMapWithGrandchildren[];
-  const _schools = _cloneDeep(schools) as IMapWithChildren[];
-  for (const _class of classes) {
-    const schoolId = _class.schoolId;
-    const schoolIndex = _schools.findIndex((school) => school.id === schoolId);
-    if (_schools[schoolIndex].children === undefined) {
-      _schools[schoolIndex].children = [_class];
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      _schools[schoolIndex].children!.push(_class);
-    }
-  }
+interface ITreeTableEntry {
+  key: string;
+  data: IMap;
+  children?: ITreeTableEntry[];
+}
+
+export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
+  const { districts, schools, classes, groups = [], families = [] } = inputOrgs;
+  const orgs = districts.map((element, index) => ({
+    key: index.toString(),
+    data: {
+      ...element,
+      orgType: 'district',
+    },
+  })) as ITreeTableEntry[];
+
+  const _schools = schools.map((element, index) => ({
+    key: index.toString(),
+    data: {
+      ...element,
+      orgType: 'school',
+    },
+  })) as ITreeTableEntry[];
 
   for (const _school of _schools) {
-    const districtId = _school.districtId;
-    const districtIndex = eduOrgs.findIndex((district) => district.id === districtId);
-    if (eduOrgs[districtIndex].children === undefined) {
-      eduOrgs[districtIndex].children = [_school];
+    const districtId = _school.data.districtId;
+    const districtIndex = orgs.findIndex((district) => district.data.id === districtId);
+    const _district = orgs[districtIndex];
+    const _classesForThisSchool = classes.filter((c) => c.schoolId === _school.data.id);
+    if (_district.children === undefined) {
+      orgs[districtIndex].children = [
+        {
+          ..._school,
+          key: `${_district.key}-0`,
+          children: _classesForThisSchool.map((element, index) => ({
+            key: `${_district.key}-0-${index}`,
+            data: {
+              ...element,
+              orgType: 'class',
+            },
+          })),
+        },
+      ];
     } else {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      eduOrgs[districtIndex].children!.push(_school);
+      orgs[districtIndex].children!.push({
+        ..._school,
+        key: `${_district.key}-${_district.children.length}`,
+        children: _classesForThisSchool.map((element, index) => ({
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          key: `${_district.key}-${_district.children!.length}-${index}`,
+          data: {
+            ...element,
+            orgType: 'class',
+          },
+        })),
+      });
     }
   }
 
-  return {
-    eduOrgs,
-    groups,
-    families,
-  };
+  for (const _group of groups) {
+    orgs.push({
+      key: orgs.length.toString(),
+      data: {
+        ..._group,
+        orgType: 'group',
+      },
+    });
+  }
+
+  for (const _family of families) {
+    orgs.push({
+      key: orgs.length.toString(),
+      data: {
+        ..._family,
+        orgType: 'family',
+      },
+    });
+  }
+
+  return orgs;
+};
+
+export const chunkOrgLists = (inputOrgs: IOrgLists, chunkSize = 30) => {
+  const allOrgs: string[] = _union(...Object.values(inputOrgs));
+  if (allOrgs.length <= chunkSize) return [inputOrgs];
+
+  const chunkedOrgs = _chunk(allOrgs, chunkSize);
+  return chunkedOrgs.map((chunk) => {
+    const orgChunk = emptyOrgList();
+    for (const org of chunk) {
+      for (const orgType in orgChunk) {
+        orgChunk[orgType as OrgListKey].push(org);
+      }
+    }
+
+    return orgChunk;
+  });
 };

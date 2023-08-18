@@ -1,12 +1,14 @@
-import { Firestore, collection, getCountFromServer, getDocs, or, query, where } from 'firebase/firestore';
+import { Firestore, collection, doc, getCountFromServer, getDoc, getDocs, or, query, where } from 'firebase/firestore';
 import { IAdministrationData, IOrgLists, IUserData } from './interfaces';
-import { emptyOrgList } from './util';
+import { chunkOrgLists, emptyOrgList } from './util';
 import _union from 'lodash/union';
+import _uniqBy from 'lodash/uniqBy';
 
 interface IGetterInput {
   db: Firestore;
-  orgs: IOrgLists;
+  orgs?: IOrgLists;
   isSuperAdmin: boolean;
+  includeStats?: boolean;
 }
 
 interface IQueryInput extends IGetterInput {
@@ -69,6 +71,9 @@ export const countUsersInAdminDb = async ({ db, orgs = emptyOrgList(), isSuperAd
 };
 
 export const getUsersInAdminDb = async ({ db, orgs, isSuperAdmin = false }: IGetterInput) => {
+  // const chunkedOrgs = chunkOrgLists(orgs, 20);
+  // const users: IUserData[] = [];
+
   const userQuery = buildQueryForAdminCollection({
     db,
     collectionName: 'users',
@@ -79,8 +84,8 @@ export const getUsersInAdminDb = async ({ db, orgs, isSuperAdmin = false }: IGet
   if (userQuery) {
     const snapshot = await getDocs(userQuery);
     const users: IUserData[] = [];
-    snapshot.forEach((doc) => {
-      users.push(doc.data() as IUserData);
+    snapshot.forEach((docSnap) => {
+      users.push(docSnap.data() as IUserData);
     });
     return users;
   } else {
@@ -88,22 +93,45 @@ export const getUsersInAdminDb = async ({ db, orgs, isSuperAdmin = false }: IGet
   }
 };
 
-export const getAdministrations = async ({ db, orgs = emptyOrgList(), isSuperAdmin = false }: IGetterInput) => {
-  const query = buildQueryForAdminCollection({
-    db,
-    collectionName: 'administrations',
-    nested: false,
-    orgs,
-    isSuperAdmin,
-  });
-  if (query) {
-    const snapshot = await getDocs(query);
-    const administrations: IAdministrationData[] = [];
-    snapshot.forEach((doc) => {
-      administrations.push(doc.data() as IAdministrationData);
+export const getAdministrations = async ({
+  db,
+  orgs = emptyOrgList(),
+  isSuperAdmin = false,
+  includeStats = true,
+}: IGetterInput) => {
+  const chunkedOrgs = chunkOrgLists(orgs, 20);
+
+  const administrations: IAdministrationData[] = [];
+
+  for (const orgsChunk of chunkedOrgs) {
+    const query = buildQueryForAdminCollection({
+      db,
+      collectionName: 'administrations',
+      nested: false,
+      orgs: orgsChunk,
+      isSuperAdmin,
     });
-    return administrations;
-  } else {
-    return [];
+
+    if (query) {
+      const snapshot = await getDocs(query);
+      const administrationsChunk: IAdministrationData[] = [];
+      for (const docSnap of snapshot.docs) {
+        const docData = docSnap.data();
+        if (includeStats) {
+          const completionDocRef = doc(docSnap.ref, 'stats', 'completion');
+          const completionDocSnap = await getDoc(completionDocRef);
+          if (completionDocSnap.exists()) {
+            docData.stats = completionDocSnap.data();
+          }
+        }
+        administrations.push({
+          id: docSnap.id,
+          ...docData,
+        } as IAdministrationData);
+      }
+      administrations.push(...administrationsChunk);
+    }
   }
+
+  return _uniqBy(administrations, (a: IAdministrationData) => a.id);
 };

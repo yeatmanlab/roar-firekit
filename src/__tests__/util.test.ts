@@ -1,6 +1,6 @@
 import {
   crc32String,
-  getHierarchicalOrgs,
+  getTreeTableOrgs,
   getObjectDiff,
   removeNull,
   removeUndefined,
@@ -138,97 +138,116 @@ describe('crc32String', () => {
   });
 });
 
-describe('getHierarchicalOrgs', () => {
+describe('getTreeTableOrgs', () => {
   it('correctly nests orgs', () => {
-    const expected = {
-      eduOrgs: [
-        {
-          id: '0',
+    const expected = [
+      {
+        key: '0',
+        data: {
+          id: 'ab',
           foo: 'bar',
-          children: [
-            {
-              districtId: '0',
-              id: '0-0',
+          orgType: 'district',
+        },
+        children: [
+          {
+            key: '0-0',
+            data: {
+              districtId: 'ab',
+              id: 'cd',
               baz: 'bat',
-              children: [
-                { schoolId: '0-0', id: '0-0-0', data: 42 },
-                { schoolId: '0-0', id: '0-0-1', data: 33 },
-              ],
+              orgType: 'school',
             },
-            {
-              districtId: '0',
-              id: '0-1',
-              children: [{ schoolId: '0-1', id: '0-1-0', data: 22 }],
+            children: [
+              { key: '0-0-0', data: { schoolId: 'cd', id: 'de', data: 42, orgType: 'class' } },
+              { key: '0-0-1', data: { schoolId: 'cd', id: 'fg', data: 33, orgType: 'class' } },
+            ],
+          },
+          {
+            key: '0-1',
+            data: {
+              id: 'hi',
+              districtId: 'ab',
+              orgType: 'school',
             },
-          ],
-        },
-        {
-          id: '1',
+            children: [{ key: '0-1-0', data: { schoolId: 'hi', id: 'jk', data: 22, orgType: 'class' } }],
+          },
+        ],
+      },
+      {
+        key: '1',
+        data: {
+          id: 'lm',
           foo: 'buzz',
-          children: [
-            {
-              districtId: '1',
-              id: '1-0',
-              baz: 'flurf',
-              children: [
-                { schoolId: '1-0', id: '1-0-0', data: 52 },
-                { schoolId: '1-0', id: '1-0-1', data: 43 },
-              ],
-            },
-            {
-              districtId: '1',
-              id: '1-1',
-              children: [{ schoolId: '1-1', id: '1-1-0', data: 32 }],
-            },
-          ],
+          orgType: 'district',
         },
-      ],
-      groups: undefined,
-      families: undefined,
-    };
-
+        children: [
+          {
+            key: '1-0',
+            data: {
+              districtId: 'lm',
+              id: 'no',
+              baz: 'flurf',
+              orgType: 'school',
+            },
+            children: [
+              { key: '1-0-0', data: { schoolId: 'no', id: 'pq', data: 52, orgType: 'class' } },
+              { key: '1-0-1', data: { schoolId: 'no', id: 'rs', data: 43, orgType: 'class' } },
+            ],
+          },
+          {
+            key: '1-1',
+            data: {
+              districtId: 'lm',
+              id: 'tu',
+              orgType: 'school',
+            },
+            children: [{ key: '1-1-0', data: { schoolId: 'tu', id: 'vw', data: 32, orgType: 'class' } }],
+          },
+        ],
+      },
+    ];
     const input = {
       districts: [
         {
-          id: '0',
+          id: 'ab',
           foo: 'bar',
         },
         {
-          id: '1',
+          id: 'lm',
           foo: 'buzz',
         },
       ],
       schools: [
         {
-          districtId: '0',
-          id: '0-0',
+          districtId: 'ab',
+          id: 'cd',
           baz: 'bat',
         },
         {
-          districtId: '0',
-          id: '0-1',
+          districtId: 'ab',
+          id: 'hi',
         },
         {
-          districtId: '1',
-          id: '1-0',
+          districtId: 'lm',
+          id: 'no',
           baz: 'flurf',
         },
         {
-          districtId: '1',
-          id: '1-1',
+          districtId: 'lm',
+          id: 'tu',
         },
       ],
       classes: [
-        { schoolId: '0-0', id: '0-0-0', data: 42 },
-        { schoolId: '0-0', id: '0-0-1', data: 33 },
-        { schoolId: '0-1', id: '0-1-0', data: 22 },
-        { schoolId: '1-0', id: '1-0-0', data: 52 },
-        { schoolId: '1-0', id: '1-0-1', data: 43 },
-        { schoolId: '1-1', id: '1-1-0', data: 32 },
+        { schoolId: 'cd', id: 'de', data: 42 },
+        { schoolId: 'cd', id: 'fg', data: 33 },
+        { schoolId: 'hi', id: 'jk', data: 22 },
+        { schoolId: 'no', id: 'pq', data: 52 },
+        { schoolId: 'no', id: 'rs', data: 43 },
+        { schoolId: 'tu', id: 'vw', data: 32 },
       ],
     };
 
-    const result = getHierarchicalOrgs(input);
+    const result = getTreeTableOrgs(input);
 
     expect(result).toStrictEqual(expected);
   });
