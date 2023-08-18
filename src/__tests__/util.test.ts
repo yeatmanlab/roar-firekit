@@ -1,4 +1,11 @@
-import { crc32String, getObjectDiff, removeNull, removeUndefined, replaceValues } from '../firestore/util';
+import {
+  crc32String,
+  getHierarchicalOrgs,
+  getObjectDiff,
+  removeNull,
+  removeUndefined,
+  replaceValues,
+} from '../firestore/util';
 
 describe('removeNull', () => {
   it('removes null values', () => {
@@ -128,5 +135,101 @@ describe('crc32String', () => {
     const expected = '5a036850';
 
     expect(crc32String(input)).toBe(expected);
+  });
+});
+
+describe('getHierarchicalOrgs', () => {
+  it('correctly nests orgs', () => {
+    const expected = {
+      eduOrgs: [
+        {
+          id: '0',
+          foo: 'bar',
+          children: [
+            {
+              districtId: '0',
+              id: '0-0',
+              baz: 'bat',
+              children: [
+                { schoolId: '0-0', id: '0-0-0', data: 42 },
+                { schoolId: '0-0', id: '0-0-1', data: 33 },
+              ],
+            },
+            {
+              districtId: '0',
+              id: '0-1',
+              children: [{ schoolId: '0-1', id: '0-1-0', data: 22 }],
+            },
+          ],
+        },
+        {
+          id: '1',
+          foo: 'buzz',
+          children: [
+            {
+              districtId: '1',
+              id: '1-0',
+              baz: 'flurf',
+              children: [
+                { schoolId: '1-0', id: '1-0-0', data: 52 },
+                { schoolId: '1-0', id: '1-0-1', data: 43 },
+              ],
+            },
+            {
+              districtId: '1',
+              id: '1-1',
+              children: [{ schoolId: '1-1', id: '1-1-0', data: 32 }],
+            },
+          ],
+        },
+      ],
+      groups: undefined,
+      families: undefined,
+    };
+
+    const input = {
+      districts: [
+        {
+          id: '0',
+          foo: 'bar',
+        },
+        {
+          id: '1',
+          foo: 'buzz',
+        },
+      ],
+      schools: [
+        {
+          districtId: '0',
+          id: '0-0',
+          baz: 'bat',
+        },
+        {
+          districtId: '0',
+          id: '0-1',
+        },
+        {
+          districtId: '1',
+          id: '1-0',
+          baz: 'flurf',
+        },
+        {
+          districtId: '1',
+          id: '1-1',
+        },
+      ],
+      classes: [
+        { schoolId: '0-0', id: '0-0-0', data: 42 },
+        { schoolId: '0-0', id: '0-0-1', data: 33 },
+        { schoolId: '0-1', id: '0-1-0', data: 22 },
+        { schoolId: '1-0', id: '1-0-0', data: 52 },
+        { schoolId: '1-0', id: '1-0-1', data: 43 },
+        { schoolId: '1-1', id: '1-1-0', data: 32 },
+      ],
+    };
+
+    const result = getHierarchicalOrgs(input);
+
+    expect(result).toStrictEqual(expected);
   });
 });

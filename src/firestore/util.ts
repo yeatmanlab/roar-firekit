@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import _cloneDeep from 'lodash/cloneDeep';
 import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
@@ -285,4 +286,58 @@ export const crc32String = (inputString: string) => {
   };
 
   return toUint32(crc32(inputString)).toString(16);
+};
+
+interface IMap {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface IMapWithChildren extends IMap {
+  children?: IMap[];
+}
+
+interface IMapWithGrandchildren extends IMap {
+  children?: IMapWithChildren[];
+}
+
+interface IOrgMaps {
+  districts: IMapWithGrandchildren[];
+  schools: IMapWithChildren[];
+  classes: IMap[];
+  groups?: IMap[];
+  families?: IMap[];
+}
+
+export const getHierarchicalOrgs = (orgs: IOrgMaps) => {
+  const { districts, schools, classes, groups, families } = orgs;
+  const eduOrgs = _cloneDeep(districts) as IMapWithGrandchildren[];
+  const _schools = _cloneDeep(schools) as IMapWithChildren[];
+  for (const _class of classes) {
+    const schoolId = _class.schoolId;
+    const schoolIndex = _schools.findIndex((school) => school.id === schoolId);
+    if (_schools[schoolIndex].children === undefined) {
+      _schools[schoolIndex].children = [_class];
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      _schools[schoolIndex].children!.push(_class);
+    }
+  }
+
+  for (const _school of _schools) {
+    const districtId = _school.districtId;
+    const districtIndex = eduOrgs.findIndex((district) => district.id === districtId);
+    if (eduOrgs[districtIndex].children === undefined) {
+      eduOrgs[districtIndex].children = [_school];
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      eduOrgs[districtIndex].children!.push(_school);
+    }
+  }
+
+  return {
+    eduOrgs,
+    groups,
+    families,
+  };
 };

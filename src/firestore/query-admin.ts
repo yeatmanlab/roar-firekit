@@ -1,38 +1,65 @@
 import { Firestore, collection, getCountFromServer, getDocs, or, query, where } from 'firebase/firestore';
-import { IUserData } from './interfaces';
+import { IAdministrationData, IOrgLists, IUserData } from './interfaces';
+import { emptyOrgList } from './util';
+import _union from 'lodash/union';
 
-interface IUserQueryInput {
+interface IGetterInput {
   db: Firestore;
-  districts: string[];
-  schools: string[];
-  classes: string[];
-  groups: string[];
-  families: string[];
+  orgs: IOrgLists;
+  isSuperAdmin: boolean;
 }
 
-export const buildUserQueryForAdminDb = ({
+interface IQueryInput extends IGetterInput {
+  collectionName: string;
+  nested: boolean;
+}
+
+export const buildQueryForAdminCollection = ({
   db,
-  districts = [],
-  schools = [],
-  classes = [],
-  groups = [],
-  families = [],
-}: IUserQueryInput) => {
-  const userCollectionRef = collection(db, 'users');
+  collectionName,
+  nested,
+  isSuperAdmin = false,
+  orgs = emptyOrgList(),
+}: IQueryInput) => {
+  const collectionRef = collection(db, collectionName);
+
+  if (isSuperAdmin) return query(collectionRef);
+
+  // Cloud Firestore limits a query to a maximum of 30 disjunctions in disjunctive normal form.
+  // Detect if there are too many `array-contains` comparisons
+  if (_union(...Object.values(orgs)).length > 30) {
+    throw new Error('Too many orgs to query. Please chunk orgs such that the total number of orgs is less than 30.');
+  }
+
   const orgQueryParams: ReturnType<typeof where>[] = [];
-  if (districts) orgQueryParams.push(where('districts', 'array-contains', districts));
-  if (schools) orgQueryParams.push(where('schools', 'array-contains', schools));
-  if (classes) orgQueryParams.push(where('classes', 'array-contains', classes));
-  if (groups) orgQueryParams.push(where('groups', 'array-contains', groups));
-  if (families) orgQueryParams.push(where('families', 'array-contains', families));
+
+  if (nested) {
+    if (orgs.districts.length) orgQueryParams.push(where('districts.current', 'array-contains', orgs.districts));
+    if (orgs.schools.length) orgQueryParams.push(where('schools.current', 'array-contains', orgs.schools));
+    if (orgs.classes.length) orgQueryParams.push(where('classes.current', 'array-contains', orgs.classes));
+    if (orgs.groups.length) orgQueryParams.push(where('groups.current', 'array-contains', orgs.groups));
+    if (orgs.families.length) orgQueryParams.push(where('families.current', 'array-contains', orgs.families));
+  } else {
+    if (orgs.districts.length) orgQueryParams.push(where('districts', 'array-contains', orgs.districts));
+    if (orgs.schools.length) orgQueryParams.push(where('schools', 'array-contains', orgs.schools));
+    if (orgs.classes.length) orgQueryParams.push(where('classes', 'array-contains', orgs.classes));
+    if (orgs.groups.length) orgQueryParams.push(where('groups', 'array-contains', orgs.groups));
+    if (orgs.families.length) orgQueryParams.push(where('families', 'array-contains', orgs.families));
+  }
 
   if (orgQueryParams.length === 0) return undefined;
 
-  return query(userCollectionRef, or(...orgQueryParams));
+  return query(collectionRef, or(...orgQueryParams));
 };
 
-export const countUsersInAdminDb = async ({ db, districts, schools, classes, groups, families }: IUserQueryInput) => {
-  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, groups, families });
+export const countUsersInAdminDb = async ({ db, orgs = emptyOrgList(), isSuperAdmin = false }: IGetterInput) => {
+  const userQuery = buildQueryForAdminCollection({
+    db,
+    collectionName: 'users',
+    nested: true,
+    isSuperAdmin,
+    orgs: orgs,
+  });
   if (userQuery) {
     const snapshot = await getCountFromServer(userQuery);
     return snapshot.data().count;
@@ -41,8 +68,14 @@ export const countUsersInAdminDb = async ({ db, districts, schools, classes, gro
   }
 };
 
-export const getUsersInAdminDb = async ({ db, districts, schools, classes, groups, families }: IUserQueryInput) => {
-  const userQuery = buildUserQueryForAdminDb({ db, districts, schools, classes, groups, families });
+export const getUsersInAdminDb = async ({ db, orgs, isSuperAdmin = false }: IGetterInput) => {
+  const userQuery = buildQueryForAdminCollection({
+    db,
+    collectionName: 'users',
+    nested: true,
+    isSuperAdmin,
+    orgs,
+  });
   if (userQuery) {
     const snapshot = await getDocs(userQuery);
     const users: IUserData[] = [];
@@ -50,6 +83,26 @@ export const getUsersInAdminDb = async ({ db, districts, schools, classes, group
       users.push(doc.data() as IUserData);
     });
     return users;
+  } else {
+    return [];
+  }
+};
+
+export const getAdministrations = async ({ db, orgs = emptyOrgList(), isSuperAdmin = false }: IGetterInput) => {
+  const query = buildQueryForAdminCollection({
+    db,
+    collectionName: 'administrations',
+    nested: false,
+    orgs,
+    isSuperAdmin,
+  });
+  if (query) {
+    const snapshot = await getDocs(query);
+    const administrations: IAdministrationData[] = [];
+    snapshot.forEach((doc) => {
+      administrations.push(doc.data() as IAdministrationData);
+    });
+    return administrations;
   } else {
     return [];
   }
