@@ -14,6 +14,7 @@ import _chunk from 'lodash/chunk';
 import _get from 'lodash/get';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
+import _remove from 'lodash/remove';
 import _union from 'lodash/union';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
@@ -296,9 +297,9 @@ interface IMap {
 }
 
 interface IOrgMaps {
-  districts: IMap[];
-  schools: IMap[];
-  classes: IMap[];
+  districts?: IMap[];
+  schools?: IMap[];
+  classes?: IMap[];
   groups?: IMap[];
   families?: IMap[];
 }
@@ -309,81 +310,152 @@ interface ITreeTableEntry {
   children?: ITreeTableEntry[];
 }
 
+const treeTableFormat = (orgs: IMap[], orgType: string, startIndex = 0) => {
+  return orgs.map((element, index) => ({
+    key: (index + startIndex).toString(),
+    data: {
+      ...element,
+      orgType,
+    },
+  })) as ITreeTableEntry[];
+};
+
 export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
-  const { districts, schools, classes, groups = [], families = [] } = inputOrgs;
-  const orgs = districts.map((element, index) => ({
-    key: index.toString(),
-    data: {
-      ...element,
-      orgType: 'district',
-    },
-  })) as ITreeTableEntry[];
+  const { districts = [], schools = [], classes = [], groups = [], families = [] } = inputOrgs;
 
-  const _schools = schools.map((element, index) => ({
-    key: index.toString(),
-    data: {
-      ...element,
-      orgType: 'school',
-    },
-  })) as ITreeTableEntry[];
+  const ttDistricts = treeTableFormat(districts, 'district');
+  const ttSchools = treeTableFormat(schools, 'school');
+  const ttClasses = treeTableFormat(classes, 'class');
 
-  for (const _school of _schools) {
-    const districtId = _school.data.districtId;
-    const districtIndex = orgs.findIndex((district) => district.data.id === districtId);
-    const _district = orgs[districtIndex];
-    const _classesForThisSchool = classes.filter((c) => c.schoolId === _school.data.id);
-    if (_district.children === undefined) {
-      orgs[districtIndex].children = [
-        {
-          ..._school,
-          key: `${_district.key}-0`,
-          children: _classesForThisSchool.map((element, index) => ({
-            key: `${_district.key}-0-${index}`,
-            data: {
-              ...element,
-              orgType: 'class',
+  let topLevelOrgs: ITreeTableEntry[] = [];
+
+  if (districts.length) {
+    topLevelOrgs = ttDistricts;
+    for (const _school of ttSchools) {
+      const districtId = _school.data.districtId;
+      const districtIndex = topLevelOrgs.findIndex((district) => district.data.id === districtId);
+
+      // This will return all classes for this school and also remove them from the classes array.
+      // At the end, we will add any left over classes as orphaned classes
+      const classesForThisSchool = _remove(ttClasses, (c) => c.data.schoolId === _school.data.id);
+
+      if (districtIndex !== -1) {
+        const _district = topLevelOrgs[districtIndex];
+        if (_district.children === undefined) {
+          topLevelOrgs[districtIndex].children = [
+            {
+              ..._school,
+              key: `${_district.key}-0`,
+              // This next pattern is a bit funky. It conditionally adds a children field
+              // but only if there are any classes for this school.
+              ...(classesForThisSchool.length > 0 && {
+                children: classesForThisSchool.map((element, index) => ({
+                  key: `${_district.key}-0-${index}`,
+                  data: element.data,
+                })),
+              }),
             },
-          })),
-        },
-      ];
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      orgs[districtIndex].children!.push({
-        ..._school,
-        key: `${_district.key}-${_district.children.length}`,
-        children: _classesForThisSchool.map((element, index) => ({
+          ];
+        } else {
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          key: `${_district.key}-${_district.children!.length}-${index}`,
-          data: {
-            ...element,
-            orgType: 'class',
-          },
-        })),
-      });
+          topLevelOrgs[districtIndex].children!.push({
+            ..._school,
+            key: `${_district.key}-${_district.children.length}`,
+            ...(classesForThisSchool.length > 0 && {
+              children: classesForThisSchool.map((element, index) => ({
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                key: `${_district.key}-${_district.children!.length}-${index}`,
+                data: element.data,
+              })),
+            }),
+          });
+        }
+      } else {
+        topLevelOrgs.push({
+          ..._school,
+          key: `${topLevelOrgs.length}`,
+          ...(classesForThisSchool.length > 0 && {
+            children: classesForThisSchool.map((element, index) => ({
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              key: `${topLevelOrgs.length}-${index}`,
+              data: element.data,
+            })),
+          }),
+        });
+      }
     }
+
+    // We have now gone through all of the schools and removed any classes that
+    // belong to the supplied schools. If there are any schools left, they
+    // should either be direct descendants of a district (rare) or they should
+    // be at the top level.
+    for (const _class of ttClasses) {
+      const districtId = _class.data.districtId;
+      const districtIndex = topLevelOrgs.findIndex((district) => district.data.id === districtId);
+      if (districtIndex !== -1) {
+        // Add this class as a direct descendant of the district
+        const _district = topLevelOrgs[districtIndex];
+        if (_district.children === undefined) {
+          topLevelOrgs[districtIndex].children = [
+            {
+              key: `${_district.key}-0`,
+              data: _class.data,
+            },
+          ];
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          topLevelOrgs[districtIndex].children!.push({
+            key: `${_district.key}-${_district.children.length}`,
+            data: _class.data,
+          });
+        }
+      } else {
+        // Add this class to the top-level orgs
+        topLevelOrgs.push({
+          key: `${topLevelOrgs.length}`,
+          data: _class.data,
+        });
+      }
+    }
+  } else if (schools.length) {
+    topLevelOrgs = ttSchools;
+    for (const _class of ttClasses) {
+      const schoolId = _class.data.schoolId;
+      const schoolIndex = topLevelOrgs.findIndex((school) => school.data.id === schoolId);
+      if (schoolIndex !== -1) {
+        const _school = topLevelOrgs[schoolIndex];
+        if (_school.children === undefined) {
+          topLevelOrgs[schoolIndex].children = [
+            {
+              ..._class,
+              key: `${_school.key}-0`,
+            },
+          ];
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          topLevelOrgs[schoolIndex].children!.push({
+            ..._class,
+            key: `${_school.key}-${_school.children.length}`,
+          });
+        }
+      } else {
+        topLevelOrgs.push({
+          ..._class,
+          key: `${topLevelOrgs.length}`,
+        });
+      }
+    }
+  } else if (classes.length) {
+    topLevelOrgs = ttClasses;
   }
 
-  for (const _group of groups) {
-    orgs.push({
-      key: orgs.length.toString(),
-      data: {
-        ..._group,
-        orgType: 'group',
-      },
-    });
-  }
+  const ttGroups = treeTableFormat(groups, 'group', topLevelOrgs.length);
+  topLevelOrgs.push(...ttGroups);
 
-  for (const _family of families) {
-    orgs.push({
-      key: orgs.length.toString(),
-      data: {
-        ..._family,
-        orgType: 'family',
-      },
-    });
-  }
+  const ttFamilies = treeTableFormat(families, 'family', topLevelOrgs.length);
+  topLevelOrgs.push(...ttFamilies);
 
-  return orgs;
+  return topLevelOrgs;
 };
 
 export const chunkOrgLists = (inputOrgs: IOrgLists, chunkSize = 30) => {
