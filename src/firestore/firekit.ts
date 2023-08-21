@@ -1159,13 +1159,9 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    console.log('Checking if email is available');
     const isEmailAvailable = await this.isEmailAvailable(email);
-    console.log('Before if');
     if (isEmailAvailable) {
-      console.log('Defining cloud function');
       const cloudCreateAdministrator = httpsCallable(this.admin!.functions, 'createAdministratorAccount');
-      console.log('Calling cloud function');
       const adminResponse = await cloudCreateAdministrator({
         email,
         name,
