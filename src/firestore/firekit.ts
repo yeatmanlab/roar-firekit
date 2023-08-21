@@ -64,7 +64,6 @@ import {
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { waitFor } from './util';
 import { getAdministrations } from './query-admin';
 
 enum AuthProviderType {
@@ -1208,6 +1207,9 @@ export class RoarFirekit {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
       const orgIds = this._adminOrgs[orgType];
+      // If orgType is school or class, and the user has district or school
+      // admin orgs, we must add all subordinate orgs to the orgIds.
+      // For example,
       return getOrganizations(this.admin!.db, orgType, orgIds);
     } else {
       throw new Error('You must be an admin to get organizations.');
