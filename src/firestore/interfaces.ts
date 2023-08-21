@@ -72,6 +72,7 @@ export interface IName {
 }
 
 export interface IUserData extends DocumentData {
+  id?: string;
   userType: UserType;
   name?: IName;
   assessmentPid?: string;

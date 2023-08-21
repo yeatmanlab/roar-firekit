@@ -7,8 +7,12 @@ import _uniqBy from 'lodash/uniqBy';
 interface IGetterInput {
   db: Firestore;
   orgs?: IOrgLists;
-  isSuperAdmin: boolean;
+  isSuperAdmin?: boolean;
   includeStats?: boolean;
+}
+
+interface IGetUsersInput extends IGetterInput {
+  countOnly: boolean;
 }
 
 interface IQueryInput extends IGetterInput {
@@ -54,43 +58,44 @@ export const buildQueryForAdminCollection = ({
   return query(collectionRef, or(...orgQueryParams));
 };
 
-export const countUsersInAdminDb = async ({ db, orgs = emptyOrgList(), isSuperAdmin = false }: IGetterInput) => {
-  const userQuery = buildQueryForAdminCollection({
-    db,
-    collectionName: 'users',
-    nested: true,
-    isSuperAdmin,
-    orgs: orgs,
-  });
-  if (userQuery) {
-    const snapshot = await getCountFromServer(userQuery);
-    return snapshot.data().count;
-  } else {
-    return 0;
-  }
-};
+export const getUsers = async ({
+  db,
+  orgs = emptyOrgList(),
+  isSuperAdmin = false,
+  countOnly = false,
+}: IGetUsersInput) => {
+  const chunkedOrgs = chunkOrgLists(orgs, 20);
+  let total = 0;
+  const users: IUserData[] = [];
 
-export const getUsersInAdminDb = async ({ db, orgs, isSuperAdmin = false }: IGetterInput) => {
-  // const chunkedOrgs = chunkOrgLists(orgs, 20);
-  // const users: IUserData[] = [];
-
-  const userQuery = buildQueryForAdminCollection({
-    db,
-    collectionName: 'users',
-    nested: true,
-    isSuperAdmin,
-    orgs,
-  });
-  if (userQuery) {
-    const snapshot = await getDocs(userQuery);
-    const users: IUserData[] = [];
-    snapshot.forEach((docSnap) => {
-      users.push(docSnap.data() as IUserData);
+  for (const orgsChunk of chunkedOrgs) {
+    const userQuery = buildQueryForAdminCollection({
+      db,
+      collectionName: 'users',
+      nested: true,
+      isSuperAdmin,
+      orgs: orgsChunk,
     });
-    return users;
-  } else {
-    return [];
+
+    if (userQuery) {
+      if (countOnly) {
+        const snapshot = await getCountFromServer(userQuery);
+        total += snapshot.data().count;
+      } else {
+        const snapshot = await getDocs(userQuery);
+        const users: IUserData[] = [];
+        snapshot.forEach((docSnap) => {
+          users.push({
+            id: docSnap.id,
+            ...docSnap.data(),
+          } as IUserData);
+        });
+      }
+    }
   }
+
+  if (countOnly) return total;
+  return _uniqBy(users, (u: IUserData) => u.id);
 };
 
 export const getAdministrations = async ({

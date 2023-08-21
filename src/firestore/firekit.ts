@@ -65,7 +65,7 @@ import {
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { getAdministrations } from './query-admin';
+import { getAdministrations, getUsers } from './query-admin';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -1266,6 +1266,20 @@ export class RoarFirekit {
     } else {
       throw new Error('You must be an admin to get organizations.');
     }
+  }
+
+  async getUsersForOrg({ orgType, orgId, countOnly = false }: { orgType: OrgType; orgId: string; countOnly: boolean }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const orgs = emptyOrgList();
+    orgs[orgType] = [orgId];
+
+    return getUsers({
+      db: this.admin!.db,
+      orgs,
+      countOnly,
+    });
   }
 
   async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
