@@ -698,12 +698,10 @@ export class RoarFirekit {
     }
   }
 
-  async updateConsentStatus(consentVersion: string) {
-    console.log('inside firekit funtion updateConsentStatus', consentVersion)
-    console.log('doc ref is', this.dbRefs!.admin.user)
+  async updateConsentStatus(docName: string, consentVersion: string) {
     const field = `consent.${consentVersion}`
     updateDoc(this.dbRefs!.admin.user, {
-      consent: new Date(Date.now())
+      [`legal.${docName}.${consentVersion}`]: new Date()
     })
   }
 
