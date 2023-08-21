@@ -114,6 +114,8 @@ service cloud.firestore {
         return [
           'assessmentsCompleted',
           'assessmentsAssigned',
+          'consent',
+          'legal'
         ]
       }
 
