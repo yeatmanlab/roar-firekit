@@ -1158,22 +1158,16 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isEmailAvailable = await this.isEmailAvailable(email);
-    if (isEmailAvailable) {
-      const cloudCreateAdministrator = httpsCallable(this.admin!.functions, 'createAdministratorAccount');
-      const adminResponse = await cloudCreateAdministrator({
-        email,
-        name,
-        orgs: targetOrgs,
-        adminOrgs: targetAdminOrgs,
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(adminResponse.data as any, 'status') !== 'ok') {
-        throw new Error('Failed to create administrator user account.');
-      }
-    } else {
-      // Email is not available, reject
-      throw new Error(`The email ${email} is already associated with an existing ROAR user.`);
+    const cloudCreateAdministrator = httpsCallable(this.admin!.functions, 'createAdministratorAccount');
+    const adminResponse = await cloudCreateAdministrator({
+      email,
+      name,
+      orgs: targetOrgs,
+      adminOrgs: targetAdminOrgs,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(adminResponse.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to create administrator user account.');
     }
   }
 
