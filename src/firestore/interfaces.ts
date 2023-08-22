@@ -65,13 +65,15 @@ export interface IOrgs {
   dates: IOrgDateMap;
 }
 
+export interface IName {
+  first: string;
+  middle?: string;
+  last: string;
+}
+
 export interface IUserData extends DocumentData {
   userType: UserType;
-  name?: {
-    first: string;
-    last: string;
-    middle?: string;
-  };
+  name?: IName;
   assessmentPid?: string;
   assessmentUid?: string;
   assessmentsCompleted?: string[];

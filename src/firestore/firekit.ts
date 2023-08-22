@@ -16,10 +16,13 @@ import {
   createUserWithEmailAndPassword,
   getIdToken,
   getRedirectResult,
+  isSignInWithEmailLink,
   onAuthStateChanged,
   onIdTokenChanged,
+  sendSignInLinkToEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
+  signInWithEmailLink,
   signInWithPopup,
   signInWithRedirect,
   signOut,
@@ -40,7 +43,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isEmailAvailable, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
@@ -56,11 +59,11 @@ import {
   IOrgLists,
   IStudentData,
   OrgType,
+  IName,
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { waitFor } from './util';
 import { getAdministrations } from './query-admin';
 
 enum AuthProviderType {
@@ -348,6 +351,16 @@ export class RoarFirekit {
     return isEmailAvailable(this.admin!.auth, email);
   }
 
+  async fetchEmailAuthMethods(email: string) {
+    this._verifyInit();
+    return fetchEmailAuthMethods(this.admin!.auth, email);
+  }
+
+  isRoarAuthEmail(email: string) {
+    this._verifyInit();
+    return isRoarAuthEmail(email);
+  }
+
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
@@ -375,6 +388,44 @@ export class RoarFirekit {
     return this.logInWithEmailAndPassword({ email, password });
   }
 
+  async initiateLoginWithEmailLink({ email, redirectUrl }: { email: string; redirectUrl: string }) {
+    this._verifyInit();
+    const actionCodeSettings = {
+      url: redirectUrl,
+      handleCodeInApp: true,
+    };
+    return sendSignInLinkToEmail(this.admin!.auth, email, actionCodeSettings);
+  }
+
+  async isSignInWithEmailLink(emailLink: string) {
+    this._verifyInit();
+    return isSignInWithEmailLink(this.admin!.auth, emailLink);
+  }
+
+  async signInWithEmailLink({ email, emailLink }: { email: string; emailLink: string }) {
+    this._verifyInit();
+    return signInWithEmailLink(this.admin!.auth, email, emailLink)
+      .then(async (userCredential) => {
+        const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+        const roarAdminIdToken = await getIdToken(userCredential.user);
+        const roarAdminCredential = roarAdminProvider.credential({
+          idToken: roarAdminIdToken,
+        });
+
+        return roarAdminCredential;
+      })
+      .then((credential) => {
+        if (credential) {
+          return signInWithCredential(this.app!.auth, credential);
+        }
+      })
+      .then((credential) => {
+        if (credential) {
+          return this._setUidCustomClaims();
+        }
+      });
+  }
+
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
@@ -398,22 +449,21 @@ export class RoarFirekit {
     let oAuthAccessToken: string | undefined;
 
     return signInWithPopup(this.admin!.auth, authProvider)
-      .then(async (adminResult) => {
+      .then(async (adminUserCredential) => {
         if (provider === AuthProviderType.GOOGLE) {
-          const credential = GoogleAuthProvider.credentialFromResult(adminResult);
+          const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Google Access Token. You can use it to access Google APIs.
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
         } else if (provider === AuthProviderType.CLEVER) {
-          const credential = OAuthProvider.credentialFromResult(adminResult);
+          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Clever Access Token. You can use it to access Clever APIs.
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
 
           const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
-          await waitFor(() => Boolean(this.admin?.auth.currentUser));
-          const roarAdminIdToken = await getIdToken(this.admin!.auth.currentUser!);
+          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
           const roarAdminCredential = roarAdminProvider.credential({
             idToken: roarAdminIdToken,
           });
@@ -469,26 +519,25 @@ export class RoarFirekit {
     let authProvider: AuthProviderType | undefined;
 
     return getRedirectResult(this.admin!.auth)
-      .then(async (adminRedirectResult) => {
-        if (adminRedirectResult !== null) {
-          const providerId = adminRedirectResult.providerId;
+      .then(async (adminUserCredential) => {
+        if (adminUserCredential !== null) {
+          const providerId = adminUserCredential.providerId;
           if (providerId === RoarProviderId.GOOGLE) {
-            const credential = GoogleAuthProvider.credentialFromResult(adminRedirectResult);
+            const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.GOOGLE;
             oAuthAccessToken = credential?.accessToken;
             return credential;
           } else if (providerId === RoarProviderId.CLEVER) {
-            const credential = OAuthProvider.credentialFromResult(adminRedirectResult);
+            const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
 
             const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
-            await waitFor(() => Boolean(this.admin?.auth.currentUser));
-            const roarAdminIdToken = await getIdToken(this.admin!.auth.currentUser!);
+            const roarAdminIdToken = await getIdToken(adminUserCredential.user);
             const roarAdminCredential = roarAdminProvider.credential({
               idToken: roarAdminIdToken,
             });
@@ -1105,6 +1154,23 @@ export class RoarFirekit {
     }
   }
 
+  async createAdministrator(email: string, name: IName, targetOrgs: IOrgLists, targetAdminOrgs: IOrgLists) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateAdministrator = httpsCallable(this.admin!.functions, 'createAdministratorAccount');
+    const adminResponse = await cloudCreateAdministrator({
+      email,
+      name,
+      orgs: targetOrgs,
+      adminOrgs: targetAdminOrgs,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(adminResponse.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to create administrator user account.');
+    }
+  }
+
   async getTasks(requireRegistered = true) {
     this._verifyAuthentication();
     return getTasks(this.app!.db, requireRegistered);
@@ -1135,6 +1201,9 @@ export class RoarFirekit {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
       const orgIds = this._adminOrgs[orgType];
+      // If orgType is school or class, and the user has district or school
+      // admin orgs, we must add all subordinate orgs to the orgIds.
+      // For example,
       return getOrganizations(this.admin!.db, orgType, orgIds);
     } else {
       throw new Error('You must be an admin to get organizations.');
