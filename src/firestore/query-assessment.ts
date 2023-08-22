@@ -14,11 +14,11 @@ import {
   where,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
-import { OrgType } from './interfaces';
+import { OrgCollectionName } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
 import _chunk from 'lodash/chunk';
 
-export const getOrganizations = async (db: Firestore, orgType: OrgType, orgIds?: string[]) => {
+export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[]) => {
   let q: ReturnType<typeof query>;
   if (!orgIds) {
     q = query(collection(db, orgType));

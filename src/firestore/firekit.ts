@@ -49,18 +49,18 @@ import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, in
 import {
   IAdministrationData,
   IAssessmentData,
+  IAssignedAssessmentData,
+  IAssignmentData,
   IExternalUserData,
   IFirekit,
-  IAssignmentData,
-  IAssignedAssessmentData,
-  IRoarConfigData,
-  IUserData,
-  UserType,
+  IName,
   IOrg,
   IOrgLists,
+  IRoarConfigData,
   IStudentData,
-  OrgType,
-  IName,
+  IUserData,
+  OrgCollectionName,
+  UserType,
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
@@ -1226,32 +1226,41 @@ export class RoarFirekit {
     }
   }
 
-  async getOrgs(orgType: OrgType) {
+  async getOrgs(orgType: OrgCollectionName) {
     this._verifyAuthentication();
     if (this._superAdmin) {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
       const orgIds = this._adminOrgs[orgType];
+
       // If orgType is school or class, and the user has district or school
       // admin orgs, we must add all subordinate orgs to the orgIds.
-      // For example,
+      if (['schools', 'classes'].includes(orgType)) {
+        const districtIds = this._adminOrgs.districts;
+        const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
+        const schoolIds: string[] = _union(...districts.map((d) => d.schools));
+
+        if (orgType === 'schools') {
+          orgIds.push(...schoolIds);
+        } else if (orgType === 'classes') {
+          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools);
+          const schools = await getOrganizations(this.admin!.db, 'schools', allSchoolIds);
+          const classIds: string[] = _union(...schools.map((s) => s.classes));
+          orgIds.push(...classIds);
+        }
+      }
+
       return getOrganizations(this.admin!.db, orgType, orgIds);
     } else {
       throw new Error('You must be an admin to get organizations.');
     }
   }
 
-  async createOrg(orgType: OrgType, orgData: IOrg) {
+  async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
     await addDoc(collection(this.admin!.db, orgType), orgData).then((docRef) => {
       return setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
     });
   }
-
-  // async createAdminUser(userData: IUserData) {
-  //   this._verifyAuthentication();
-  //   this._verifyAdmin();
-
-  // }
 }
