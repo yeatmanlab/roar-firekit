@@ -177,3 +177,4 @@ export interface IGroup extends DocumentData {
 export type IOrg = IDistrict | ISchool | IClass | IFamily | IGroup;
 
 export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
+export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
