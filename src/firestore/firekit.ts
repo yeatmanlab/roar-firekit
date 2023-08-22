@@ -777,9 +777,9 @@ export class RoarFirekit {
     }
   }
 
-  getAdministrations(administrationIds: string[]): Promise<IAdministrationData | undefined>[] {
+  async getAdministrations(administrationIds: string[]): Promise<(IAdministrationData | undefined)[]> {
     this._verifyAuthentication();
-    return administrationIds.map((id) => this._getAdministration(id));
+    return await Promise.all(_map(administrationIds, async (id) => await this._getAdministration(id)));
   }
 
   private async _getAssignment(administrationId: string): Promise<IAssignmentData | undefined> {
@@ -810,6 +810,7 @@ export class RoarFirekit {
   }
 
   async getAssignments(administrationIds: string[]): Promise<(IAssignmentData | undefined)[]> {
+    console.log('inside get assignments with', administrationIds)
     this._verifyAuthentication();
     return await Promise.all(_map(administrationIds, async (id) => await this._getAssignment(id)));
   }
