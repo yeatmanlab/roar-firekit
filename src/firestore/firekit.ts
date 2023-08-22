@@ -98,11 +98,11 @@ interface ICreateUserInput {
     middle?: string;
     last?: string;
   };
-  school: string | null;
-  district: string | null;
-  class: string | null;
-  family: string | null;
-  group: string | null;
+  school: { id: string; prefix?: string } | null;
+  district: { id: string; prefix?: string } | null;
+  class: { id: string; prefix?: string } | null;
+  family: { id: string; prefix?: string } | null;
+  group: { id: string; prefix?: string } | null;
 }
 
 interface ICurrentAssignments {
@@ -1101,7 +1101,7 @@ export class RoarFirekit {
     // }
   }
 
-  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput, pidPrefix = '') {
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1126,7 +1126,18 @@ export class RoarFirekit {
         _set(userDocData, 'assessmentPid', userData.pid);
       } else {
         const emailCheckSum = crc32String(email);
-        _set(userDocData, 'assessmentPid', pidPrefix + emailCheckSum);
+
+        const schoolPrefix = _get(userData, 'school.prefix');
+        const districtPrefix = _get(userData, 'district.prefix');
+        const groupPrefix = _get(userData, 'group.prefix');
+
+        let pidPrefix: string;
+        if (schoolPrefix) pidPrefix = schoolPrefix;
+        else if (districtPrefix) pidPrefix = districtPrefix;
+        else if (groupPrefix) pidPrefix = groupPrefix;
+        else pidPrefix = '';
+
+        if (_get(userData, 'school')) _set(userDocData, 'assessmentPid', pidPrefix + emailCheckSum);
       }
 
       // TODO: this can probably be optimized.
@@ -1143,11 +1154,11 @@ export class RoarFirekit {
       if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
       if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
 
-      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
-      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
-      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
-      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group);
-      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
+      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
+      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
+      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
+      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
+      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
       const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
       const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
