@@ -727,6 +727,33 @@ export class RoarFirekit {
     // return null;
   }
 
+  async getLegalDoc(docName: string) {
+    const docRef = doc(this.admin!.db, 'legal', docName);
+    const docSnap = await getDoc(docRef);
+    if(docSnap.exists()){
+      const data = docSnap.data();
+      const gitHubUrl = `https://raw.githubusercontent.com/${_get(data, 'gitHubOrg')}/${_get(data, 'gitHubRepository')}/${_get(data, 'currentCommit')}/${_get(data, 'fileName')}`
+      try {
+        const response = await fetch(gitHubUrl);
+        const legalText =  await response.text();
+        return {
+          text: legalText,
+          version: _get(data, 'currentCommit'),
+        }
+      } catch(e) {
+        throw new Error("Error retrieving consent document from GitHub.")
+      }
+    } else {
+      return null;
+    }
+  }
+
+  async updateConsentStatus(docName: string, consentVersion: string) {
+    updateDoc(this.dbRefs!.admin.user, {
+      [`legal.${docName}.${consentVersion}`]: new Date()
+    })
+  }
+
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
   getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
     this._verifyAuthentication();

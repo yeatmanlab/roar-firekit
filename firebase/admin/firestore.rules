@@ -46,6 +46,13 @@ service cloud.firestore {
       allow write: if false; // Only write in cloud functions using admin SDK
     }
 
+    // Allow all users to read the legal docs
+    // Allow no users to write the legal docs
+    match /legal/{form} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Allow users to read their own data
     // Also allow admins to read and write data for their users
     match /users/{uid} {
@@ -107,6 +114,8 @@ service cloud.firestore {
         return [
           'assessmentsCompleted',
           'assessmentsAssigned',
+          'consent',
+          'legal'
         ]
       }
 
