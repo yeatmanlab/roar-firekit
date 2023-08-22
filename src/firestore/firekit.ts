@@ -98,11 +98,11 @@ interface ICreateUserInput {
     middle?: string;
     last?: string;
   };
-  school: { id: string; prefix?: string } | null;
-  district: { id: string; prefix?: string } | null;
-  class: { id: string; prefix?: string } | null;
-  family: { id: string; prefix?: string } | null;
-  group: { id: string; prefix?: string } | null;
+  school: { id: string; abbreviation?: string } | null;
+  district: { id: string; abbreviation?: string } | null;
+  class: { id: string; abbreviation?: string } | null;
+  family: { id: string; abbreviation?: string } | null;
+  group: { id: string; abbreviation?: string } | null;
 }
 
 interface ICurrentAssignments {
@@ -1127,9 +1127,9 @@ export class RoarFirekit {
       } else {
         const emailCheckSum = crc32String(email);
 
-        const schoolPrefix = _get(userData, 'school.prefix');
-        const districtPrefix = _get(userData, 'district.prefix');
-        const groupPrefix = _get(userData, 'group.prefix');
+        const schoolPrefix = _get(userData, 'school.abbreviation');
+        const districtPrefix = _get(userData, 'district.abbreviation');
+        const groupPrefix = _get(userData, 'group.abbreviation');
 
         let pidPrefix: string;
         if (schoolPrefix) pidPrefix = schoolPrefix;
