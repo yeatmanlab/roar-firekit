@@ -1245,7 +1245,7 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
     await addDoc(collection(this.admin!.db, orgType), orgData).then((docRef) => {
-      return setDoc(collection(this.app!.db, orgType, docRef.id), orgData);
+      return setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
     });
   }
 
