@@ -1177,19 +1177,14 @@ export class RoarFirekit {
     }
   }
 
-  async createStudentWithUsernamePassword(
-    username: string,
-    password: string,
-    userData: ICreateUserInput,
-    pidPrefix = '',
-  ) {
+  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const isUsernameAvailable = await this.isUsernameAvailable(username);
     if (isUsernameAvailable) {
       const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData, pidPrefix);
+      await this.createStudentWithEmailPassword(email, password, userData);
     } else {
       // Username is not available, reject
       throw new Error(`The username ${username} is not available.`);
