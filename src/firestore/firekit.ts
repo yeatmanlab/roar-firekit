@@ -29,6 +29,7 @@ import {
 } from 'firebase/auth';
 import {
   Transaction,
+  Unsubscribe,
   addDoc,
   arrayRemove,
   arrayUnion,
@@ -38,8 +39,8 @@ import {
   getDocs,
   onSnapshot,
   runTransaction,
+  setDoc,
   updateDoc,
-  Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -1243,7 +1244,9 @@ export class RoarFirekit {
   async createOrg(orgType: OrgType, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
-    await addDoc(collection(this.admin!.db, orgType), orgData);
+    await addDoc(collection(this.admin!.db, orgType), orgData).then((docRef) => {
+      return setDoc(collection(this.app!.db, orgType, docRef.id), orgData);
+    });
   }
 
   // async createAdminUser(userData: IUserData) {
