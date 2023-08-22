@@ -699,7 +699,6 @@ export class RoarFirekit {
   }
 
   async updateConsentStatus(docName: string, consentVersion: string) {
-    const field = `consent.${consentVersion}`
     updateDoc(this.dbRefs!.admin.user, {
       [`legal.${docName}.${consentVersion}`]: new Date()
     })
