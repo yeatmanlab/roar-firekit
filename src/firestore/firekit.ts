@@ -1125,19 +1125,27 @@ export class RoarFirekit {
       if (_get(userData, 'pid')) {
         _set(userDocData, 'assessmentPid', userData.pid);
       } else {
+        // If PID was not supplied, then construct one using an eight character
+        // checksum of the email.
+        // Prefix that checksum with optional org abbreviations:
+        // 1. If the district has an abbreviation, start with that.
+        // 2. Then add the school abbreviation, if it exists.
+        // 3. If neither of those are available, use the group abbreviation.
+        // 4. Otherwise prepend nothing.
         const emailCheckSum = crc32String(email);
 
-        const schoolPrefix = _get(userData, 'school.abbreviation');
         const districtPrefix = _get(userData, 'district.abbreviation');
+        const schoolPrefix = _get(userData, 'school.abbreviation');
         const groupPrefix = _get(userData, 'group.abbreviation');
 
-        let pidPrefix: string;
-        if (schoolPrefix) pidPrefix = schoolPrefix;
-        else if (districtPrefix) pidPrefix = districtPrefix;
-        else if (groupPrefix) pidPrefix = groupPrefix;
-        else pidPrefix = '';
+        const pidParts: string[] = [];
+        if (districtPrefix) pidParts.push(districtPrefix);
+        if (schoolPrefix) pidParts.push(schoolPrefix);
+        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
+        pidParts.push(emailCheckSum);
+        const pid = pidParts.join('-');
 
-        if (_get(userData, 'school')) _set(userDocData, 'assessmentPid', pidPrefix + emailCheckSum);
+        if (_get(userData, 'school')) _set(userDocData, 'assessmentPid', pid);
       }
 
       // TODO: this can probably be optimized.
@@ -1265,8 +1273,9 @@ export class RoarFirekit {
   async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
-    await addDoc(collection(this.admin!.db, orgType), orgData).then((docRef) => {
-      return setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
+    return addDoc(collection(this.admin!.db, orgType), orgData).then(async (docRef) => {
+      await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
+      return docRef.id;
     });
   }
 }
