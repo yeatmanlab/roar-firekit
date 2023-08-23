@@ -413,14 +413,14 @@ service cloud.firestore {
     // Anyone in a district can read that district's info
     // Only super_admins can write districts.
     match /districts/{districtId} {
-      allow read: if loggedIn() && getAllOrgs('districts').hasAll([districtId]);
+      allow read: if loggedIn();
       allow write: if false;
     }
 
     // Anyone in a school can read that school's info.
     // Only district level admins can write to schools if the school is in their district.
     match /schools/{schoolId} {
-      allow read: if loggedIn() && getAllOrgs('schools').hasAll([schoolId]);
+      allow read: if loggedIn();
       allow create: if targetOrgsInAdminList('districts', [request.resource.data.get('districtId', 'nullId')]);
       allow update, delete: if targetOrgsInAdminList('districts', [resource.data.get('districtId', 'nullId')]);
     }
@@ -428,7 +428,7 @@ service cloud.firestore {
     // Anyone in a class can read that class's info
     // Only school or district level admins can write to classes if the class is in their school or district.
     match /classes/{classId} {
-      allow read: if loggedIn() && getAllOrgs('classes').hasAll([classId]);
+      allow read: if loggedIn();
       allow create: if targetOrgsInAdminList('districts', [request.resource.data.get('districtId', 'nullId')])
       || targetOrgsInAdminList('schools', [request.resource.data.get('schoolId', 'nullId')]);
       allow update, delete: if targetOrgsInAdminList('districts', [resource.data.get('districtId', 'nullId')])
@@ -438,7 +438,8 @@ service cloud.firestore {
     // Anyone in a group can read that group's info
     // Anyone who is an admin for this group can write to it
     match /groups/{groupId} {
-      allow read: if loggedIn() && getAllOrgs('groups').hasAll([groupId]);
+      // allow read: if loggedIn() && getAllOrgs('groups').hasAll([groupId]);
+      allow read: if loggedIn();
       allow write: if targetOrgsInAdminList('groups', [groupId]);
     }
 

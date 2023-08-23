@@ -64,8 +64,14 @@ import {
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
-import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { getAdministrations } from './query-admin';
+import { getTaskAndVariant, getTasks, getVariants } from './query-assessment';
+import {
+  getAdministrations,
+  getOrganizations,
+  isDistrictAvailable,
+  isGroupAvailable,
+  isSchoolAvailableInDistrict,
+} from './query-admin';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -1275,5 +1281,31 @@ export class RoarFirekit {
       await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
       return docRef.id;
     });
+  }
+
+  async isDistrictAvailable({ name, abbreviation }: { name: string; abbreviation: string }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    return isDistrictAvailable(this.admin!.db, name, abbreviation);
+  }
+
+  async isSchoolAvailableInDistrict({
+    name,
+    abbreviation,
+    districtId,
+  }: {
+    name: string;
+    abbreviation: string;
+    districtId: string;
+  }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    return isSchoolAvailableInDistrict(this.admin!.db, name, abbreviation, districtId);
+  }
+
+  async isGroupAvailable({ name, abbreviation }: { name: string; abbreviation: string }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    return isGroupAvailable(this.admin!.db, name, abbreviation);
   }
 }
