@@ -59,7 +59,7 @@ import {
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
-import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
+import { getOrganizations, getTaskAndVariant, getTasks, getVariants, getUsersWithAssignment } from './query-assessment';
 import { waitFor } from './util';
 
 enum AuthProviderType {
@@ -1112,6 +1112,11 @@ export class RoarFirekit {
   async getVariants(requireRegistered = true) {
     this._verifyAuthentication();
     return getVariants(this.app!.db, requireRegistered);
+  }
+  
+  public async getUsersWithAssignment(assignmentId: string) {
+    this._verifyAuthentication();
+    return getUsersWithAssignment(this.app!.db, assignmentId);
   }
 
   async getOrgs(orgType: OrgType) {

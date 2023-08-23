@@ -18,6 +18,11 @@ import { OrgType } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
 import _chunk from 'lodash/chunk';
 
+export const getUsersWithAssignment = (db: Firestore, assignmentId: string) => {
+  // expecting to see assignment ID returned when called
+  return assignmentId;
+};
+
 export const getOrganizations = async (db: Firestore, orgType: OrgType, orgIds?: string[]) => {
   let q: ReturnType<typeof query>;
   if (!orgIds) {
