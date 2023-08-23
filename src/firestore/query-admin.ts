@@ -1,6 +1,7 @@
 import {
   DocumentData,
   Firestore,
+  and,
   collection,
   doc,
   documentId,
@@ -186,8 +187,7 @@ export const isOrgAvailable = async (
 ) => {
   const q = query(
     collection(db, collectionName),
-    // where('name', '==', orgName),
-    where('abbreviation', '==', orgAbbreviation),
+    or(where('name', '==', orgName), where('abbreviation', '==', orgAbbreviation)),
   );
   const snapshot = await getCountFromServer(q);
   return snapshot.data().count === 0;
@@ -205,9 +205,10 @@ export const isSchoolAvailableInDistrict = async (
 ) => {
   const q = query(
     collection(db, 'schools'),
-    // where('name', '==', schoolName),
-    where('abbreviation', '==', schoolAbbreviation),
-    where('districtId', '==', districtId),
+    and(
+      where('districtId', '==', districtId),
+      or(where('name', '==', schoolName), where('abbreviation', '==', schoolAbbreviation)),
+    ),
   );
   const snapshot = await getCountFromServer(q);
   return snapshot.data().count === 0;
