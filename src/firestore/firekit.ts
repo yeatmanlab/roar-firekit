@@ -98,11 +98,11 @@ interface ICreateUserInput {
     middle?: string;
     last?: string;
   };
-  school: string | null;
-  district: string | null;
-  class: string | null;
-  family: string | null;
-  group: string | null;
+  school: { id: string; abbreviation?: string } | null;
+  district: { id: string; abbreviation?: string } | null;
+  class: { id: string; abbreviation?: string } | null;
+  family: { id: string; abbreviation?: string } | null;
+  group: { id: string; abbreviation?: string } | null;
 }
 
 interface ICurrentAssignments {
@@ -1101,7 +1101,7 @@ export class RoarFirekit {
     // }
   }
 
-  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput, pidPrefix = '') {
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1125,8 +1125,25 @@ export class RoarFirekit {
       if (_get(userData, 'pid')) {
         _set(userDocData, 'assessmentPid', userData.pid);
       } else {
+        // If PID was not supplied, then construct one using an eight character
+        // checksum of the email.
+        // Prefix that checksum with optional org abbreviations:
+        // 1. If the district has an abbreviation, start with that.
+        // 2. Then add the school abbreviation, if it exists.
+        // 3. If neither of those are available, use the group abbreviation.
+        // 4. Otherwise prepend nothing.
         const emailCheckSum = crc32String(email);
-        _set(userDocData, 'assessmentPid', pidPrefix + emailCheckSum);
+
+        const districtPrefix = _get(userData, 'district.abbreviation');
+        const schoolPrefix = _get(userData, 'school.abbreviation');
+        const groupPrefix = _get(userData, 'group.abbreviation');
+
+        const pidParts: string[] = [];
+        if (districtPrefix) pidParts.push(districtPrefix);
+        if (schoolPrefix) pidParts.push(schoolPrefix);
+        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
+        pidParts.push(emailCheckSum);
+        _set(userDocData, 'assessmentPid', pidParts.join('-'));
       }
 
       // TODO: this can probably be optimized.
@@ -1143,11 +1160,11 @@ export class RoarFirekit {
       if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
       if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
 
-      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district);
-      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school);
-      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class);
-      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group);
-      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family);
+      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
+      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
+      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
+      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
+      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
       const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
       const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
@@ -1166,19 +1183,14 @@ export class RoarFirekit {
     }
   }
 
-  async createStudentWithUsernamePassword(
-    username: string,
-    password: string,
-    userData: ICreateUserInput,
-    pidPrefix = '',
-  ) {
+  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const isUsernameAvailable = await this.isUsernameAvailable(username);
     if (isUsernameAvailable) {
       const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData, pidPrefix);
+      await this.createStudentWithEmailPassword(email, password, userData);
     } else {
       // Username is not available, reject
       throw new Error(`The username ${username} is not available.`);
@@ -1259,8 +1271,9 @@ export class RoarFirekit {
   async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
-    await addDoc(collection(this.admin!.db, orgType), orgData).then((docRef) => {
-      return setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
+    return addDoc(collection(this.admin!.db, orgType), orgData).then(async (docRef) => {
+      await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
+      return docRef.id;
     });
   }
 }
