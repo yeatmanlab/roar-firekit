@@ -186,7 +186,7 @@ export const isOrgAvailable = async (
 ) => {
   const q = query(
     collection(db, collectionName),
-    where('name', '==', orgName),
+    // where('name', '==', orgName),
     where('abbreviation', '==', orgAbbreviation),
   );
   const snapshot = await getCountFromServer(q);
@@ -205,7 +205,7 @@ export const isSchoolAvailableInDistrict = async (
 ) => {
   const q = query(
     collection(db, 'schools'),
-    where('name', '==', schoolName),
+    // where('name', '==', schoolName),
     where('abbreviation', '==', schoolAbbreviation),
     where('districtId', '==', districtId),
   );
