@@ -1143,9 +1143,7 @@ export class RoarFirekit {
         if (schoolPrefix) pidParts.push(schoolPrefix);
         if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
         pidParts.push(emailCheckSum);
-        const pid = pidParts.join('-');
-
-        if (_get(userData, 'school')) _set(userDocData, 'assessmentPid', pid);
+        _set(userDocData, 'assessmentPid', pidParts.join('-'));
       }
 
       // TODO: this can probably be optimized.
