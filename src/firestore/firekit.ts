@@ -65,7 +65,7 @@ import {
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { getAdministrations, getUsers } from './query-admin';
+import { getAdministrations, getUsersByAssignment, getUsersByOrgs } from './query-admin';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -259,6 +259,7 @@ export class RoarFirekit {
         this.getMyData();
       });
     }
+    return this._userDocListener;
   }
 
   private _listenToClaims(firekit: IFirekit) {
@@ -285,6 +286,8 @@ export class RoarFirekit {
         const idTokenResult = await user.getIdTokenResult(false);
         this._adminOrgs = idTokenResult.claims.adminOrgs;
         this._superAdmin = Boolean(idTokenResult.claims.super_admin);
+
+        this._userDocListener = this._listenToUserDoc();
       }
     });
   }
@@ -1268,15 +1271,16 @@ export class RoarFirekit {
     }
   }
 
-  async getUsersForOrg({ orgType, orgId, countOnly = false }: { orgType: OrgType; orgId: string; countOnly: boolean }) {
+  async getUsersByOrg({ orgType, orgId, countOnly = false }: { orgType: OrgType; orgId: string; countOnly?: boolean }) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const orgs = emptyOrgList();
     orgs[orgType] = [orgId];
 
-    return getUsers({
+    return getUsersByOrgs({
       db: this.admin!.db,
+      isSuperAdmin: this._superAdmin || false,
       orgs,
       countOnly,
     });
@@ -1288,6 +1292,29 @@ export class RoarFirekit {
     return addDoc(collection(this.admin!.db, orgType), orgData).then(async (docRef) => {
       await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
       return docRef.id;
+    });
+  }
+
+  async getUsersByAssignment({
+    assignmentId,
+    orgs,
+    countOnly = false,
+    includeScores = false,
+  }: {
+    assignmentId: string;
+    orgs?: IOrgLists;
+    countOnly?: boolean;
+    includeScores?: boolean;
+  }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    return getUsersByAssignment({
+      db: this.admin!.db,
+      isSuperAdmin: this._superAdmin || false,
+      assignmentId,
+      orgs,
+      countOnly,
+      includeScores,
     });
   }
 }

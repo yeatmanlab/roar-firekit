@@ -12,6 +12,7 @@ import {
   limit,
   query,
   where,
+  collectionGroup,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
 import { OrgCollectionName } from './interfaces';
@@ -371,4 +372,17 @@ export const getTaskAndVariant = async ({
     task: undefined,
     variant: undefined,
   };
+};
+
+export const getRunById = async ({ db, runId }: { db: Firestore; runId: string }) => {
+  const q = query(collectionGroup(db, 'runs'), where(documentId(), '==', runId));
+  const runsSnapshot = await getDocs(q);
+
+  if (runsSnapshot.empty) {
+    throw new Error(`Could not find run with id: ${runId}`);
+  } else if (runsSnapshot.docs.length > 1) {
+    throw new Error(`Found multiple runs with id: ${runId}`);
+  } else {
+    return runsSnapshot.docs[0].data();
+  }
 };

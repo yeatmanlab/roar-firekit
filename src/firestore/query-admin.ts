@@ -1,18 +1,35 @@
-import { Firestore, collection, doc, getCountFromServer, getDoc, getDocs, or, query, where } from 'firebase/firestore';
-import { IAdministrationData, IOrgLists, IUserData } from './interfaces';
+import {
+  Firestore,
+  and,
+  collection,
+  collectionGroup,
+  doc,
+  documentId,
+  getCountFromServer,
+  getDoc,
+  getDocs,
+  or,
+  query,
+  where,
+} from 'firebase/firestore';
+import { IAdministrationData, IAssignmentData, IOrgLists, IUserData } from './interfaces';
 import { chunkOrgLists, emptyOrgList } from './util';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
+import { getRunById } from './query-assessment';
 
 interface IGetterInput {
   db: Firestore;
+  assessmentDb?: Firestore;
   orgs?: IOrgLists;
   isSuperAdmin?: boolean;
   includeStats?: boolean;
 }
 
 interface IGetUsersInput extends IGetterInput {
-  countOnly: boolean;
+  assignmentId?: string;
+  countOnly?: boolean;
+  includeScores?: boolean;
 }
 
 interface IQueryInput extends IGetterInput {
@@ -20,7 +37,7 @@ interface IQueryInput extends IGetterInput {
   nested: boolean;
 }
 
-export const buildQueryForAdminCollection = ({
+export const buildQueryByOrgs = ({
   db,
   collectionName,
   nested,
@@ -40,17 +57,17 @@ export const buildQueryForAdminCollection = ({
   const orgQueryParams: ReturnType<typeof where>[] = [];
 
   if (nested) {
-    if (orgs.districts.length) orgQueryParams.push(where('districts.current', 'array-contains', orgs.districts));
-    if (orgs.schools.length) orgQueryParams.push(where('schools.current', 'array-contains', orgs.schools));
-    if (orgs.classes.length) orgQueryParams.push(where('classes.current', 'array-contains', orgs.classes));
-    if (orgs.groups.length) orgQueryParams.push(where('groups.current', 'array-contains', orgs.groups));
-    if (orgs.families.length) orgQueryParams.push(where('families.current', 'array-contains', orgs.families));
+    if (orgs.districts.length) orgQueryParams.push(where('districts.current', 'array-contains-any', orgs.districts));
+    if (orgs.schools.length) orgQueryParams.push(where('schools.current', 'array-contains-any', orgs.schools));
+    if (orgs.classes.length) orgQueryParams.push(where('classes.current', 'array-contains-any', orgs.classes));
+    if (orgs.groups.length) orgQueryParams.push(where('groups.current', 'array-contains-any', orgs.groups));
+    if (orgs.families.length) orgQueryParams.push(where('families.current', 'array-contains-any', orgs.families));
   } else {
-    if (orgs.districts.length) orgQueryParams.push(where('districts', 'array-contains', orgs.districts));
-    if (orgs.schools.length) orgQueryParams.push(where('schools', 'array-contains', orgs.schools));
-    if (orgs.classes.length) orgQueryParams.push(where('classes', 'array-contains', orgs.classes));
-    if (orgs.groups.length) orgQueryParams.push(where('groups', 'array-contains', orgs.groups));
-    if (orgs.families.length) orgQueryParams.push(where('families', 'array-contains', orgs.families));
+    if (orgs.districts.length) orgQueryParams.push(where('districts', 'array-contains-any', orgs.districts));
+    if (orgs.schools.length) orgQueryParams.push(where('schools', 'array-contains-any', orgs.schools));
+    if (orgs.classes.length) orgQueryParams.push(where('classes', 'array-contains-any', orgs.classes));
+    if (orgs.groups.length) orgQueryParams.push(where('groups', 'array-contains-any', orgs.groups));
+    if (orgs.families.length) orgQueryParams.push(where('families', 'array-contains-any', orgs.families));
   }
 
   if (orgQueryParams.length === 0) return undefined;
@@ -58,7 +75,38 @@ export const buildQueryForAdminCollection = ({
   return query(collectionRef, or(...orgQueryParams));
 };
 
-export const getUsers = async ({
+export const buildQueryByAssignment = ({ db, assignmentId, orgs }: IGetUsersInput) => {
+  const collectionRef = collectionGroup(db, 'assignments');
+  const assignmentIdQuery = where(documentId(), '==', assignmentId);
+
+  if (orgs) {
+    // Cloud Firestore limits a query to a maximum of 30 disjunctions in disjunctive normal form.
+    // We cap it at 25 so that we can combine with the assignment ID query as well.
+    // Detect if there are too many `array-contains` comparisons
+    if (_union(...Object.values(orgs)).length > 25) {
+      throw new Error('Too many orgs to query. Please chunk orgs such that the total number of orgs is less than 30.');
+    }
+
+    const orgQueryParams: ReturnType<typeof where>[] = [];
+
+    if (orgs.districts.length)
+      orgQueryParams.push(where('assigningOrgs.districts', 'array-contains-any', orgs.districts));
+    if (orgs.schools.length) orgQueryParams.push(where('assigningOrgs.schools', 'array-contains-any', orgs.schools));
+    if (orgs.classes.length) orgQueryParams.push(where('assigningOrgs.classes', 'array-contains-any', orgs.classes));
+    if (orgs.groups.length) orgQueryParams.push(where('assigningOrgs.groups', 'array-contains-any', orgs.groups));
+    if (orgs.families.length) orgQueryParams.push(where('assigningOrgs.families', 'array-contains-any', orgs.families));
+
+    if (orgQueryParams.length === 0) {
+      return undefined;
+    }
+
+    return query(collectionRef, and(assignmentIdQuery, or(...orgQueryParams)));
+  } else {
+    return query(collectionRef, assignmentIdQuery);
+  }
+};
+
+export const getUsersByOrgs = async ({
   db,
   orgs = emptyOrgList(),
   isSuperAdmin = false,
@@ -69,7 +117,7 @@ export const getUsers = async ({
   const users: IUserData[] = [];
 
   for (const orgsChunk of chunkedOrgs) {
-    const userQuery = buildQueryForAdminCollection({
+    const userQuery = buildQueryByOrgs({
       db,
       collectionName: 'users',
       nested: true,
@@ -83,7 +131,6 @@ export const getUsers = async ({
         total += snapshot.data().count;
       } else {
         const snapshot = await getDocs(userQuery);
-        const users: IUserData[] = [];
         snapshot.forEach((docSnap) => {
           users.push({
             id: docSnap.id,
@@ -109,7 +156,7 @@ export const getAdministrations = async ({
   const administrations: IAdministrationData[] = [];
 
   for (const orgsChunk of chunkedOrgs) {
-    const query = buildQueryForAdminCollection({
+    const q = buildQueryByOrgs({
       db,
       collectionName: 'administrations',
       nested: false,
@@ -117,9 +164,8 @@ export const getAdministrations = async ({
       isSuperAdmin,
     });
 
-    if (query) {
-      const snapshot = await getDocs(query);
-      const administrationsChunk: IAdministrationData[] = [];
+    if (q) {
+      const snapshot = await getDocs(q);
       for (const docSnap of snapshot.docs) {
         const docData = docSnap.data();
         if (includeStats) {
@@ -134,9 +180,83 @@ export const getAdministrations = async ({
           ...docData,
         } as IAdministrationData);
       }
-      administrations.push(...administrationsChunk);
     }
   }
 
   return _uniqBy(administrations, (a: IAdministrationData) => a.id);
+};
+
+export interface IUserAssignmentData {
+  id: string;
+  user: IUserData;
+  assignment: IAssignmentData;
+}
+
+export const getUsersByAssignment = async ({
+  db,
+  assessmentDb,
+  assignmentId,
+  orgs = emptyOrgList(),
+  countOnly = false,
+  includeScores = false,
+}: IGetUsersInput) => {
+  if (includeScores && !assessmentDb) {
+    throw new Error('You must provide an assessmentDb if you want to include scores.');
+  }
+
+  let total = 0;
+  const assignments: IUserAssignmentData[] = [];
+
+  if (orgs) {
+    const chunkedOrgs = chunkOrgLists(orgs, 20);
+
+    for (const orgsChunk of chunkedOrgs) {
+      const q = buildQueryByAssignment({
+        db,
+        assignmentId,
+        orgs: orgsChunk,
+      });
+
+      if (q) {
+        if (countOnly) {
+          const snapshot = await getCountFromServer(q);
+          total += snapshot.data().count;
+        } else {
+          const snapshot = await getDocs(q);
+          for (const docSnap of snapshot.docs) {
+            const assignmentData = docSnap.data() as IAssignmentData;
+
+            if (includeScores) {
+              const assessments = assignmentData.assessments;
+              for (const assessment of assessments) {
+                const runId = assessment.runId;
+                if (runId) {
+                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                  const { scores } = await getRunById({ db: assessmentDb!, runId });
+
+                  // add scores to the assessment at this index
+                  // and write back to assignmentData
+                }
+              }
+            }
+
+            const userRef = docSnap.ref.parent.parent;
+            if (userRef) {
+              const userDocSnap = await getDoc(userRef);
+              if (userDocSnap.exists()) {
+                assignments.push({
+                  id: userDocSnap.id,
+                  user: userDocSnap.data() as IUserData,
+                  assignment: assignmentData,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (countOnly) return total;
+  return _uniqBy(assignments, (u: IUserAssignmentData) => u.id);
 };

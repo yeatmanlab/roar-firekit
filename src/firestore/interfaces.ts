@@ -135,6 +135,7 @@ export interface IAssignedAssessmentData extends DocumentData {
 }
 
 export interface IAssignmentData extends DocumentData {
+  assignmentId?: string;
   completed: boolean;
   started: boolean;
   dateAssigned: Date;
