@@ -275,6 +275,7 @@ export class RoarFirekit {
             // Update the user's ID token and refresh claimsLastUpdated.
             firekit.user!.getIdToken(true);
             firekit.claimsLastUpdated = lastUpdated;
+            this._userDocListener = this._listenToUserDoc();
           }
         }
       });
