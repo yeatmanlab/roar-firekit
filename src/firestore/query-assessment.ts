@@ -366,7 +366,7 @@ export const getTaskAndVariant = async ({
 };
 
 export const getRunById = async ({ db, runId }: { db: Firestore; runId: string }) => {
-  const q = query(collectionGroup(db, 'runs'), where(documentId(), '==', runId));
+  const q = query(collectionGroup(db, 'runs'), where('id', '==', runId));
   const runsSnapshot = await getDocs(q);
 
   if (runsSnapshot.empty) {

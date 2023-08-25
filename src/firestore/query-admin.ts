@@ -4,7 +4,6 @@ import {
   collection,
   collectionGroup,
   doc,
-  documentId,
   getCountFromServer,
   getDoc,
   getDocs,
@@ -71,7 +70,7 @@ export const buildQueryByAssignment = ({
   orgs?: IOrgLists;
 }) => {
   const collectionRef = collectionGroup(db, 'assignments');
-  const assignmentIdQuery = where(documentId(), '==', assignmentId);
+  const assignmentIdQuery = where('id', '==', assignmentId);
 
   if (orgs) {
     // Cloud Firestore limits a query to a maximum of 30 disjunctions in disjunctive normal form.
