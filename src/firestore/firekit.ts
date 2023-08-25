@@ -60,6 +60,7 @@ import {
   IStudentData,
   IUserData,
   OrgCollectionName,
+  OrgType,
   UserType,
 } from './interfaces';
 import { IUserInput } from './app/user';
@@ -1271,12 +1272,32 @@ export class RoarFirekit {
     }
   }
 
-  async getUsersByOrg({ orgType, orgId, countOnly = false }: { orgType: OrgType; orgId: string; countOnly?: boolean }) {
+  async getUsersBySingleOrg({
+    orgType,
+    orgId,
+    countOnly = false,
+  }: {
+    orgType: OrgType;
+    orgId: string;
+    countOnly?: boolean;
+  }) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const orgs = emptyOrgList();
     orgs[orgType] = [orgId];
+
+    return getUsersByOrgs({
+      db: this.admin!.db,
+      isSuperAdmin: this._superAdmin || false,
+      orgs,
+      countOnly,
+    });
+  }
+
+  async getUsersByOrgs({ orgs, countOnly = false }: { orgs: IOrgLists; countOnly?: boolean }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
 
     return getUsersByOrgs({
       db: this.admin!.db,
@@ -1310,7 +1331,7 @@ export class RoarFirekit {
     this._verifyAdmin();
     return getUsersByAssignment({
       db: this.admin!.db,
-      isSuperAdmin: this._superAdmin || false,
+      assessmentDb: this.app!.db,
       assignmentId,
       orgs,
       countOnly,

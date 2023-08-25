@@ -37,16 +37,13 @@ interface IQueryInput extends IGetterInput {
   nested: boolean;
 }
 
-export const buildQueryByOrgs = ({
-  db,
-  collectionName,
-  nested,
-  isSuperAdmin = false,
-  orgs = emptyOrgList(),
-}: IQueryInput) => {
+export const buildQueryByOrgs = ({ db, collectionName, nested, isSuperAdmin = false, orgs }: IQueryInput) => {
   const collectionRef = collection(db, collectionName);
 
-  if (isSuperAdmin) return query(collectionRef);
+  if (!orgs) {
+    if (isSuperAdmin) return query(collectionRef);
+    throw new Error('Orgs are required if user is not a super admin');
+  }
 
   // Cloud Firestore limits a query to a maximum of 30 disjunctions in disjunctive normal form.
   // Detect if there are too many `array-contains` comparisons
@@ -227,19 +224,35 @@ export const getUsersByAssignment = async ({
             const assignmentData = docSnap.data() as IAssignmentData;
 
             if (includeScores) {
+              // To retrieve scores, we first build an object where the keys are
+              // the task IDs of each assessment and the values are the scores
+              // for the run associated with that assessment.
               const assessments = assignmentData.assessments;
+              const scores: { [key: string]: unknown } = {};
               for (const assessment of assessments) {
                 const runId = assessment.runId;
                 if (runId) {
                   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  const { scores } = await getRunById({ db: assessmentDb!, runId });
-
-                  // add scores to the assessment at this index
-                  // and write back to assignmentData
+                  const { runScores } = await getRunById({ db: assessmentDb!, runId });
+                  scores[assessment.taskId] = runScores;
                 }
               }
+
+              // Now we iterate over the scores and insert them into the
+              // assessments array of objects.
+              for (const [taskId, score] of Object.entries(scores)) {
+                const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
+                const oldAssessmentInfo = assessments[assessmentIdx];
+                const newAssessmentInfo = {
+                  ...oldAssessmentInfo,
+                  scores: score,
+                };
+                assessments[assessmentIdx] = newAssessmentInfo;
+              }
+              assignmentData.assessments = assessments;
             }
 
+            // Now grab the user document and add it to the results.
             const userRef = docSnap.ref.parent.parent;
             if (userRef) {
               const userDocSnap = await getDoc(userRef);
