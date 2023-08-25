@@ -1,6 +1,20 @@
-import { Firestore, collection, doc, getCountFromServer, getDoc, getDocs, or, query, where } from 'firebase/firestore';
-import { IAdministrationData, IOrgLists, IUserData } from './interfaces';
+import {
+  DocumentData,
+  Firestore,
+  and,
+  collection,
+  doc,
+  documentId,
+  getCountFromServer,
+  getDoc,
+  getDocs,
+  or,
+  query,
+  where,
+} from 'firebase/firestore';
+import { IAdministrationData, IOrgLists, IUserData, OrgCollectionName } from './interfaces';
 import { chunkOrgLists, emptyOrgList } from './util';
+import _chunk from 'lodash/chunk';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
 
@@ -134,4 +148,72 @@ export const getAdministrations = async ({
   }
 
   return _uniqBy(administrations, (a: IAdministrationData) => a.id);
+};
+
+export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[]) => {
+  let q: ReturnType<typeof query>;
+  if (!orgIds) {
+    q = query(collection(db, orgType));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => {
+      const docData = doc.data() as DocumentData;
+      docData.id = doc.id;
+      return docData;
+    });
+  }
+
+  const orgs = [];
+  const maxQueryDisjunctions = 20;
+  for (const _orgsChunk of _chunk(orgIds, maxQueryDisjunctions)) {
+    q = query(collection(db, orgType), where(documentId(), 'in', _orgsChunk));
+    const snapshot = await getDocs(q);
+    orgs.push(
+      ...snapshot.docs.map((doc) => {
+        const docData = doc.data() as DocumentData;
+        docData.id = doc.id;
+        return docData;
+      }),
+    );
+  }
+
+  return orgs;
+};
+
+export const isOrgAvailable = async (
+  db: Firestore,
+  collectionName: string,
+  orgName: string,
+  orgAbbreviation: string,
+) => {
+  const q = query(
+    collection(db, collectionName),
+    or(where('name', '==', orgName), where('abbreviation', '==', orgAbbreviation)),
+  );
+  const snapshot = await getCountFromServer(q);
+  return snapshot.data().count === 0;
+};
+
+export const isDistrictAvailable = async (db: Firestore, districtName: string, districtAbbreviation: string) => {
+  return isOrgAvailable(db, 'districts', districtName, districtAbbreviation);
+};
+
+export const isSchoolAvailableInDistrict = async (
+  db: Firestore,
+  districtId: string,
+  schoolName: string,
+  schoolAbbreviation: string,
+) => {
+  const q = query(
+    collection(db, 'schools'),
+    and(
+      where('districtId', '==', districtId),
+      or(where('name', '==', schoolName), where('abbreviation', '==', schoolAbbreviation)),
+    ),
+  );
+  const snapshot = await getCountFromServer(q);
+  return snapshot.data().count === 0;
+};
+
+export const isGroupAvailable = async (db: Firestore, groupName: string, groupAbbreviation: string) => {
+  return isOrgAvailable(db, 'groups', groupName, groupAbbreviation);
 };

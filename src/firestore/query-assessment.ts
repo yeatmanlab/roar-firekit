@@ -1,7 +1,6 @@
 import {
   DocumentData,
   DocumentReference,
-  documentId,
   Firestore,
   Query,
   Timestamp,
@@ -14,38 +13,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
-import { OrgCollectionName } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
-import _chunk from 'lodash/chunk';
-
-export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[]) => {
-  let q: ReturnType<typeof query>;
-  if (!orgIds) {
-    q = query(collection(db, orgType));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => {
-      const docData = doc.data() as DocumentData;
-      docData.id = doc.id;
-      return docData;
-    });
-  }
-
-  const orgs = [];
-  const maxQueryDisjunctions = 20;
-  for (const _orgsChunk of _chunk(orgIds, maxQueryDisjunctions)) {
-    q = query(collection(db, orgType), where(documentId(), 'in', _orgsChunk));
-    const snapshot = await getDocs(q);
-    orgs.push(
-      ...snapshot.docs.map((doc) => {
-        const docData = doc.data() as DocumentData;
-        docData.id = doc.id;
-        return docData;
-      }),
-    );
-  }
-
-  return orgs;
-};
 
 export const getTasks = async (db: Firestore, requireRegistered = true) => {
   let q: ReturnType<typeof query>;
@@ -128,15 +96,6 @@ interface IUser {
   schools: string[];
   groups: string[];
   classes: string[];
-}
-
-interface IUserQueryInput {
-  db: Firestore;
-  districts: string[];
-  schools: string[];
-  classes: string[];
-  groups: string[];
-  families: string[];
 }
 
 export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], variantIds: string[]) => {
