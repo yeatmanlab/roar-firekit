@@ -164,6 +164,7 @@ export class RoarRun {
 
     const runData = {
       ...additionalRunMetadata,
+      id: this.runRef.id,
       assigningOrgs: this.assigningOrgs || null,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
