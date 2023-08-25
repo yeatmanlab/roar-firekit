@@ -72,6 +72,7 @@ export interface IName {
 }
 
 export interface IUserData extends DocumentData {
+  id?: string;
   userType: UserType;
   name?: IName;
   assessmentPid?: string;
@@ -134,6 +135,7 @@ export interface IAssignedAssessmentData extends DocumentData {
 }
 
 export interface IAssignmentData extends DocumentData {
+  assignmentId?: string;
   completed: boolean;
   started: boolean;
   dateAssigned: Date;

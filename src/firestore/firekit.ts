@@ -60,12 +60,13 @@ import {
   IStudentData,
   IUserData,
   OrgCollectionName,
+  OrgType,
   UserType,
 } from './interfaces';
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { getAdministrations } from './query-admin';
+import { getAdministrations, getUsersByAssignment, getUsersByOrgs } from './query-admin';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -98,6 +99,7 @@ interface ICreateUserInput {
     middle?: string;
     last?: string;
   };
+  username?: string;
   school: { id: string; abbreviation?: string } | null;
   district: { id: string; abbreviation?: string } | null;
   class: { id: string; abbreviation?: string } | null;
@@ -259,6 +261,7 @@ export class RoarFirekit {
         this.getMyData();
       });
     }
+    return this._userDocListener;
   }
 
   private _listenToClaims(firekit: IFirekit) {
@@ -1147,6 +1150,8 @@ export class RoarFirekit {
       }
 
       // TODO: this can probably be optimized.
+      _set(userDocData, 'email', email);
+      if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
@@ -1227,10 +1232,11 @@ export class RoarFirekit {
   async getMyAdministrations(includeStats = true) {
     this._verifyAuthentication();
     if (this._superAdmin || this._adminOrgs) {
+      const orgs = this._superAdmin ? undefined : (this._adminOrgs as IOrgLists);
       return getAdministrations({
         db: this.admin!.db,
         isSuperAdmin: this._superAdmin || false,
-        orgs: (this._adminOrgs as IOrgLists) || undefined,
+        orgs,
         includeStats,
       });
     } else {
@@ -1268,12 +1274,70 @@ export class RoarFirekit {
     }
   }
 
+  async getUsersBySingleOrg({
+    orgType,
+    orgId,
+    countOnly = false,
+  }: {
+    orgType: OrgType;
+    orgId: string;
+    countOnly?: boolean;
+  }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const orgs = emptyOrgList();
+    orgs[orgType] = [orgId];
+
+    return getUsersByOrgs({
+      db: this.admin!.db,
+      isSuperAdmin: this._superAdmin || false,
+      orgs,
+      countOnly,
+    });
+  }
+
+  async getUsersByOrgs({ orgs, countOnly = false }: { orgs: IOrgLists; countOnly?: boolean }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    return getUsersByOrgs({
+      db: this.admin!.db,
+      isSuperAdmin: this._superAdmin || false,
+      orgs,
+      countOnly,
+    });
+  }
+
   async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
     return addDoc(collection(this.admin!.db, orgType), orgData).then(async (docRef) => {
       await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
       return docRef.id;
+    });
+  }
+
+  async getUsersByAssignment({
+    assignmentId,
+    orgs,
+    countOnly = false,
+    includeScores = false,
+  }: {
+    assignmentId: string;
+    orgs?: IOrgLists;
+    countOnly?: boolean;
+    includeScores?: boolean;
+  }) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    return getUsersByAssignment({
+      db: this.admin!.db,
+      assessmentDb: this.app!.db,
+      assignmentId,
+      orgs,
+      countOnly,
+      includeScores,
     });
   }
 }
