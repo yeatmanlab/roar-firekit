@@ -99,6 +99,7 @@ interface ICreateUserInput {
     middle?: string;
     last?: string;
   };
+  username?: string;
   school: { id: string; abbreviation?: string } | null;
   district: { id: string; abbreviation?: string } | null;
   class: { id: string; abbreviation?: string } | null;
@@ -1149,6 +1150,7 @@ export class RoarFirekit {
       }
 
       // TODO: this can probably be optimized.
+      if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
       if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
@@ -1230,11 +1232,6 @@ export class RoarFirekit {
     this._verifyAuthentication();
     if (this._superAdmin || this._adminOrgs) {
       const orgs = this._superAdmin ? undefined : (this._adminOrgs as IOrgLists);
-      console.log('Calling firekit.getMyAdministrations with args:', {
-        isSuperAdmin: this._superAdmin || false,
-        orgs,
-        includeStats,
-      });
       return getAdministrations({
         db: this.admin!.db,
         isSuperAdmin: this._superAdmin || false,
