@@ -158,7 +158,6 @@ export const getAdministrations = async ({
 
   const administrations: IAdministrationData[] = [];
 
-  console.log('In getAdministrations ', { chunkedOrgs });
   for (const orgsChunk of chunkedOrgs) {
     const q = buildQueryByOrgs({
       db,
@@ -168,11 +167,9 @@ export const getAdministrations = async ({
       isSuperAdmin,
     });
 
-    console.log('Query for chunk ', { q, orgsChunk });
 
     if (q) {
       const snapshot = await getDocs(q);
-      console.log('Snapshot for chunk ', { snapshot });
       for (const docSnap of snapshot.docs) {
         const docData = docSnap.data();
         if (includeStats) {

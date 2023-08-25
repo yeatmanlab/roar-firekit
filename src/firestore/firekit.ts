@@ -1232,11 +1232,6 @@ export class RoarFirekit {
     this._verifyAuthentication();
     if (this._superAdmin || this._adminOrgs) {
       const orgs = this._superAdmin ? undefined : (this._adminOrgs as IOrgLists);
-      console.log('Calling firekit.getMyAdministrations with args:', {
-        isSuperAdmin: this._superAdmin || false,
-        orgs,
-        includeStats,
-      });
       return getAdministrations({
         db: this.admin!.db,
         isSuperAdmin: this._superAdmin || false,
