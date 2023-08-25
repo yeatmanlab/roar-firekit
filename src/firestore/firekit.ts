@@ -1150,6 +1150,7 @@ export class RoarFirekit {
       }
 
       // TODO: this can probably be optimized.
+      _set(userDocData, 'email', email);
       if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
       if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
       if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
