@@ -1,7 +1,7 @@
 import {
   crc32String,
   getTreeTableOrgs,
-  getObjectDiff,
+  mergeGameParams,
   removeNull,
   removeUndefined,
   replaceValues,
@@ -75,26 +75,38 @@ describe('removeUndefined', () => {
   });
 });
 
-describe('getObjectDiff', () => {
+describe('mergeGameParams', () => {
   it('detects changed keys', () => {
     const obj1 = {
       a: 1,
-      b: 2,
-      c: { foo: 1, bar: 2 },
+      b: null,
+      c: null,
       d: { baz: 1, bat: 2 },
     };
 
     const obj2 = {
+      a: 1,
       b: 2,
       c: { foo: 1, bar: 'monkey' },
       d: { baz: 1, bat: 2 },
-      e: 1,
     };
 
-    const result = getObjectDiff(obj1, obj2);
-    const expected = ['c', 'e', 'a'];
+    const result = mergeGameParams(obj1, obj2);
+    const expected = { ...obj2 };
 
-    expect(result.sort()).toEqual(expected.sort());
+    expect(result).toStrictEqual(expected);
+
+    expect(() => {
+      mergeGameParams(obj1, { ...obj2, newParam: true });
+    }).toThrow('New key detected: newParam');
+
+    expect(() => {
+      mergeGameParams({ ...obj1, oldParam: true }, obj2);
+    }).toThrow('Detected deleted keys: oldParam');
+
+    expect(() => {
+      mergeGameParams(obj1, { ...obj2, d: 'updatedValue' });
+    }).toThrow('Attempted to change previously non-null value with key d');
   });
 });
 

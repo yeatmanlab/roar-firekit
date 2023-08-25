@@ -11,9 +11,12 @@ import {
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _chunk from 'lodash/chunk';
+import _difference from 'lodash/difference';
 import _get from 'lodash/get';
+import _isEmpty from 'lodash/isEmpty';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
+import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import _union from 'lodash/union';
 import { markRaw } from 'vue';
@@ -253,30 +256,39 @@ export const waitFor = (conditionFunction: () => boolean) => {
   return new Promise(poll);
 };
 
-/*
- * Compare two objects by reducing an array of keys in obj1, having the
- * keys in obj2 as the intial value of the result. Key points:
+/**
+ * Merge new game parameters with old parameters with constraints
  *
- * - All keys of obj2 are initially in the result.
+ * The constraints are:
+ * - no new parameters may be added,
+ * - no old parameters may be removed,
+ * - any parameters that have been changed must have had ``null`` values in ``oldParams``
  *
- * - If the loop finds a key (from obj1, remember) not in obj2, it adds
- *   it to the result.
- *
- * - If the loop finds a key that are both in obj1 and obj2, it compares
- *   the value. If it's the same value, the key is removed from the result.
+ * @param oldParams - Old game parameters
+ * @param newParams - New game parameters
+ * @returns merged game parameters
  */
-export const getObjectDiff = (obj1: { [key: string]: unknown }, obj2: { [key: string]: unknown }) => {
-  const diff = Object.keys(obj1).reduce((result, key) => {
-    if (!obj2[key]) {
-      result.push(key);
-    } else if (_isEqual(obj1[key], obj2[key])) {
-      const resultKeyIndex = result.indexOf(key);
-      result.splice(resultKeyIndex, 1);
+export const mergeGameParams = (oldParams: { [key: string]: unknown }, newParams: { [key: string]: unknown }) => {
+  const customizer = (oldValue: unknown, newValue: unknown, key: string) => {
+    if (oldValue === null) {
+      return newValue;
     }
-    return result;
-  }, Object.keys(obj2));
+    if (_isEqual(oldValue, newValue)) {
+      return newValue;
+    }
+    if (oldValue === undefined && newValue !== undefined) {
+      throw new Error(`New key detected: ${key}`);
+    } else {
+      throw new Error(`Attempted to change previously non-null value with key ${key}`);
+    }
+  };
 
-  return diff;
+  const merged = _mergeWith({ ...oldParams }, newParams, customizer);
+  const differentKeys = _difference(Object.keys(merged), Object.keys(newParams));
+  if (!_isEmpty(differentKeys)) {
+    throw new Error(`Detected deleted keys: ${differentKeys.join(', ')}`);
+  }
+  return merged;
 };
 
 export const crc32String = (inputString: string) => {
