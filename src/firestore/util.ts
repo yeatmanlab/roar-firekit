@@ -458,9 +458,11 @@ export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
   return topLevelOrgs;
 };
 
-export const chunkOrgLists = (inputOrgs: IOrgLists, chunkSize = 30) => {
-  const allOrgs: string[] = _union(...Object.values(inputOrgs));
-  if (allOrgs.length <= chunkSize) return [inputOrgs];
+export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: IOrgLists; chunkSize: number }) => {
+  if (!orgs) return [undefined];
+
+  const allOrgs: string[] = _union(...Object.values(orgs));
+  if (allOrgs.length <= chunkSize) return [orgs];
 
   const chunkedOrgs = _chunk(allOrgs, chunkSize);
   return chunkedOrgs.map((chunk) => {

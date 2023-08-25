@@ -13,28 +13,17 @@ import {
   where,
 } from 'firebase/firestore';
 import { IAdministrationData, IAssignmentData, IOrgLists, IUserData } from './interfaces';
-import { chunkOrgLists, emptyOrgList } from './util';
+import { chunkOrgLists } from './util';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
 import { getRunById } from './query-assessment';
 
-interface IGetterInput {
+interface IQueryInput {
   db: Firestore;
-  assessmentDb?: Firestore;
-  orgs?: IOrgLists;
-  isSuperAdmin?: boolean;
-  includeStats?: boolean;
-}
-
-interface IGetUsersInput extends IGetterInput {
-  assignmentId?: string;
-  countOnly?: boolean;
-  includeScores?: boolean;
-}
-
-interface IQueryInput extends IGetterInput {
   collectionName: string;
   nested: boolean;
+  isSuperAdmin?: boolean;
+  orgs?: IOrgLists;
 }
 
 export const buildQueryByOrgs = ({ db, collectionName, nested, isSuperAdmin = false, orgs }: IQueryInput) => {
@@ -72,7 +61,15 @@ export const buildQueryByOrgs = ({ db, collectionName, nested, isSuperAdmin = fa
   return query(collectionRef, or(...orgQueryParams));
 };
 
-export const buildQueryByAssignment = ({ db, assignmentId, orgs }: IGetUsersInput) => {
+export const buildQueryByAssignment = ({
+  db,
+  assignmentId,
+  orgs,
+}: {
+  db: Firestore;
+  assignmentId: string;
+  orgs?: IOrgLists;
+}) => {
   const collectionRef = collectionGroup(db, 'assignments');
   const assignmentIdQuery = where(documentId(), '==', assignmentId);
 
@@ -105,11 +102,16 @@ export const buildQueryByAssignment = ({ db, assignmentId, orgs }: IGetUsersInpu
 
 export const getUsersByOrgs = async ({
   db,
-  orgs = emptyOrgList(),
+  orgs,
   isSuperAdmin = false,
   countOnly = false,
-}: IGetUsersInput) => {
-  const chunkedOrgs = chunkOrgLists(orgs, 20);
+}: {
+  db: Firestore;
+  orgs?: IOrgLists;
+  isSuperAdmin?: boolean;
+  countOnly?: boolean;
+}) => {
+  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
   let total = 0;
   const users: IUserData[] = [];
 
@@ -144,14 +146,20 @@ export const getUsersByOrgs = async ({
 
 export const getAdministrations = async ({
   db,
-  orgs = emptyOrgList(),
+  orgs,
   isSuperAdmin = false,
   includeStats = true,
-}: IGetterInput) => {
-  const chunkedOrgs = chunkOrgLists(orgs, 20);
+}: {
+  db: Firestore;
+  orgs?: IOrgLists;
+  isSuperAdmin?: boolean;
+  includeStats?: boolean;
+}) => {
+  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
 
   const administrations: IAdministrationData[] = [];
 
+  console.log('In getAdministrations ', { chunkedOrgs });
   for (const orgsChunk of chunkedOrgs) {
     const q = buildQueryByOrgs({
       db,
@@ -161,8 +169,11 @@ export const getAdministrations = async ({
       isSuperAdmin,
     });
 
+    console.log('Query for chunk ', { q, orgsChunk });
+
     if (q) {
       const snapshot = await getDocs(q);
+      console.log('Snapshot for chunk ', { snapshot });
       for (const docSnap of snapshot.docs) {
         const docData = docSnap.data();
         if (includeStats) {
@@ -193,10 +204,17 @@ export const getUsersByAssignment = async ({
   db,
   assessmentDb,
   assignmentId,
-  orgs = emptyOrgList(),
+  orgs,
   countOnly = false,
   includeScores = false,
-}: IGetUsersInput) => {
+}: {
+  db: Firestore;
+  assessmentDb: Firestore;
+  assignmentId: string;
+  orgs?: IOrgLists;
+  countOnly?: boolean;
+  includeScores?: boolean;
+}) => {
   if (includeScores && !assessmentDb) {
     throw new Error('You must provide an assessmentDb if you want to include scores.');
   }
@@ -205,7 +223,7 @@ export const getUsersByAssignment = async ({
   const assignments: IUserAssignmentData[] = [];
 
   if (orgs) {
-    const chunkedOrgs = chunkOrgLists(orgs, 20);
+    const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
 
     for (const orgsChunk of chunkedOrgs) {
       const q = buildQueryByAssignment({

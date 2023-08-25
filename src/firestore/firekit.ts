@@ -287,8 +287,6 @@ export class RoarFirekit {
         const idTokenResult = await user.getIdTokenResult(false);
         this._adminOrgs = idTokenResult.claims.adminOrgs;
         this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-
-        this._userDocListener = this._listenToUserDoc();
       }
     });
   }
@@ -1231,10 +1229,16 @@ export class RoarFirekit {
   async getMyAdministrations(includeStats = true) {
     this._verifyAuthentication();
     if (this._superAdmin || this._adminOrgs) {
+      const orgs = this._superAdmin ? undefined : (this._adminOrgs as IOrgLists);
+      console.log('Calling firekit.getMyAdministrations with args:', {
+        isSuperAdmin: this._superAdmin || false,
+        orgs,
+        includeStats,
+      });
       return getAdministrations({
         db: this.admin!.db,
         isSuperAdmin: this._superAdmin || false,
-        orgs: (this._adminOrgs as IOrgLists) || undefined,
+        orgs,
         includeStats,
       });
     } else {
