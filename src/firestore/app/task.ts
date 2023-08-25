@@ -62,6 +62,7 @@ export class RoarTaskVariant {
   variantParams: { [key: string]: unknown };
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
+  private _firestoreUpdateAllowed: boolean;
   /** Create a ROAR task
    * @param {ITaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
@@ -93,6 +94,7 @@ export class RoarTaskVariant {
     this.variantsCollectionRef = collection(this.taskRef, 'variants');
     this.variantId = undefined;
     this.variantRef = undefined;
+    this._firestoreUpdateAllowed = false;
   }
 
   /**
@@ -145,6 +147,15 @@ export class RoarTaskVariant {
       this.variantRef = doc(this.variantsCollectionRef);
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
+    } else if (this._firestoreUpdateAllowed) {
+      const variantData: IFirestoreVariantData = {
+        name: this.variantName,
+        description: this.variantDescription,
+        params: this.variantParams,
+        lastUpdated: serverTimestamp(),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await updateDoc(this.variantRef!, removeUndefined(variantData));
     }
   }
 
@@ -168,6 +179,9 @@ export class RoarTaskVariant {
     const mergedParams = mergeGameParams(oldParams, cleanParams);
 
     this.variantParams = mergedParams;
-    await this.toFirestore();
+    this._firestoreUpdateAllowed = true;
+    await this.toFirestore().then(() => {
+      this._firestoreUpdateAllowed = false;
+    });
   }
 }
