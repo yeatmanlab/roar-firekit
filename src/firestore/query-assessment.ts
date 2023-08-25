@@ -131,15 +131,6 @@ interface IUser {
   classes: string[];
 }
 
-interface IUserQueryInput {
-  db: Firestore;
-  districts: string[];
-  schools: string[];
-  classes: string[];
-  groups: string[];
-  families: string[];
-}
-
 export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], variantIds: string[]) => {
   const users: IUser[] = [];
 
