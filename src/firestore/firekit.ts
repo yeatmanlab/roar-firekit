@@ -127,6 +127,7 @@ export class RoarFirekit {
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
   private _userDocListener?: Unsubscribe;
+  private _tokenListener?: Unsubscribe;
   private _adminClaimsListener?: Unsubscribe;
   private _appClaimsListener?: Unsubscribe;
   /**
@@ -161,6 +162,7 @@ export class RoarFirekit {
     this._adminClaimsListener = undefined;
     this._appClaimsListener = undefined;
     this._userDocListener = undefined;
+    this._tokenListener = undefined;
   }
 
   async init() {
@@ -186,6 +188,7 @@ export class RoarFirekit {
         } else {
           this.admin.user = undefined;
           if (this._adminClaimsListener) this._adminClaimsListener();
+          if (this._tokenListener) this._tokenListener();
           if (this._userDocListener) this._userDocListener();
           this._scrubAuthProperties();
         }
@@ -209,7 +212,7 @@ export class RoarFirekit {
       }
     });
 
-    this._listenToTokenChange(this.admin);
+    this._tokenListener = this._listenToTokenChange();
 
     return this;
   }
@@ -275,22 +278,25 @@ export class RoarFirekit {
             // Update the user's ID token and refresh claimsLastUpdated.
             firekit.user!.getIdToken(true);
             firekit.claimsLastUpdated = lastUpdated;
-            this._userDocListener = this._listenToUserDoc();
           }
         }
       });
     }
   }
 
-  private _listenToTokenChange(firekit: IFirekit) {
+  private _listenToTokenChange() {
     this._verifyInit();
-    onIdTokenChanged(firekit.auth, async (user) => {
-      if (user) {
-        const idTokenResult = await user.getIdTokenResult(false);
-        this._adminOrgs = idTokenResult.claims.adminOrgs;
-        this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-      }
-    });
+    if (!this._tokenListener) {
+      return onIdTokenChanged(this.admin!.auth, async (user) => {
+        if (user) {
+          const idTokenResult = await user.getIdTokenResult(false);
+          this._adminOrgs = idTokenResult.claims.adminOrgs;
+          this._superAdmin = Boolean(idTokenResult.claims.super_admin);
+          this.getMyData();
+        }
+      });
+    }
+    return this._tokenListener;
   }
 
   private async _setUidCustomClaims() {
@@ -643,7 +649,11 @@ export class RoarFirekit {
   }
 
   async getMyData() {
-    this._verifyAuthentication();
+    this._verifyInit();
+    if (!this._isAuthenticated()) {
+      return;
+    }
+
     this.userData = await this._getUser(this.roarUid!);
 
     if (this.userData) {
