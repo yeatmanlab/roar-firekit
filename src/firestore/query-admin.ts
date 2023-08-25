@@ -54,17 +54,17 @@ export const buildQueryByOrgs = ({ db, collectionName, nested, isSuperAdmin = fa
   const orgQueryParams: ReturnType<typeof where>[] = [];
 
   if (nested) {
-    if (orgs.districts.length) orgQueryParams.push(where('districts.current', 'array-contains-any', orgs.districts));
-    if (orgs.schools.length) orgQueryParams.push(where('schools.current', 'array-contains-any', orgs.schools));
-    if (orgs.classes.length) orgQueryParams.push(where('classes.current', 'array-contains-any', orgs.classes));
-    if (orgs.groups.length) orgQueryParams.push(where('groups.current', 'array-contains-any', orgs.groups));
-    if (orgs.families.length) orgQueryParams.push(where('families.current', 'array-contains-any', orgs.families));
+    if (orgs.districts?.length) orgQueryParams.push(where('districts.current', 'array-contains-any', orgs.districts));
+    if (orgs.schools?.length) orgQueryParams.push(where('schools.current', 'array-contains-any', orgs.schools));
+    if (orgs.classes?.length) orgQueryParams.push(where('classes.current', 'array-contains-any', orgs.classes));
+    if (orgs.groups?.length) orgQueryParams.push(where('groups.current', 'array-contains-any', orgs.groups));
+    if (orgs.families?.length) orgQueryParams.push(where('families.current', 'array-contains-any', orgs.families));
   } else {
-    if (orgs.districts.length) orgQueryParams.push(where('districts', 'array-contains-any', orgs.districts));
-    if (orgs.schools.length) orgQueryParams.push(where('schools', 'array-contains-any', orgs.schools));
-    if (orgs.classes.length) orgQueryParams.push(where('classes', 'array-contains-any', orgs.classes));
-    if (orgs.groups.length) orgQueryParams.push(where('groups', 'array-contains-any', orgs.groups));
-    if (orgs.families.length) orgQueryParams.push(where('families', 'array-contains-any', orgs.families));
+    if (orgs.districts?.length) orgQueryParams.push(where('districts', 'array-contains-any', orgs.districts));
+    if (orgs.schools?.length) orgQueryParams.push(where('schools', 'array-contains-any', orgs.schools));
+    if (orgs.classes?.length) orgQueryParams.push(where('classes', 'array-contains-any', orgs.classes));
+    if (orgs.groups?.length) orgQueryParams.push(where('groups', 'array-contains-any', orgs.groups));
+    if (orgs.families?.length) orgQueryParams.push(where('families', 'array-contains-any', orgs.families));
   }
 
   if (orgQueryParams.length === 0) return undefined;
