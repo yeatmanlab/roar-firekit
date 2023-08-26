@@ -1333,15 +1333,13 @@ export class RoarFirekit {
 
       await updateDoc(adminDistrictRef, { schools: arrayUnion(orgId) });
       await updateDoc(appDistrictRef, { schools: arrayUnion(orgId) });
-    }
-
-    if (orgsCollection === 'classes') {
+    } else if (orgsCollection === 'classes') {
       const schoolId = orgData.schoolId as string;
       const adminSchoolRef = doc(this.admin!.db, 'schools', schoolId);
       const appSchoolRef = doc(this.app!.db, 'schools', schoolId);
 
-      await updateDoc(adminSchoolRef, { schools: arrayUnion(orgId) });
-      await updateDoc(appSchoolRef, { schools: arrayUnion(orgId) });
+      await updateDoc(adminSchoolRef, { classes: arrayUnion(orgId) });
+      await updateDoc(appSchoolRef, { classes: arrayUnion(orgId) });
     }
 
     return orgId;
