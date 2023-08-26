@@ -1317,8 +1317,23 @@ export class RoarFirekit {
       throw new Error('You must specify a districtId when creating a school.');
     }
 
-    if (orgsCollection === 'classes' && (orgData.schoolId === undefined || orgData.districtId === undefined)) {
-      throw new Error('You must specify both a schoolId and a districtId when creating a class.');
+    if (orgsCollection === 'classes' && orgData.schoolId === undefined) {
+      throw new Error('You must specify a schoolId when creating a class.');
+    }
+
+    if (orgsCollection === 'classes') {
+      const schoolDocRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
+      const districtId = await getDoc(schoolDocRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          return snapshot.data().districtId;
+        } else {
+          throw new Error(`Could not find a school with ID ${orgData.schoolId} in the ROAR database.`);
+        }
+      });
+      orgData = {
+        ...orgData,
+        districtId,
+      };
     }
 
     const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then(async (docRef) => {
