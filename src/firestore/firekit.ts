@@ -314,32 +314,20 @@ export class RoarFirekit {
     return appResult;
   }
 
-  private async _syncCleverData(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
+  private async _syncCleverUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     if (authProvider === AuthProviderType.CLEVER) {
       if (oAuthAccessToken === undefined) {
         throw new Error('No OAuth access token provided.');
       }
       this._verifyAuthentication();
-      const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
-      const adminResult = await syncAdminCleverData({
+      const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
+      const adminResult = await syncCleverUser({
         assessmentUid: this.app!.user!.uid,
         accessToken: oAuthAccessToken,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(adminResult.data as any, 'status') !== 'ok') {
-        throw new Error('Failed to sync Clever and ROAR data.');
-      }
-
-      const syncAppCleverData = httpsCallable(this.app!.functions, 'synccleverdata');
-      const appResult = await syncAppCleverData({
-        adminUid: this.admin!.user!.uid,
-        roarUid: this.roarUid,
-        accessToken: oAuthAccessToken,
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(appResult.data as any, 'status') !== 'ok') {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
     }
@@ -488,7 +476,7 @@ export class RoarFirekit {
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
-          this._syncCleverData(oAuthAccessToken, provider);
+          this._syncCleverUser(oAuthAccessToken, provider);
         }
       });
   }
@@ -563,7 +551,7 @@ export class RoarFirekit {
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
-          this._syncCleverData(oAuthAccessToken, authProvider);
+          this._syncCleverUser(oAuthAccessToken, authProvider);
         }
       });
   }
