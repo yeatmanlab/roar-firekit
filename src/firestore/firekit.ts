@@ -1309,13 +1309,55 @@ export class RoarFirekit {
     });
   }
 
-  async createOrg(orgType: OrgCollectionName, orgData: IOrg) {
+  async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
-    return addDoc(collection(this.admin!.db, orgType), orgData).then(async (docRef) => {
-      await setDoc(doc(this.app!.db, orgType, docRef.id), orgData);
+
+    if (orgsCollection === 'schools' && orgData.districtId === undefined) {
+      throw new Error('You must specify a districtId when creating a school.');
+    }
+
+    if (orgsCollection === 'classes' && orgData.schoolId === undefined) {
+      throw new Error('You must specify a schoolId when creating a class.');
+    }
+
+    if (orgsCollection === 'classes') {
+      const schoolDocRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
+      const districtId = await getDoc(schoolDocRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          return snapshot.data().districtId;
+        } else {
+          throw new Error(`Could not find a school with ID ${orgData.schoolId} in the ROAR database.`);
+        }
+      });
+      orgData = {
+        ...orgData,
+        districtId,
+      };
+    }
+
+    const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then(async (docRef) => {
+      await setDoc(doc(this.app!.db, orgsCollection, docRef.id), orgData);
       return docRef.id;
     });
+
+    if (orgsCollection === 'schools') {
+      const districtId = orgData.districtId as string;
+      const adminDistrictRef = doc(this.admin!.db, 'districts', districtId);
+      const appDistrictRef = doc(this.app!.db, 'districts', districtId);
+
+      await updateDoc(adminDistrictRef, { schools: arrayUnion(orgId) });
+      await updateDoc(appDistrictRef, { schools: arrayUnion(orgId) });
+    } else if (orgsCollection === 'classes') {
+      const schoolId = orgData.schoolId as string;
+      const adminSchoolRef = doc(this.admin!.db, 'schools', schoolId);
+      const appSchoolRef = doc(this.app!.db, 'schools', schoolId);
+
+      await updateDoc(adminSchoolRef, { classes: arrayUnion(orgId) });
+      await updateDoc(appSchoolRef, { classes: arrayUnion(orgId) });
+    }
+
+    return orgId;
   }
 
   async getUsersByAssignment({
