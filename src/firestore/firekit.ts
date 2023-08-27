@@ -1309,6 +1309,21 @@ export class RoarFirekit {
     });
   }
 
+  async syncCleverOrgs(shallow = false) {
+    this._verifyAuthentication();
+    if (!this._superAdmin) {
+      throw new Error('You must be a super admin to sync Clever organizations.');
+    }
+
+    const syncCleverOrgs = httpsCallable(this.admin!.functions, 'syncCleverOrgs');
+    const result = await syncCleverOrgs({ shallow });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(result.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to sync Clever orgs.');
+    }
+  }
+
   async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
