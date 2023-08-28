@@ -121,6 +121,7 @@ export class RoarFirekit {
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  private _idTokenReceived?: boolean;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
   private _initialized: boolean;
@@ -185,6 +186,7 @@ export class RoarFirekit {
           if (this.app?.user) {
             this._userDocListener = this._listenToUserDoc();
           }
+          this._tokenListener = this._listenToTokenChange();
         } else {
           this.admin.user = undefined;
           if (this._adminClaimsListener) this._adminClaimsListener();
@@ -211,8 +213,6 @@ export class RoarFirekit {
         }
       }
     });
-
-    this._tokenListener = this._listenToTokenChange();
 
     return this;
   }
@@ -292,7 +292,8 @@ export class RoarFirekit {
           const idTokenResult = await user.getIdTokenResult(false);
           this._adminOrgs = idTokenResult.claims.adminOrgs;
           this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-          this.getMyData();
+          await this.getMyData();
+          this._idTokenReceived = true;
         }
       });
     }
@@ -544,22 +545,27 @@ export class RoarFirekit {
             return roarAdminCredential;
           }
         }
+        return null;
       })
       .catch(catchEnableCookiesError)
       .then((credential) => {
         if (credential) {
           return signInWithCredential(this.app!.auth, credential);
         }
+        return null;
       })
       .then((credential) => {
         if (credential) {
           return this._setUidCustomClaims();
         }
+        return null;
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
           this._syncCleverUser(oAuthAccessToken, authProvider);
+          return { status: 'ok' };
         }
+        return null;
       });
   }
 
@@ -588,6 +594,10 @@ export class RoarFirekit {
 
   public get superAdmin() {
     return this._superAdmin;
+  }
+
+  public get idTokenReceived() {
+    return this._idTokenReceived;
   }
 
   public get adminOrgs() {
