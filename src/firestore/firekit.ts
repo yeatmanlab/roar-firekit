@@ -121,12 +121,14 @@ export class RoarFirekit {
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  private _idTokenReceived?: boolean;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
   private _userDocListener?: Unsubscribe;
+  private _tokenListener?: Unsubscribe;
   private _adminClaimsListener?: Unsubscribe;
   private _appClaimsListener?: Unsubscribe;
   /**
@@ -161,6 +163,7 @@ export class RoarFirekit {
     this._adminClaimsListener = undefined;
     this._appClaimsListener = undefined;
     this._userDocListener = undefined;
+    this._tokenListener = undefined;
   }
 
   async init() {
@@ -183,9 +186,11 @@ export class RoarFirekit {
           if (this.app?.user) {
             this._userDocListener = this._listenToUserDoc();
           }
+          this._tokenListener = this._listenToTokenChange();
         } else {
           this.admin.user = undefined;
           if (this._adminClaimsListener) this._adminClaimsListener();
+          if (this._tokenListener) this._tokenListener();
           if (this._userDocListener) this._userDocListener();
           this._scrubAuthProperties();
         }
@@ -208,8 +213,6 @@ export class RoarFirekit {
         }
       }
     });
-
-    this._listenToTokenChange(this.admin);
 
     return this;
   }
@@ -281,15 +284,20 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToTokenChange(firekit: IFirekit) {
+  private _listenToTokenChange() {
     this._verifyInit();
-    onIdTokenChanged(firekit.auth, async (user) => {
-      if (user) {
-        const idTokenResult = await user.getIdTokenResult(false);
-        this._adminOrgs = idTokenResult.claims.adminOrgs;
-        this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-      }
-    });
+    if (!this._tokenListener) {
+      return onIdTokenChanged(this.admin!.auth, async (user) => {
+        if (user) {
+          const idTokenResult = await user.getIdTokenResult(false);
+          this._adminOrgs = idTokenResult.claims.adminOrgs;
+          this._superAdmin = Boolean(idTokenResult.claims.super_admin);
+          await this.getMyData();
+          this._idTokenReceived = true;
+        }
+      });
+    }
+    return this._tokenListener;
   }
 
   private async _setUidCustomClaims() {
@@ -314,32 +322,20 @@ export class RoarFirekit {
     return appResult;
   }
 
-  private async _syncCleverData(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
+  private async _syncCleverUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     if (authProvider === AuthProviderType.CLEVER) {
       if (oAuthAccessToken === undefined) {
         throw new Error('No OAuth access token provided.');
       }
       this._verifyAuthentication();
-      const syncAdminCleverData = httpsCallable(this.admin!.functions, 'synccleverdata');
-      const adminResult = await syncAdminCleverData({
+      const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
+      const adminResult = await syncCleverUser({
         assessmentUid: this.app!.user!.uid,
         accessToken: oAuthAccessToken,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(adminResult.data as any, 'status') !== 'ok') {
-        throw new Error('Failed to sync Clever and ROAR data.');
-      }
-
-      const syncAppCleverData = httpsCallable(this.app!.functions, 'synccleverdata');
-      const appResult = await syncAppCleverData({
-        adminUid: this.admin!.user!.uid,
-        roarUid: this.roarUid,
-        accessToken: oAuthAccessToken,
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(appResult.data as any, 'status') !== 'ok') {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
     }
@@ -488,7 +484,7 @@ export class RoarFirekit {
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
-          this._syncCleverData(oAuthAccessToken, provider);
+          this._syncCleverUser(oAuthAccessToken, provider);
         }
       });
   }
@@ -549,22 +545,27 @@ export class RoarFirekit {
             return roarAdminCredential;
           }
         }
+        return null;
       })
       .catch(catchEnableCookiesError)
       .then((credential) => {
         if (credential) {
           return signInWithCredential(this.app!.auth, credential);
         }
+        return null;
       })
       .then((credential) => {
         if (credential) {
           return this._setUidCustomClaims();
         }
+        return null;
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
-          this._syncCleverData(oAuthAccessToken, authProvider);
+          this._syncCleverUser(oAuthAccessToken, authProvider);
+          return { status: 'ok' };
         }
+        return null;
       });
   }
 
@@ -593,6 +594,10 @@ export class RoarFirekit {
 
   public get superAdmin() {
     return this._superAdmin;
+  }
+
+  public get idTokenReceived() {
+    return this._idTokenReceived;
   }
 
   public get adminOrgs() {
@@ -654,7 +659,11 @@ export class RoarFirekit {
   }
 
   async getMyData() {
-    this._verifyAuthentication();
+    this._verifyInit();
+    if (!this._isAuthenticated()) {
+      return;
+    }
+
     this.userData = await this._getUser(this.roarUid!);
 
     if (this.userData) {
@@ -1307,6 +1316,21 @@ export class RoarFirekit {
       orgs,
       countOnly,
     });
+  }
+
+  async syncCleverOrgs(shallow = false) {
+    this._verifyAuthentication();
+    if (!this._superAdmin) {
+      throw new Error('You must be a super admin to sync Clever organizations.');
+    }
+
+    const syncCleverOrgs = httpsCallable(this.admin!.functions, 'syncCleverOrgs');
+    const result = await syncCleverOrgs({ shallow });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(result.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to sync Clever orgs.');
+    }
   }
 
   async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
