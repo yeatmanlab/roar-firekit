@@ -278,7 +278,7 @@ export const mergeGameParams = (oldParams: { [key: string]: unknown }, newParams
     }
     if (oldValue === undefined && newValue !== undefined) {
       throw new Error(`New key detected: ${key}`);
-    } 
+    }
     // else {
     //   throw new Error(`Attempted to change previously non-null value with key ${key}`);
     // }
