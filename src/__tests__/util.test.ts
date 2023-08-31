@@ -92,21 +92,20 @@ describe('mergeGameParams', () => {
     };
 
     const result = mergeGameParams(obj1, obj2);
-    const expected = { ...obj2 };
+    const expected = { keysAdded: false, merged: { ...obj2 } };
 
     expect(result).toStrictEqual(expected);
 
-    expect(() => {
-      mergeGameParams(obj1, { ...obj2, newParam: true });
-    }).toThrow('New key detected: newParam');
+    const resultAdded = mergeGameParams(obj1, { ...obj2, newParam: true });
+    expect(resultAdded).toStrictEqual({ keysAdded: true, merged: { ...obj2, newParam: true } });
 
     expect(() => {
       mergeGameParams({ ...obj1, oldParam: true }, obj2);
     }).toThrow('Detected deleted keys: oldParam');
 
-    // expect(() => {
-    //   mergeGameParams(obj1, { ...obj2, d: 'updatedValue' });
-    // }).toThrow('Attempted to change previously non-null value with key d');
+    expect(() => {
+      mergeGameParams(obj1, { ...obj2, d: 'updatedValue' });
+    }).toThrow('Attempted to change previously non-null value with key d');
   });
 });
 
