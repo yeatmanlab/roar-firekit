@@ -24,6 +24,8 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
+  DocumentReference,
+  Timestamp,
   Transaction,
   Unsubscribe,
   addDoc,
@@ -1021,6 +1023,21 @@ export class RoarFirekit {
   }
 
   // These are all methods that will be important for admins, but not necessary for students
+  /**
+   *
+   * @param input input object
+   * @param input.name The administration name
+   * @param input.assessments The list of assessments for this administration
+   * @param input.dateOpen The start date for this administration
+   * @param input.dateClose The end date for this administration
+   * @param input.sequential Whether or not the assessments in this
+   *                         administration must be taken sequentially
+   * @param input.orgs The orgs assigned to this administration
+   * @param input.tags Metadata tags for this administration
+   * @param input.administrationId Optional ID of an existing administration. If
+   *                                provided, this method will update an
+   *                                existing administration.
+   */
   async createAdministration({
     name,
     assessments,
@@ -1028,6 +1045,8 @@ export class RoarFirekit {
     dateClose,
     sequential = true,
     orgs = emptyOrgList(),
+    tags = [],
+    administrationId,
   }: {
     name: string;
     assessments: IAssessmentData[];
@@ -1035,8 +1054,21 @@ export class RoarFirekit {
     dateClose: Date;
     sequential: boolean;
     orgs: IOrgLists;
+    tags: string[];
+    administrationId?: string;
   }) {
     this._verifyAuthentication();
+    this._verifyAdmin();
+
+    if ([name, dateOpen, dateClose, assessments].some((param) => param === undefined || param === null)) {
+      throw new Error('The parameters name, dateOpen, dateClose, and assessments are required');
+    }
+
+    if (dateClose < dateOpen) {
+      throw new Error(
+        `The end date cannot be before the start date: ${dateClose.toISOString()} < ${dateOpen.toISOString()}`,
+      );
+    }
 
     // First add the administration to the database
     const administrationData: IAdministrationData = {
@@ -1052,10 +1084,32 @@ export class RoarFirekit {
       dateClosed: dateClose,
       assessments: assessments,
       sequential: sequential,
+      tags: tags,
     };
+
     await runTransaction(this.admin!.db, async (transaction) => {
+      let administrationDocRef: DocumentReference;
+      if (administrationId !== undefined) {
+        // Set the doc ref to the existing administration
+        administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+
+        // Get the existing administration to make sure update is allowed.
+        const docSnap = await transaction.get(administrationDocRef);
+        if (docSnap.exists()) {
+          const docData = docSnap.data() as IAdministrationData;
+          const now = new Date();
+          if ((docData.dateOpened as Timestamp).toDate() < now) {
+            throw new Error('Cannot edit an administration that has already started.');
+          }
+        } else {
+          throw new Error(`Could not find administration with id ${administrationId}`);
+        }
+      } else {
+        // Create a new administration doc ref
+        administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
+      }
+
       // Create the administration doc in the admin Firestore,
-      const administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
       transaction.set(administrationDocRef, administrationData);
 
       // Then add the ID to the admin's list of administrationsCreated
