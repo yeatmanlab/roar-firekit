@@ -24,6 +24,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
+  DocumentData,
   Transaction,
   Unsubscribe,
   addDoc,
@@ -1281,18 +1282,21 @@ export class RoarFirekit {
     }
   }
 
-  async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
+  async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg, organizationId?: string) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
+    // Check that schools have a districtId
     if (orgsCollection === 'schools' && orgData.districtId === undefined) {
       throw new Error('You must specify a districtId when creating a school.');
     }
 
+    // Check that classes have a schoolId
     if (orgsCollection === 'classes' && orgData.schoolId === undefined) {
       throw new Error('You must specify a schoolId when creating a class.');
     }
 
+    // If org is a class, retrieve the districtId from the parent school
     if (orgsCollection === 'classes') {
       const schoolDocRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
       const districtId = await getDoc(schoolDocRef).then((snapshot) => {
@@ -1308,28 +1312,90 @@ export class RoarFirekit {
       };
     }
 
-    const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then(async (docRef) => {
-      await setDoc(doc(this.app!.db, orgsCollection, docRef.id), orgData);
-      return docRef.id;
-    });
+    if (organizationId === undefined) {
+      // If organizationId is undefined, we create a new org
+      const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then(async (docRef) => {
+        await setDoc(doc(this.app!.db, orgsCollection, docRef.id), orgData);
+        return docRef.id;
+      });
 
-    if (orgsCollection === 'schools') {
-      const districtId = orgData.districtId as string;
-      const adminDistrictRef = doc(this.admin!.db, 'districts', districtId);
-      const appDistrictRef = doc(this.app!.db, 'districts', districtId);
+      if (orgsCollection === 'schools') {
+        const districtId = orgData.districtId as string;
+        const adminDistrictRef = doc(this.admin!.db, 'districts', districtId);
+        const appDistrictRef = doc(this.app!.db, 'districts', districtId);
 
-      await updateDoc(adminDistrictRef, { schools: arrayUnion(orgId) });
-      await updateDoc(appDistrictRef, { schools: arrayUnion(orgId) });
-    } else if (orgsCollection === 'classes') {
-      const schoolId = orgData.schoolId as string;
-      const adminSchoolRef = doc(this.admin!.db, 'schools', schoolId);
-      const appSchoolRef = doc(this.app!.db, 'schools', schoolId);
+        await updateDoc(adminDistrictRef, { schools: arrayUnion(orgId) });
+        await updateDoc(appDistrictRef, { schools: arrayUnion(orgId) });
+      } else if (orgsCollection === 'classes') {
+        const schoolId = orgData.schoolId as string;
+        const adminSchoolRef = doc(this.admin!.db, 'schools', schoolId);
+        const appSchoolRef = doc(this.app!.db, 'schools', schoolId);
 
-      await updateDoc(adminSchoolRef, { classes: arrayUnion(orgId) });
-      await updateDoc(appSchoolRef, { classes: arrayUnion(orgId) });
+        await updateDoc(adminSchoolRef, { classes: arrayUnion(orgId) });
+        await updateDoc(appSchoolRef, { classes: arrayUnion(orgId) });
+      }
+
+      return orgId;
+    } else {
+      // If organizationId is defined, we update an existing org
+      for (const db of [this.admin!.db, this.app!.db]) {
+        return runTransaction(db, async (transaction) => {
+          const orgDocRef = doc(db, orgsCollection, organizationId);
+
+          // Get the old parent org IDs, remove this org from their children
+          // fields on Firestore.
+          const docSnap = await transaction.get(orgDocRef);
+          if (docSnap.exists()) {
+            const orgData = docSnap.data();
+            const { schoolId, districtId } = orgData;
+            if (schoolId !== undefined && schoolId !== orgData.schoolId) {
+              const oldSchoolRef = doc(db, 'schools', schoolId);
+              const newSchoolRef = doc(db, 'schools', orgData.schoolId);
+              transaction.update(oldSchoolRef, { classes: arrayRemove(organizationId) });
+              transaction.update(newSchoolRef, { classes: arrayUnion(organizationId) });
+            } else if (districtId !== undefined && districtId !== orgData.districtId) {
+              const oldDistrictRef = doc(db, 'districts', districtId);
+              const newDistrictRef = doc(db, 'districts', orgData.districtId);
+              transaction.update(oldDistrictRef, { schools: arrayRemove(organizationId) });
+              transaction.update(newDistrictRef, { schools: arrayUnion(organizationId) });
+            }
+
+            transaction.update(orgDocRef, orgData as DocumentData);
+
+            return organizationId;
+          } else {
+            throw new Error(`Could not find an organization with ID ${organizationId} in the ROAR database.`);
+          }
+        });
+      }
     }
+  }
 
-    return orgId;
+  async deleteOrg(orgsCollection: OrgCollectionName, orgId: string) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    for (const db of [this.admin!.db, this.app!.db]) {
+      runTransaction(db, async (transaction) => {
+        const orgDocRef = doc(db, orgsCollection, orgId);
+        const docSnap = await transaction.get(orgDocRef);
+        if (docSnap.exists()) {
+          const orgData = docSnap.data();
+          const { schoolId, districtId } = orgData;
+          if (schoolId !== undefined) {
+            const schoolRef = doc(db, 'schools', schoolId);
+            transaction.update(schoolRef, { classes: arrayRemove(orgId) });
+          } else if (districtId !== undefined) {
+            const districtRef = doc(db, 'districts', districtId);
+            transaction.update(districtRef, { schools: arrayRemove(orgId) });
+          }
+
+          transaction.delete(orgDocRef);
+        } else {
+          throw new Error(`Could not find an organization with ID ${orgId} in the ROAR database.`);
+        }
+      });
+    }
   }
 
   async registerTaskVariant({
