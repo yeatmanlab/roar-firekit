@@ -1120,6 +1120,25 @@ export class RoarFirekit {
     });
   }
 
+  async deleteAdministration(administrationId: string) {
+    await runTransaction(this.admin!.db, async (transaction) => {
+      const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+      const statsDocRef = doc(administrationDocRef, 'stats', 'completion');
+
+      const docSnap = await transaction.get(administrationDocRef);
+      if (docSnap.exists()) {
+        // Delete the stats/completion doc if it exists
+        const statsDocSnap = await transaction.get(statsDocRef);
+        if (statsDocSnap.exists()) {
+          transaction.delete(statsDocRef);
+        }
+
+        // Delete the administration doc
+        transaction.delete(administrationDocRef);
+      }
+    });
+  }
+
   async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verifyAdmin();
