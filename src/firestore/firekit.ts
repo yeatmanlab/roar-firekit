@@ -1577,6 +1577,10 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
+    if (!this._superAdmin) {
+      throw new Error('You must be a super admin to delete an organization.');
+    }
+
     // Loop over the admin and assessment databases
     for (const db of [this.admin!.db, this.app!.db]) {
       runTransaction(db, async (transaction) => {
