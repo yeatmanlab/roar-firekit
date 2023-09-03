@@ -1121,6 +1121,12 @@ export class RoarFirekit {
   }
 
   async deleteAdministration(administrationId: string) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    if (!this._superAdmin) {
+      throw new Error('You must be a super admin to delete an administration.');
+    }
+
     await runTransaction(this.admin!.db, async (transaction) => {
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
       const statsDocRef = doc(administrationDocRef, 'stats', 'completion');
