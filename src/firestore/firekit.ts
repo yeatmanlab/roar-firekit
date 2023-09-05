@@ -346,11 +346,6 @@ export class RoarFirekit {
     return isUsernameAvailable(this.admin!.auth, username);
   }
 
-  // async isEmailAvailable(email: string): Promise<boolean> {
-  //   this._verifyInit();
-  //   return isEmailAvailable(this.admin!.auth, email);
-  // }
-
   async fetchEmailAuthMethods(email: string) {
     this._verifyInit();
     return fetchEmailAuthMethods(this.admin!.auth, email);
