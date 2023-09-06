@@ -44,7 +44,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isEmailAvailable, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
@@ -344,11 +344,6 @@ export class RoarFirekit {
   async isUsernameAvailable(username: string): Promise<boolean> {
     this._verifyInit();
     return isUsernameAvailable(this.admin!.auth, username);
-  }
-
-  async isEmailAvailable(email: string): Promise<boolean> {
-    this._verifyInit();
-    return isEmailAvailable(this.admin!.auth, email);
   }
 
   async fetchEmailAuthMethods(email: string) {
@@ -1137,84 +1132,78 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isEmailAvailable = await this.isEmailAvailable(email);
-    if (isEmailAvailable) {
-      if (!_get(userData, 'dob')) {
-        throw new Error('Student date of birth must be supplied.');
-      }
-
-      const userDocData: IUserData = {
-        userType: UserType.student,
-        studentData: {} as IStudentData,
-        districts: emptyOrg(),
-        schools: emptyOrg(),
-        classes: emptyOrg(),
-        families: emptyOrg(),
-        groups: emptyOrg(),
-        archived: false,
-      };
-
-      if (_get(userData, 'pid')) {
-        _set(userDocData, 'assessmentPid', userData.pid);
-      } else {
-        // If PID was not supplied, then construct one using an eight character
-        // checksum of the email.
-        // Prefix that checksum with optional org abbreviations:
-        // 1. If the district has an abbreviation, start with that.
-        // 2. Then add the school abbreviation, if it exists.
-        // 3. If neither of those are available, use the group abbreviation.
-        // 4. Otherwise prepend nothing.
-        const emailCheckSum = crc32String(email);
-
-        const districtPrefix = _get(userData, 'district.abbreviation');
-        const schoolPrefix = _get(userData, 'school.abbreviation');
-        const groupPrefix = _get(userData, 'group.abbreviation');
-
-        const pidParts: string[] = [];
-        if (districtPrefix) pidParts.push(districtPrefix);
-        if (schoolPrefix) pidParts.push(schoolPrefix);
-        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
-        pidParts.push(emailCheckSum);
-        _set(userDocData, 'assessmentPid', pidParts.join('-'));
-      }
-
-      // TODO: this can probably be optimized.
-      _set(userDocData, 'email', email);
-      if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
-      if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
-      if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
-      if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
-      if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
-      if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
-      if (_get(userData, 'hispanic_ethnicity'))
-        _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
-      if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
-      if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
-      if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
-      if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
-      if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
-
-      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
-      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
-      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
-      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
-      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
-
-      const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
-      const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
-      const adminUid = _get(adminResponse, 'data.adminUid');
-
-      const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
-      const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
-      // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
-      const assessmentUid = _get(appResponse, 'data.assessmentUid');
-
-      const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
-      await cloudUpdateUserClaims({ adminUid, assessmentUid });
-    } else {
-      // Email is not available, reject
-      throw new Error(`The email ${email} is not available.`);
+    if (!_get(userData, 'dob')) {
+      throw new Error('Student date of birth must be supplied.');
     }
+
+    const userDocData: IUserData = {
+      userType: UserType.student,
+      studentData: {} as IStudentData,
+      districts: emptyOrg(),
+      schools: emptyOrg(),
+      classes: emptyOrg(),
+      families: emptyOrg(),
+      groups: emptyOrg(),
+      archived: false,
+    };
+
+    if (_get(userData, 'pid')) {
+      _set(userDocData, 'assessmentPid', userData.pid);
+    } else {
+      // If PID was not supplied, then construct one using an eight character
+      // checksum of the email.
+      // Prefix that checksum with optional org abbreviations:
+      // 1. If the district has an abbreviation, start with that.
+      // 2. Then add the school abbreviation, if it exists.
+      // 3. If neither of those are available, use the group abbreviation.
+      // 4. Otherwise prepend nothing.
+      const emailCheckSum = crc32String(email);
+
+      const districtPrefix = _get(userData, 'district.abbreviation');
+      const schoolPrefix = _get(userData, 'school.abbreviation');
+      const groupPrefix = _get(userData, 'group.abbreviation');
+
+      const pidParts: string[] = [];
+      if (districtPrefix) pidParts.push(districtPrefix);
+      if (schoolPrefix) pidParts.push(schoolPrefix);
+      if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
+      pidParts.push(emailCheckSum);
+      _set(userDocData, 'assessmentPid', pidParts.join('-'));
+    }
+
+    // TODO: this can probably be optimized.
+    _set(userDocData, 'email', email);
+    if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
+    if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
+    if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
+    if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
+    if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
+    if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
+    if (_get(userData, 'hispanic_ethnicity'))
+      _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
+    if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
+    if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
+    if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
+    if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
+    if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
+
+    if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
+    if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
+    if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
+    if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
+    if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
+
+    const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
+    const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
+    const adminUid = _get(adminResponse, 'data.adminUid');
+
+    const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
+    const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
+    // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
+    const assessmentUid = _get(appResponse, 'data.assessmentUid');
+
+    const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
+    await cloudUpdateUserClaims({ adminUid, assessmentUid });
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
