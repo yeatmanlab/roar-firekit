@@ -183,9 +183,6 @@ export class RoarFirekit {
         if (user) {
           this.admin.user = user;
           this._adminClaimsListener = this._listenToClaims(this.admin);
-          if (this.app?.user) {
-            this._userDocListener = this._listenToUserDoc();
-          }
           this._tokenListener = this._listenToTokenChange();
         } else {
           this.admin.user = undefined;
@@ -202,9 +199,6 @@ export class RoarFirekit {
         if (user) {
           this.app.user = user;
           this._appClaimsListener = this._listenToClaims(this.app);
-          if (this.admin?.user) {
-            this._userDocListener = this._listenToUserDoc();
-          }
         } else {
           this.app.user = undefined;
           if (this._appClaimsListener) this._appClaimsListener();
@@ -260,9 +254,24 @@ export class RoarFirekit {
   private _listenToUserDoc() {
     this._verifyAuthentication();
     if (this.dbRefs && !this._userDocListener) {
-      return onSnapshot(this.dbRefs.admin.user, () => {
-        this.getMyData();
-      });
+      let unsubscribe;
+      try {
+        unsubscribe = onSnapshot(
+          this.dbRefs.admin.user,
+          async () => {
+            await this.getMyData();
+          },
+          (error) => {
+            throw error;
+          },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        if (error.code !== 'permission-denied') {
+          throw error;
+        }
+      }
+      return unsubscribe;
     }
     return this._userDocListener;
   }
@@ -270,17 +279,32 @@ export class RoarFirekit {
   private _listenToClaims(firekit: IFirekit) {
     this._verifyInit();
     if (firekit.user) {
-      return onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
-        const data = doc.data();
-        if (data?.lastUpdated) {
-          const lastUpdated = new Date(data!.lastUpdated);
-          if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
-            // Update the user's ID token and refresh claimsLastUpdated.
-            firekit.user!.getIdToken(true);
-            firekit.claimsLastUpdated = lastUpdated;
-          }
+      let unsubscribe;
+      try {
+        unsubscribe = onSnapshot(
+          doc(firekit.db, 'userClaims', firekit.user!.uid),
+          async (doc) => {
+            const data = doc.data();
+            if (data?.lastUpdated) {
+              const lastUpdated = new Date(data!.lastUpdated);
+              if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
+                // Update the user's ID token and refresh claimsLastUpdated.
+                await getIdToken(firekit.user!, true);
+                firekit.claimsLastUpdated = lastUpdated;
+              }
+            }
+          },
+          (error) => {
+            throw error;
+          },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        if (error.code !== 'permission-denied') {
+          throw error;
         }
-      });
+      }
+      return unsubscribe;
     }
   }
 
@@ -292,7 +316,12 @@ export class RoarFirekit {
           const idTokenResult = await user.getIdTokenResult(false);
           this._adminOrgs = idTokenResult.claims.adminOrgs;
           this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-          await this.getMyData();
+          if (idTokenResult.claims.roarUid) {
+            if (this.app?.user) {
+              this._userDocListener = this._listenToUserDoc();
+            }
+            await this.getMyData();
+          }
           this._idTokenReceived = true;
         }
       });
@@ -660,7 +689,7 @@ export class RoarFirekit {
 
   async getMyData() {
     this._verifyInit();
-    if (!this._isAuthenticated()) {
+    if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
 
@@ -922,7 +951,7 @@ export class RoarFirekit {
           }
 
           if (this.roarAppUserInfo === undefined) {
-            this.getMyData();
+            await this.getMyData();
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
