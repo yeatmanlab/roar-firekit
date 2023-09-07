@@ -121,6 +121,7 @@ export class RoarFirekit {
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  listenerUpdateCallback: (...args: unknown[]) => void;
   private _idTokenReceived?: boolean;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
@@ -141,16 +142,20 @@ export class RoarFirekit {
     roarConfig,
     authPersistence = AuthPersistence.session,
     markRawConfig = {},
+    listenerUpdateCallback,
   }: {
     roarConfig: IRoarConfigData;
     dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
+    listenerUpdateCallback?: (...args: unknown[]) => void;
   }) {
     this.roarConfig = roarConfig;
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
     this._initialized = false;
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
   }
 
   private _scrubAuthProperties() {
@@ -192,6 +197,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
@@ -206,6 +212,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     return this;
@@ -260,6 +267,7 @@ export class RoarFirekit {
           this.dbRefs.admin.user,
           async () => {
             await this.getMyData();
+            this.listenerUpdateCallback();
           },
           (error) => {
             throw error;
@@ -293,6 +301,7 @@ export class RoarFirekit {
                 firekit.claimsLastUpdated = lastUpdated;
               }
             }
+            this.listenerUpdateCallback();
           },
           (error) => {
             throw error;
@@ -324,6 +333,7 @@ export class RoarFirekit {
           }
           this._idTokenReceived = true;
         }
+        this.listenerUpdateCallback();
       });
     }
     return this._tokenListener;
