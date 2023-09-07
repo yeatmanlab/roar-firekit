@@ -44,7 +44,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
@@ -373,6 +373,11 @@ export class RoarFirekit {
   async isUsernameAvailable(username: string): Promise<boolean> {
     this._verifyInit();
     return isUsernameAvailable(this.admin!.auth, username);
+  }
+
+  async isEmailAvailable(email: string): Promise<boolean> {
+    this._verifyInit();
+    return isEmailAvailable(this.admin!.auth, email);
   }
 
   async fetchEmailAuthMethods(email: string) {
@@ -1239,14 +1244,8 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isUsernameAvailable = await this.isUsernameAvailable(username);
-    if (isUsernameAvailable) {
-      const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData);
-    } else {
-      // Username is not available, reject
-      throw new Error(`The username ${username} is not available.`);
-    }
+    const email = `${username}@roar-auth.com`;
+    return this.createStudentWithEmailPassword(email, password, userData);
   }
 
   async createAdministrator(email: string, name: IName, targetOrgs: IOrgLists, targetAdminOrgs: IOrgLists) {
