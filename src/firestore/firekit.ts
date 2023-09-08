@@ -44,7 +44,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
@@ -121,6 +121,7 @@ export class RoarFirekit {
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  listenerUpdateCallback: (...args: unknown[]) => void;
   private _idTokenReceived?: boolean;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
@@ -141,16 +142,20 @@ export class RoarFirekit {
     roarConfig,
     authPersistence = AuthPersistence.session,
     markRawConfig = {},
+    listenerUpdateCallback,
   }: {
     roarConfig: IRoarConfigData;
     dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
+    listenerUpdateCallback?: (...args: unknown[]) => void;
   }) {
     this.roarConfig = roarConfig;
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
     this._initialized = false;
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
   }
 
   private _scrubAuthProperties() {
@@ -192,6 +197,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
@@ -206,6 +212,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     return this;
@@ -260,6 +267,7 @@ export class RoarFirekit {
           this.dbRefs.admin.user,
           async () => {
             await this.getMyData();
+            this.listenerUpdateCallback();
           },
           (error) => {
             throw error;
@@ -293,6 +301,7 @@ export class RoarFirekit {
                 firekit.claimsLastUpdated = lastUpdated;
               }
             }
+            this.listenerUpdateCallback();
           },
           (error) => {
             throw error;
@@ -324,6 +333,7 @@ export class RoarFirekit {
           }
           this._idTokenReceived = true;
         }
+        this.listenerUpdateCallback();
       });
     }
     return this._tokenListener;
@@ -373,6 +383,11 @@ export class RoarFirekit {
   async isUsernameAvailable(username: string): Promise<boolean> {
     this._verifyInit();
     return isUsernameAvailable(this.admin!.auth, username);
+  }
+
+  async isEmailAvailable(email: string): Promise<boolean> {
+    this._verifyInit();
+    return isEmailAvailable(this.admin!.auth, email);
   }
 
   async fetchEmailAuthMethods(email: string) {
@@ -1239,14 +1254,8 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isUsernameAvailable = await this.isUsernameAvailable(username);
-    if (isUsernameAvailable) {
-      const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData);
-    } else {
-      // Username is not available, reject
-      throw new Error(`The username ${username} is not available.`);
-    }
+    const email = `${username}@roar-auth.com`;
+    return this.createStudentWithEmailPassword(email, password, userData);
   }
 
   async createAdministrator(email: string, name: IName, targetOrgs: IOrgLists, targetAdminOrgs: IOrgLists) {

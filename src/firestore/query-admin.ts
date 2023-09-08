@@ -166,6 +166,7 @@ export const getAdministrations = async ({
       orgs: orgsChunk,
       isSuperAdmin,
     });
+    console.log('In getAdministrations: ', { orgsChunk: orgsChunk, query: q });
 
     if (q) {
       const snapshot = await getDocs(q);
