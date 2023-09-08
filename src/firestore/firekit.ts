@@ -827,8 +827,8 @@ export class RoarFirekit {
     if (docSnap.exists()) {
       return {
         id: administrationId,
-        ...docSnap.data()
-       } as IAdministrationData;
+        ...docSnap.data(),
+      } as IAdministrationData;
     }
   }
 
