@@ -156,7 +156,7 @@ export class RoarRun {
         const userDocData = userDocSnap.data();
         const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
         for (const orgName of Object.keys(userOrgs)) {
-          this.assigningOrgs[orgName] = _intersection(userOrgs[orgName], this.assigningOrgs[orgName]);
+          this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
         }
       } else {
         // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
