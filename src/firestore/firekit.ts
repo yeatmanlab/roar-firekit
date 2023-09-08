@@ -825,7 +825,10 @@ export class RoarFirekit {
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      return docSnap.data() as IAdministrationData;
+      return {
+        id: administrationId,
+        ...docSnap.data()
+       } as IAdministrationData;
     }
   }
 
