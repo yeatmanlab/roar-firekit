@@ -1305,7 +1305,7 @@ export class RoarFirekit {
     if (this._superAdmin) {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
-      const orgIds = this._adminOrgs[orgType];
+      const orgIds = [...this._adminOrgs[orgType]];
 
       // If orgType is school or class, and the user has district or school
       // admin orgs, we must add all subordinate orgs to the orgIds.
