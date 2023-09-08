@@ -1305,19 +1305,22 @@ export class RoarFirekit {
     if (this._superAdmin) {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
-      const orgIds = [...this._adminOrgs[orgType]];
+      const orgIds = this._adminOrgs[orgType] === undefined ? [] : [...this._adminOrgs[orgType]];
 
       // If orgType is school or class, and the user has district or school
       // admin orgs, we must add all subordinate orgs to the orgIds.
       if (['schools', 'classes'].includes(orgType)) {
         const districtIds = this._adminOrgs.districts;
-        const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
-        const schoolIds: string[] = _union(...districts.map((d) => d.schools));
+        let schoolIds: string[] = [];
+        if (districtIds !== undefined) {
+          const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
+          schoolIds = _union(...districts.map((d) => d.schools));
+        }
 
         if (orgType === 'schools') {
           orgIds.push(...schoolIds);
         } else if (orgType === 'classes') {
-          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools);
+          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools ?? []);
           const schools = await getOrganizations(this.admin!.db, 'schools', allSchoolIds);
           const classIds: string[] = _union(...schools.map((s) => s.classes));
           orgIds.push(...classIds);
