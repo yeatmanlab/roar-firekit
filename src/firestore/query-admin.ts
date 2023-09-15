@@ -247,7 +247,7 @@ export const getUsersByAssignment = async ({
                 const runId = assessment.runId;
                 if (runId) {
                   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  const { runScores } = await getRunById({ db: assessmentDb!, runId });
+                  const { scores: runScores } = await getRunById({ db: assessmentDb!, runId });
                   scores[assessment.taskId] = runScores;
                 }
               }
