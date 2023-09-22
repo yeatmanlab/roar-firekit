@@ -63,6 +63,7 @@ export class RoarTaskVariant {
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
   private _firestoreUpdateAllowed: boolean;
+  private _createNewVariant?: boolean;
   /** Create a ROAR task
    * @param {ITaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
@@ -137,7 +138,7 @@ export class RoarTaskVariant {
 
     // no match, ask Firestore to generate a new document id for the variant
     // and push it to Firestore.
-    if (!this.variantId) {
+    if (!this.variantId || this._createNewVariant) {
       const variantData: IFirestoreVariantData = {
         name: this.variantName,
         description: this.variantDescription,
@@ -176,12 +177,14 @@ export class RoarTaskVariant {
     const cleanParams = replaceValues(newParams);
 
     // Only allow updating the task params if we are updating previously null values.
-    const mergedParams = mergeGameParams(oldParams, cleanParams);
+    const { keysAdded, merged } = mergeGameParams(oldParams, cleanParams);
 
-    this.variantParams = mergedParams;
+    this.variantParams = merged;
     this._firestoreUpdateAllowed = true;
+    this._createNewVariant = keysAdded;
     await this.toFirestore().then(() => {
       this._firestoreUpdateAllowed = false;
+      this._createNewVariant = undefined;
     });
   }
 }

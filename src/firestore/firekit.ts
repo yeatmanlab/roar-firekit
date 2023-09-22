@@ -44,7 +44,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isEmailAvailable, isRoarAuthEmail, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
   IAdministrationData,
@@ -121,6 +121,7 @@ export class RoarFirekit {
   roarAppUserInfo?: IUserInput;
   roarConfig: IRoarConfigData;
   userData?: IUserData;
+  listenerUpdateCallback: (...args: unknown[]) => void;
   private _idTokenReceived?: boolean;
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
@@ -141,16 +142,20 @@ export class RoarFirekit {
     roarConfig,
     authPersistence = AuthPersistence.session,
     markRawConfig = {},
+    listenerUpdateCallback,
   }: {
     roarConfig: IRoarConfigData;
     dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
+    listenerUpdateCallback?: (...args: unknown[]) => void;
   }) {
     this.roarConfig = roarConfig;
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
     this._initialized = false;
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
   }
 
   private _scrubAuthProperties() {
@@ -183,9 +188,6 @@ export class RoarFirekit {
         if (user) {
           this.admin.user = user;
           this._adminClaimsListener = this._listenToClaims(this.admin);
-          if (this.app?.user) {
-            this._userDocListener = this._listenToUserDoc();
-          }
           this._tokenListener = this._listenToTokenChange();
         } else {
           this.admin.user = undefined;
@@ -195,6 +197,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
@@ -202,9 +205,6 @@ export class RoarFirekit {
         if (user) {
           this.app.user = user;
           this._appClaimsListener = this._listenToClaims(this.app);
-          if (this.admin?.user) {
-            this._userDocListener = this._listenToUserDoc();
-          }
         } else {
           this.app.user = undefined;
           if (this._appClaimsListener) this._appClaimsListener();
@@ -212,6 +212,7 @@ export class RoarFirekit {
           this._scrubAuthProperties();
         }
       }
+      this.listenerUpdateCallback();
     });
 
     return this;
@@ -260,9 +261,25 @@ export class RoarFirekit {
   private _listenToUserDoc() {
     this._verifyAuthentication();
     if (this.dbRefs && !this._userDocListener) {
-      return onSnapshot(this.dbRefs.admin.user, () => {
-        this.getMyData();
-      });
+      let unsubscribe;
+      try {
+        unsubscribe = onSnapshot(
+          this.dbRefs.admin.user,
+          async () => {
+            await this.getMyData();
+            this.listenerUpdateCallback();
+          },
+          (error) => {
+            throw error;
+          },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        if (error.code !== 'permission-denied') {
+          throw error;
+        }
+      }
+      return unsubscribe;
     }
     return this._userDocListener;
   }
@@ -270,17 +287,33 @@ export class RoarFirekit {
   private _listenToClaims(firekit: IFirekit) {
     this._verifyInit();
     if (firekit.user) {
-      return onSnapshot(doc(firekit.db, 'userClaims', firekit.user!.uid), (doc) => {
-        const data = doc.data();
-        if (data?.lastUpdated) {
-          const lastUpdated = new Date(data!.lastUpdated);
-          if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
-            // Update the user's ID token and refresh claimsLastUpdated.
-            firekit.user!.getIdToken(true);
-            firekit.claimsLastUpdated = lastUpdated;
-          }
+      let unsubscribe;
+      try {
+        unsubscribe = onSnapshot(
+          doc(firekit.db, 'userClaims', firekit.user!.uid),
+          async (doc) => {
+            const data = doc.data();
+            if (data?.lastUpdated) {
+              const lastUpdated = new Date(data!.lastUpdated);
+              if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
+                // Update the user's ID token and refresh claimsLastUpdated.
+                await getIdToken(firekit.user!, true);
+                firekit.claimsLastUpdated = lastUpdated;
+              }
+            }
+            this.listenerUpdateCallback();
+          },
+          (error) => {
+            throw error;
+          },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        if (error.code !== 'permission-denied') {
+          throw error;
         }
-      });
+      }
+      return unsubscribe;
     }
   }
 
@@ -292,9 +325,15 @@ export class RoarFirekit {
           const idTokenResult = await user.getIdTokenResult(false);
           this._adminOrgs = idTokenResult.claims.adminOrgs;
           this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-          await this.getMyData();
+          if (idTokenResult.claims.roarUid) {
+            if (this.app?.user) {
+              this._userDocListener = this._listenToUserDoc();
+            }
+            await this.getMyData();
+          }
           this._idTokenReceived = true;
         }
+        this.listenerUpdateCallback();
       });
     }
     return this._tokenListener;
@@ -660,7 +699,7 @@ export class RoarFirekit {
 
   async getMyData() {
     this._verifyInit();
-    if (!this._isAuthenticated()) {
+    if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
 
@@ -786,7 +825,10 @@ export class RoarFirekit {
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      return docSnap.data() as IAdministrationData;
+      return {
+        id: administrationId,
+        ...docSnap.data(),
+      } as IAdministrationData;
     }
   }
 
@@ -904,25 +946,25 @@ export class RoarFirekit {
           const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
           allRunIdsForThisTask.push(runId);
 
-          // Overwrite `runId` and append runId to `allRunIds` for this assessment
+          const assessmentUpdateData: { startedOn: Date; allRunIds: string[]; runId?: string } = {
+            startedOn: new Date(),
+            allRunIds: allRunIdsForThisTask,
+          };
+
+          if (allRunIdsForThisTask.length === 1) {
+            assessmentUpdateData.runId = runId;
+          }
+
+          // Append runId to `allRunIds` for this assessment
           // in the userId/assignments collection
-          await this._updateAssignedAssessment(
-            administrationId,
-            taskId,
-            {
-              startedOn: new Date(),
-              runId: runId,
-              allRunIds: allRunIdsForThisTask,
-            },
-            transaction,
-          );
+          await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
 
           if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
             await this.startAssignment(administrationId, transaction);
           }
 
           if (this.roarAppUserInfo === undefined) {
-            this.getMyData();
+            await this.getMyData();
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
@@ -956,6 +998,11 @@ export class RoarFirekit {
             variantParams: assessmentParams,
           };
 
+          this.selectBestRun({
+            assignmentId: administrationId,
+            taskId,
+          });
+
           return new RoarAppkit({
             firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
@@ -986,6 +1033,10 @@ export class RoarFirekit {
 
       // Update this assignment's `completedOn` timestamp
       await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
+      this.selectBestRun({
+        assignmentId: administrationId,
+        taskId,
+      });
 
       if (docSnap.exists()) {
         // Now check to see if all of the assessments in this assignment have
@@ -1011,6 +1062,17 @@ export class RoarFirekit {
     await runTransaction(this.admin!.db, async (transaction) => {
       this._updateAssignedAssessment(administrationId, taskId, { rewardShown: true }, transaction);
     });
+  }
+
+  async selectBestRun({ assignmentId, taskId }: { assignmentId: string; taskId: string }) {
+    this._verifyAuthentication();
+    const cloudSelectBestRun = httpsCallable(this.admin!.functions, 'selectBestRun');
+    const response = await cloudSelectBestRun({ assignmentId, taskId });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(response.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to create administrator user account.');
+    }
+    return _get(response.data, 'bestRun');
   }
 
   // These are all methods that will be important for admins, but not necessary for students
@@ -1117,98 +1179,86 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isEmailAvailable = await this.isEmailAvailable(email);
-    if (isEmailAvailable) {
-      if (!_get(userData, 'dob')) {
-        throw new Error('Student date of birth must be supplied.');
-      }
-
-      const userDocData: IUserData = {
-        userType: UserType.student,
-        studentData: {} as IStudentData,
-        districts: emptyOrg(),
-        schools: emptyOrg(),
-        classes: emptyOrg(),
-        families: emptyOrg(),
-        groups: emptyOrg(),
-        archived: false,
-      };
-
-      if (_get(userData, 'pid')) {
-        _set(userDocData, 'assessmentPid', userData.pid);
-      } else {
-        // If PID was not supplied, then construct one using an eight character
-        // checksum of the email.
-        // Prefix that checksum with optional org abbreviations:
-        // 1. If the district has an abbreviation, start with that.
-        // 2. Then add the school abbreviation, if it exists.
-        // 3. If neither of those are available, use the group abbreviation.
-        // 4. Otherwise prepend nothing.
-        const emailCheckSum = crc32String(email);
-
-        const districtPrefix = _get(userData, 'district.abbreviation');
-        const schoolPrefix = _get(userData, 'school.abbreviation');
-        const groupPrefix = _get(userData, 'group.abbreviation');
-
-        const pidParts: string[] = [];
-        if (districtPrefix) pidParts.push(districtPrefix);
-        if (schoolPrefix) pidParts.push(schoolPrefix);
-        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
-        pidParts.push(emailCheckSum);
-        _set(userDocData, 'assessmentPid', pidParts.join('-'));
-      }
-
-      // TODO: this can probably be optimized.
-      _set(userDocData, 'email', email);
-      if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
-      if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
-      if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
-      if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
-      if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
-      if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
-      if (_get(userData, 'hispanic_ethnicity'))
-        _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
-      if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
-      if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
-      if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
-      if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
-      if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
-
-      if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
-      if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
-      if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
-      if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
-      if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
-
-      const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
-      const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
-      const adminUid = _get(adminResponse, 'data.adminUid');
-
-      const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
-      const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
-      // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
-      const assessmentUid = _get(appResponse, 'data.assessmentUid');
-
-      const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
-      await cloudUpdateUserClaims({ adminUid, assessmentUid });
-    } else {
-      // Email is not available, reject
-      throw new Error(`The email ${email} is not available.`);
+    if (!_get(userData, 'dob')) {
+      throw new Error('Student date of birth must be supplied.');
     }
+
+    const userDocData: IUserData = {
+      userType: UserType.student,
+      studentData: {} as IStudentData,
+      districts: emptyOrg(),
+      schools: emptyOrg(),
+      classes: emptyOrg(),
+      families: emptyOrg(),
+      groups: emptyOrg(),
+      archived: false,
+    };
+
+    if (_get(userData, 'pid')) {
+      _set(userDocData, 'assessmentPid', userData.pid);
+    } else {
+      // If PID was not supplied, then construct one using an eight character
+      // checksum of the email.
+      // Prefix that checksum with optional org abbreviations:
+      // 1. If the district has an abbreviation, start with that.
+      // 2. Then add the school abbreviation, if it exists.
+      // 3. If neither of those are available, use the group abbreviation.
+      // 4. Otherwise prepend nothing.
+      const emailCheckSum = crc32String(email);
+
+      const districtPrefix = _get(userData, 'district.abbreviation');
+      const schoolPrefix = _get(userData, 'school.abbreviation');
+      const groupPrefix = _get(userData, 'group.abbreviation');
+
+      const pidParts: string[] = [];
+      if (districtPrefix) pidParts.push(districtPrefix);
+      if (schoolPrefix) pidParts.push(schoolPrefix);
+      if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
+      pidParts.push(emailCheckSum);
+      _set(userDocData, 'assessmentPid', pidParts.join('-'));
+    }
+
+    // TODO: this can probably be optimized.
+    _set(userDocData, 'email', email);
+    if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
+    if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
+    if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
+    if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
+    if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
+    if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
+    if (_get(userData, 'hispanic_ethnicity'))
+      _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
+    if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
+    if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
+    if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
+    if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
+    if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
+
+    if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
+    if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
+    if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
+    if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
+    if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
+
+    const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
+    const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
+    const adminUid = _get(adminResponse, 'data.adminUid');
+
+    const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
+    const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
+    // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
+    const assessmentUid = _get(appResponse, 'data.assessmentUid');
+
+    const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
+    await cloudUpdateUserClaims({ adminUid, assessmentUid });
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const isUsernameAvailable = await this.isUsernameAvailable(username);
-    if (isUsernameAvailable) {
-      const email = `${username}@roar-auth.com`;
-      await this.createStudentWithEmailPassword(email, password, userData);
-    } else {
-      // Username is not available, reject
-      throw new Error(`The username ${username} is not available.`);
-    }
+    const email = `${username}@roar-auth.com`;
+    return this.createStudentWithEmailPassword(email, password, userData);
   }
 
   async createAdministrator(email: string, name: IName, targetOrgs: IOrgLists, targetAdminOrgs: IOrgLists) {
@@ -1258,19 +1308,22 @@ export class RoarFirekit {
     if (this._superAdmin) {
       return getOrganizations(this.admin!.db, orgType);
     } else if (this._adminOrgs) {
-      const orgIds = this._adminOrgs[orgType];
+      const orgIds = this._adminOrgs[orgType] === undefined ? [] : [...this._adminOrgs[orgType]];
 
       // If orgType is school or class, and the user has district or school
       // admin orgs, we must add all subordinate orgs to the orgIds.
       if (['schools', 'classes'].includes(orgType)) {
         const districtIds = this._adminOrgs.districts;
-        const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
-        const schoolIds: string[] = _union(...districts.map((d) => d.schools));
+        let schoolIds: string[] = [];
+        if (districtIds !== undefined) {
+          const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
+          schoolIds = _union(...districts.map((d) => d.schools));
+        }
 
         if (orgType === 'schools') {
           orgIds.push(...schoolIds);
         } else if (orgType === 'classes') {
-          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools);
+          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools ?? []);
           const schools = await getOrganizations(this.admin!.db, 'schools', allSchoolIds);
           const classIds: string[] = _union(...schools.map((s) => s.classes));
           orgIds.push(...classIds);

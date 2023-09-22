@@ -269,6 +269,7 @@ export const waitFor = (conditionFunction: () => boolean) => {
  * @returns merged game parameters
  */
 export const mergeGameParams = (oldParams: { [key: string]: unknown }, newParams: { [key: string]: unknown }) => {
+  let keysAdded = false;
   const customizer = (oldValue: unknown, newValue: unknown, key: string) => {
     if (oldValue === null) {
       return newValue;
@@ -277,11 +278,11 @@ export const mergeGameParams = (oldParams: { [key: string]: unknown }, newParams
       return newValue;
     }
     if (oldValue === undefined && newValue !== undefined) {
-      throw new Error(`New key detected: ${key}`);
+      keysAdded = true;
+      return newValue;
+    } else {
+      throw new Error(`Attempted to change previously non-null value with key ${key}`);
     }
-    // else {
-    //   throw new Error(`Attempted to change previously non-null value with key ${key}`);
-    // }
   };
 
   const merged = _mergeWith({ ...oldParams }, newParams, customizer);
@@ -289,7 +290,11 @@ export const mergeGameParams = (oldParams: { [key: string]: unknown }, newParams
   if (!_isEmpty(differentKeys)) {
     throw new Error(`Detected deleted keys: ${differentKeys.join(', ')}`);
   }
-  return merged;
+
+  return {
+    keysAdded,
+    merged,
+  };
 };
 
 export const crc32String = (inputString: string) => {

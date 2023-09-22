@@ -186,6 +186,18 @@ export class RoarAppkit {
   }
 
   /**
+   * Abort the ROAR run, preventing any further writes to Firestore.
+   * @method
+   */
+  abortRun() {
+    if (this._started) {
+      this.run!.abortRun();
+    } else {
+      throw new Error('This run has not started. Use the startRun method first.');
+    }
+  }
+
+  /**
    * Add new trial data to this run on Firestore.
    *
    * ROAR expects certain data to be added to each trial:

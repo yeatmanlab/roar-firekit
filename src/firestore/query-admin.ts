@@ -166,6 +166,7 @@ export const getAdministrations = async ({
       orgs: orgsChunk,
       isSuperAdmin,
     });
+    console.log('In getAdministrations: ', { orgsChunk: orgsChunk, query: q });
 
     if (q) {
       const snapshot = await getDocs(q);
@@ -246,7 +247,7 @@ export const getUsersByAssignment = async ({
                 const runId = assessment.runId;
                 if (runId) {
                   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  const { runScores } = await getRunById({ db: assessmentDb!, runId });
+                  const { scores: runScores } = await getRunById({ db: assessmentDb!, runId });
                   scores[assessment.taskId] = runScores;
                 }
               }
