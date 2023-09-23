@@ -19,6 +19,8 @@ export interface ITaskVariantInfo {
   taskId: string;
   taskName?: string;
   taskDescription?: string;
+  taskImage?: string;
+  taskURL?: string;
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
@@ -32,6 +34,7 @@ export interface IFirestoreTaskData {
   name?: string;
   description?: string | null;
   image?: string;
+  taskURL: string;
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
 }
@@ -43,6 +46,7 @@ export interface ITaskData extends IFirestoreTaskData {
 export interface IFirestoreVariantData {
   name?: string;
   description?: string | null;
+  taskURL: string;
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
@@ -55,6 +59,8 @@ export class RoarTaskVariant {
   taskId: string;
   taskName?: string;
   taskDescription?: string;
+  taskImage?: string;
+  taskURL: string;
   taskRef: DocumentReference;
   variantId?: string;
   variantName?: string;
@@ -79,6 +85,8 @@ export class RoarTaskVariant {
     taskId,
     taskName,
     taskDescription,
+    taskImage,
+    taskURL,
     variantName,
     variantDescription,
     variantParams = {},
@@ -87,6 +95,8 @@ export class RoarTaskVariant {
     this.taskId = taskId;
     this.taskName = taskName;
     this.taskDescription = taskDescription;
+    this.taskImage = taskImage
+    this.taskURL = taskURL!
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.variantParams = variantParams;
@@ -108,8 +118,11 @@ export class RoarTaskVariant {
     const taskData: IFirestoreTaskData = {
       name: this.taskName,
       description: this.taskDescription,
+      image: this.taskImage,
+      taskURL: this.taskURL,
       lastUpdated: serverTimestamp(),
     };
+
     await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
 
     // Check to see if variant exists already by querying for a match on the
@@ -136,25 +149,21 @@ export class RoarTaskVariant {
       );
     });
 
+    const variantData: IFirestoreVariantData = {
+      name: this.variantName,
+      description: this.variantDescription,
+      taskURL: this.taskURL,
+      params: this.variantParams,
+      lastUpdated: serverTimestamp(),
+    };
+
     // no match, ask Firestore to generate a new document id for the variant
     // and push it to Firestore.
     if (!this.variantId || this._createNewVariant) {
-      const variantData: IFirestoreVariantData = {
-        name: this.variantName,
-        description: this.variantDescription,
-        params: this.variantParams,
-        lastUpdated: serverTimestamp(),
-      };
       this.variantRef = doc(this.variantsCollectionRef);
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
     } else if (this._firestoreUpdateAllowed) {
-      const variantData: IFirestoreVariantData = {
-        name: this.variantName,
-        description: this.variantDescription,
-        params: this.variantParams,
-        lastUpdated: serverTimestamp(),
-      };
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await updateDoc(this.variantRef!, removeUndefined(variantData));
     }

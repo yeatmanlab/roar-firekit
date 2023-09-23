@@ -67,6 +67,7 @@ import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { getAdministrations, getUsersByAssignment, getUsersByOrgs } from './query-admin';
+import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -1459,4 +1460,26 @@ export class RoarFirekit {
       includeScores,
     });
   }
+
+  async registerTaskVariant({
+    taskId,
+    taskName,
+    taskDescription,
+    taskImage,
+    taskURL,
+    variantName,
+    variantDescription,
+    variantParams = {}}: ITaskVariantInfo
+  ) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const task = new RoarTaskVariant({db: this.app!.db, taskId, taskName, taskDescription, taskImage, taskURL, variantName, variantDescription, variantParams})
+
+    await task.toFirestore()
+
+    return task
+  }
 }
+
+
