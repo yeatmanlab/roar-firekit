@@ -292,6 +292,7 @@ export class RoarFirekit {
           doc(firekit.db, 'userClaims', firekit.user!.uid),
           async (doc) => {
             const data = doc.data();
+            this._adminOrgs = data?.claims?.adminOrgs;
             if (data?.lastUpdated) {
               const lastUpdated = new Date(data!.lastUpdated);
               if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
@@ -322,7 +323,6 @@ export class RoarFirekit {
       return onIdTokenChanged(this.admin!.auth, async (user) => {
         if (user) {
           const idTokenResult = await user.getIdTokenResult(false);
-          this._adminOrgs = idTokenResult.claims.adminOrgs;
           this._superAdmin = Boolean(idTokenResult.claims.super_admin);
           if (idTokenResult.claims.roarUid) {
             if (this.app?.user) {
