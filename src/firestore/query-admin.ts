@@ -110,7 +110,7 @@ export const getUsersByOrgs = async ({
   isSuperAdmin?: boolean;
   countOnly?: boolean;
 }) => {
-  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
+  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 10 });
   let total = 0;
   const users: IUserData[] = [];
 
@@ -122,6 +122,8 @@ export const getUsersByOrgs = async ({
       isSuperAdmin,
       orgs: orgsChunk,
     });
+
+    console.log(userQuery);
 
     if (userQuery) {
       if (countOnly) {
@@ -154,7 +156,7 @@ export const getAdministrations = async ({
   isSuperAdmin?: boolean;
   includeStats?: boolean;
 }) => {
-  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
+  const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 10 });
 
   const administrations: IAdministrationData[] = [];
 
@@ -219,7 +221,7 @@ export const getUsersByAssignment = async ({
   const assignments: IUserAssignmentData[] = [];
 
   if (orgs) {
-    const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
+    const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 10 });
 
     for (const orgsChunk of chunkedOrgs) {
       const q = buildQueryByAssignment({

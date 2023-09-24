@@ -60,7 +60,6 @@ import {
   IStudentData,
   IUserData,
   OrgCollectionName,
-  OrgType,
   UserType,
 } from './interfaces';
 import { IUserInput } from './app/user';
@@ -1341,7 +1340,7 @@ export class RoarFirekit {
     orgId,
     countOnly = false,
   }: {
-    orgType: OrgType;
+    orgType: OrgCollectionName;
     orgId: string;
     countOnly?: boolean;
   }) {

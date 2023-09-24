@@ -32,7 +32,7 @@ export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName
   }
 
   const orgs = [];
-  const maxQueryDisjunctions = 20;
+  const maxQueryDisjunctions = 10;
   for (const _orgsChunk of _chunk(orgIds, maxQueryDisjunctions)) {
     q = query(collection(db, orgType), where(documentId(), 'in', _orgsChunk));
     const snapshot = await getDocs(q);
