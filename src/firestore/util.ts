@@ -12,6 +12,7 @@ import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/fire
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
+import _flatten from 'lodash/flatten';
 import _get from 'lodash/get';
 import _isEmpty from 'lodash/isEmpty';
 import _isEqual from 'lodash/isEqual';
@@ -479,16 +480,24 @@ export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
 export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: IOrgLists; chunkSize: number }) => {
   if (!orgs) return [undefined];
 
-  const allOrgs: string[] = _union(...Object.values(orgs));
-  if (allOrgs.length <= chunkSize) return [orgs];
+  const orgPairs = _flatten(
+    Object.entries(orgs).map(([orgType, orgIds]) => {
+      return orgIds.map((orgId: string) => [orgType, orgId]);
+    }),
+  );
 
-  const chunkedOrgs = _chunk(allOrgs, chunkSize);
+  console.log('In chunkOrgLists', {
+    orgs,
+    orgPairs,
+  });
+
+  if (orgPairs.length <= chunkSize) return [orgs];
+
+  const chunkedOrgs = _chunk(orgPairs, chunkSize);
   return chunkedOrgs.map((chunk) => {
     const orgChunk = emptyOrgList();
-    for (const org of chunk) {
-      for (const orgType in orgChunk) {
-        orgChunk[orgType as OrgListKey].push(org);
-      }
+    for (const [orgType, orgId] of chunk) {
+      orgChunk[orgType as OrgListKey].push(orgId);
     }
 
     return orgChunk;
