@@ -486,11 +486,6 @@ export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: IOrgLists; chun
     }),
   );
 
-  console.log('In chunkOrgLists', {
-    orgs,
-    orgPairs,
-  });
-
   if (orgPairs.length <= chunkSize) return [orgs];
 
   const chunkedOrgs = _chunk(orgPairs, chunkSize);
