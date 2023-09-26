@@ -70,6 +70,8 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
       ...docData,
     });
   });
+
+
   return tasks;
 };
 

@@ -21,6 +21,7 @@ export interface ITaskVariantInfo {
   taskDescription?: string;
   taskImage?: string;
   taskURL?: string;
+  external?: boolean
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
@@ -34,7 +35,8 @@ export interface IFirestoreTaskData {
   name?: string;
   description?: string | null;
   image?: string;
-  taskURL: string;
+  taskURL?: string;
+  external?: boolean
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
 }
@@ -46,7 +48,8 @@ export interface ITaskData extends IFirestoreTaskData {
 export interface IFirestoreVariantData {
   name?: string;
   description?: string | null;
-  taskURL: string;
+  taskURL?: string;
+  external?: boolean
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
@@ -60,7 +63,8 @@ export class RoarTaskVariant {
   taskName?: string;
   taskDescription?: string;
   taskImage?: string;
-  taskURL: string;
+  taskURL?: string;
+  external?: boolean;
   taskRef: DocumentReference;
   variantId?: string;
   variantName?: string;
@@ -96,7 +100,8 @@ export class RoarTaskVariant {
     this.taskName = taskName;
     this.taskDescription = taskDescription;
     this.taskImage = taskImage
-    this.taskURL = taskURL!
+    this.taskURL = taskURL
+    this.external = this.external
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.variantParams = variantParams;
@@ -120,13 +125,13 @@ export class RoarTaskVariant {
       description: this.taskDescription,
       image: this.taskImage,
       taskURL: this.taskURL,
+      external: this.external,
       lastUpdated: serverTimestamp(),
     };
 
     await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
 
-    // Check to see if variant exists already by querying for a match on the
-    // params.
+    // Check to see if variant exists already by querying for a match on the params.
     const q = query(
       this.variantsCollectionRef,
       where('params', '==', this.variantParams),
@@ -153,6 +158,7 @@ export class RoarTaskVariant {
       name: this.variantName,
       description: this.variantDescription,
       taskURL: this.taskURL,
+      external: this.external,
       params: this.variantParams,
       lastUpdated: serverTimestamp(),
     };
