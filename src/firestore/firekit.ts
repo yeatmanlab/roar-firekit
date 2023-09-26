@@ -1006,6 +1006,7 @@ export class RoarFirekit {
             firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
             assigningOrgs,
+            assignmentId: administrationId,
             runId,
             taskInfo,
           });

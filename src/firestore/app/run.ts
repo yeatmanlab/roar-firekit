@@ -77,6 +77,7 @@ export interface IRunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
   assigningOrgs?: IOrgLists;
+  assignmentId?: string;
   runId?: string;
 }
 
@@ -103,6 +104,7 @@ export class RoarRun {
   task: RoarTaskVariant;
   runRef: DocumentReference;
   assigningOrgs?: IOrgLists;
+  assignmentId?: string;
   started: boolean;
   completed: boolean;
   aborted: boolean;
@@ -114,10 +116,11 @@ export class RoarRun {
    * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ user, task, assigningOrgs, runId }: IRunInput) {
+  constructor({ user, task, assigningOrgs, assignmentId, runId }: IRunInput) {
     this.user = user;
     this.task = task;
     this.assigningOrgs = assigningOrgs;
+    this.assignmentId = assignmentId;
 
     if (runId) {
       this.runRef = doc(this.user.userRef, 'runs', runId);
@@ -167,7 +170,8 @@ export class RoarRun {
     const runData = {
       ...additionalRunMetadata,
       id: this.runRef.id,
-      assigningOrgs: this.assigningOrgs || null,
+      assignmentId: this.assignmentId ?? null,
+      assigningOrgs: this.assigningOrgs ?? null,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
       completed: false,
