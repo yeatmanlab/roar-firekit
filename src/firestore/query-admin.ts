@@ -1,5 +1,8 @@
 import {
+  DocumentData,
+  DocumentSnapshot,
   Firestore,
+  Query,
   and,
   collection,
   collectionGroup,
@@ -13,8 +16,10 @@ import {
 } from 'firebase/firestore';
 import { IAdministrationData, IAssignmentData, IOrgLists, IUserData } from './interfaces';
 import { chunkOrgLists } from './util';
+import _flatten from 'lodash/flatten';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
+import _without from 'lodash/without';
 import { getRunById } from './query-assessment';
 
 interface IQueryInput {
@@ -36,6 +41,7 @@ export const buildQueryByOrgs = ({ db, collectionName, nested, isSuperAdmin = fa
   // Cloud Firestore limits a query to a maximum of 30 disjunctions in disjunctive normal form.
   // Detect if there are too many `array-contains` comparisons
   if (_union(...Object.values(orgs)).length > 30) {
+    console.error('Too many orgs', orgs);
     throw new Error('Too many orgs to query. Please chunk orgs such that the total number of orgs is less than 30.');
   }
 
@@ -99,6 +105,23 @@ export const buildQueryByAssignment = ({
   }
 };
 
+const getUsersFromQuery = async ({ query, countOnly = false }: { query: Query<DocumentData>; countOnly?: boolean }) => {
+  if (countOnly) {
+    const snapshot = await getCountFromServer(query);
+    return snapshot.data().count;
+  } else {
+    const users: IUserData[] = [];
+    const snapshot = await getDocs(query);
+    snapshot.forEach((docSnap) => {
+      users.push({
+        id: docSnap.id,
+        ...docSnap.data(),
+      } as IUserData);
+    });
+    return users;
+  }
+};
+
 export const getUsersByOrgs = async ({
   db,
   orgs,
@@ -111,8 +134,7 @@ export const getUsersByOrgs = async ({
   countOnly?: boolean;
 }) => {
   const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
-  let total = 0;
-  const users: IUserData[] = [];
+  const promises: Promise<IUserData[] | number>[] = [];
 
   for (const orgsChunk of chunkedOrgs) {
     const userQuery = buildQueryByOrgs({
@@ -124,23 +146,42 @@ export const getUsersByOrgs = async ({
     });
 
     if (userQuery) {
-      if (countOnly) {
-        const snapshot = await getCountFromServer(userQuery);
-        total += snapshot.data().count;
-      } else {
-        const snapshot = await getDocs(userQuery);
-        snapshot.forEach((docSnap) => {
-          users.push({
-            id: docSnap.id,
-            ...docSnap.data(),
-          } as IUserData);
-        });
-      }
+      promises.push(getUsersFromQuery({ query: userQuery, countOnly }));
     }
   }
 
-  if (countOnly) return total;
-  return _uniqBy(users, (u: IUserData) => u.id);
+  const users = await Promise.all(promises);
+
+  if (countOnly) {
+    return (users as number[]).reduce((prev, curr) => prev + curr, 0);
+  }
+  return _uniqBy(_flatten(users as IUserData[][]), (u: IUserData) => u.id);
+};
+
+const getAdministrationsFromQuery = async ({
+  query,
+  includeStats = true,
+}: {
+  query: Query<DocumentData>;
+  includeStats?: boolean;
+}) => {
+  const administrations: IAdministrationData[] = [];
+  const snapshot = await getDocs(query);
+  for (const docSnap of snapshot.docs) {
+    const docData = docSnap.data();
+    if (includeStats) {
+      const completionDocRef = doc(docSnap.ref, 'stats', 'completion');
+      const completionDocSnap = await getDoc(completionDocRef);
+      if (completionDocSnap.exists()) {
+        docData.stats = completionDocSnap.data();
+      }
+    }
+    administrations.push({
+      id: docSnap.id,
+      ...docData,
+    } as IAdministrationData);
+  }
+  return administrations;
 };
 
 export const getAdministrations = async ({
@@ -156,7 +197,7 @@ export const getAdministrations = async ({
 }) => {
   const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
 
-  const administrations: IAdministrationData[] = [];
+  const promises: Promise<IAdministrationData[]>[] = [];
 
   for (const orgsChunk of chunkedOrgs) {
     const q = buildQueryByOrgs({
@@ -166,27 +207,13 @@ export const getAdministrations = async ({
       orgs: orgsChunk,
       isSuperAdmin,
     });
-    console.log('In getAdministrations: ', { orgsChunk: orgsChunk, query: q });
 
     if (q) {
-      const snapshot = await getDocs(q);
-      for (const docSnap of snapshot.docs) {
-        const docData = docSnap.data();
-        if (includeStats) {
-          const completionDocRef = doc(docSnap.ref, 'stats', 'completion');
-          const completionDocSnap = await getDoc(completionDocRef);
-          if (completionDocSnap.exists()) {
-            docData.stats = completionDocSnap.data();
-          }
-        }
-        administrations.push({
-          id: docSnap.id,
-          ...docData,
-        } as IAdministrationData);
-      }
+      promises.push(getAdministrationsFromQuery({ query: q, includeStats: includeStats }));
     }
   }
 
+  const administrations = _flatten(await Promise.all(promises));
   return _uniqBy(administrations, (a: IAdministrationData) => a.id);
 };
 
@@ -195,6 +222,94 @@ export interface IUserAssignmentData {
   user: IUserData;
   assignment: IAssignmentData;
 }
+
+const getAssignmentData = async ({
+  docSnap,
+  assessmentDb,
+  includeScores = false,
+}: {
+  docSnap: DocumentSnapshot<DocumentData>;
+  assessmentDb: Firestore;
+  includeScores?: boolean;
+}) => {
+  // Now grab the user document and add it to the results.
+  const userRef = docSnap.ref.parent.parent;
+  if (!userRef) {
+    return undefined;
+  }
+  const userDocSnapPromise = getDoc(userRef);
+
+  const assignmentData = docSnap.data() as IAssignmentData;
+  const assessments = assignmentData.assessments;
+  const scoresPromises: Promise<[string, { [key: string]: unknown }][]>[] = [];
+  if (includeScores) {
+    // To retrieve scores, we first build an object where the keys are
+    // the task IDs of each assessment and the values are the scores
+    // for the run associated with that assessment.
+    for (const assessment of assessments) {
+      const runId = assessment.runId;
+      if (runId) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        scoresPromises.push(
+          getRunById({ db: assessmentDb, runId: runId }).then((runData) => [assessment.taskId, runData.scores]),
+        );
+      }
+    }
+  }
+
+  const [userDocSnap, scoresNested] = await Promise.all([userDocSnapPromise, Promise.all(scoresPromises)]);
+
+  if (includeScores) {
+    const scores = _flatten(scoresNested);
+
+    // Now we iterate over the scores and insert them into the
+    // assessments array of objects.
+    for (const [taskId, score] of scores) {
+      const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
+      const oldAssessmentInfo = assessments[assessmentIdx];
+      const newAssessmentInfo = {
+        ...oldAssessmentInfo,
+        scores: score,
+      };
+      assessments[assessmentIdx] = newAssessmentInfo;
+    }
+    assignmentData.assessments = assessments;
+  }
+
+  if (userDocSnap.exists()) {
+    return {
+      id: userDocSnap.id,
+      user: userDocSnap.data() as IUserData,
+      assignment: assignmentData,
+    } as IUserAssignmentData;
+  }
+};
+
+const getUsersByAssignmentQuery = async ({
+  assessmentDb,
+  query,
+  countOnly = false,
+  includeScores = false,
+}: {
+  assessmentDb: Firestore;
+  query: Query<DocumentData>;
+  countOnly?: boolean;
+  includeScores?: boolean;
+}) => {
+  if (countOnly) {
+    const snapshot = await getCountFromServer(query);
+    return snapshot.data().count;
+  } else {
+    const assignmentPromises: Promise<IUserAssignmentData | undefined>[] = [];
+    const snapshot = await getDocs(query);
+    for (const docSnap of snapshot.docs) {
+      assignmentPromises.push(getAssignmentData({ docSnap, assessmentDb, includeScores }));
+    }
+
+    const assignments = await Promise.all(assignmentPromises);
+    return assignments;
+  }
+};
 
 export const getUsersByAssignment = async ({
   db,
@@ -215,8 +330,7 @@ export const getUsersByAssignment = async ({
     throw new Error('You must provide an assessmentDb if you want to include scores.');
   }
 
-  let total = 0;
-  const assignments: IUserAssignmentData[] = [];
+  const assignmentsPromises: Promise<(IUserAssignmentData | undefined)[] | number>[] = [];
 
   if (orgs) {
     const chunkedOrgs = chunkOrgLists({ orgs, chunkSize: 20 });
@@ -229,61 +343,24 @@ export const getUsersByAssignment = async ({
       });
 
       if (q) {
-        if (countOnly) {
-          const snapshot = await getCountFromServer(q);
-          total += snapshot.data().count;
-        } else {
-          const snapshot = await getDocs(q);
-          for (const docSnap of snapshot.docs) {
-            const assignmentData = docSnap.data() as IAssignmentData;
-
-            if (includeScores) {
-              // To retrieve scores, we first build an object where the keys are
-              // the task IDs of each assessment and the values are the scores
-              // for the run associated with that assessment.
-              const assessments = assignmentData.assessments;
-              const scores: { [key: string]: unknown } = {};
-              for (const assessment of assessments) {
-                const runId = assessment.runId;
-                if (runId) {
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  const { scores: runScores } = await getRunById({ db: assessmentDb!, runId });
-                  scores[assessment.taskId] = runScores;
-                }
-              }
-
-              // Now we iterate over the scores and insert them into the
-              // assessments array of objects.
-              for (const [taskId, score] of Object.entries(scores)) {
-                const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
-                const oldAssessmentInfo = assessments[assessmentIdx];
-                const newAssessmentInfo = {
-                  ...oldAssessmentInfo,
-                  scores: score,
-                };
-                assessments[assessmentIdx] = newAssessmentInfo;
-              }
-              assignmentData.assessments = assessments;
-            }
-
-            // Now grab the user document and add it to the results.
-            const userRef = docSnap.ref.parent.parent;
-            if (userRef) {
-              const userDocSnap = await getDoc(userRef);
-              if (userDocSnap.exists()) {
-                assignments.push({
-                  id: userDocSnap.id,
-                  user: userDocSnap.data() as IUserData,
-                  assignment: assignmentData,
-                });
-              }
-            }
-          }
-        }
+        assignmentsPromises.push(
+          getUsersByAssignmentQuery({
+            assessmentDb,
+            query: q,
+            countOnly,
+            includeScores,
+          }),
+        );
       }
     }
   }
 
-  if (countOnly) return total;
-  return _uniqBy(assignments, (u: IUserAssignmentData) => u.id);
+  const assignments = await Promise.all(assignmentsPromises);
+
+  if (countOnly) {
+    return (assignments as number[]).reduce((prev, curr) => prev + curr, 0);
+  }
+
+  const assignmentsFlat = _flatten(assignments as (IUserAssignmentData | undefined)[][]).filter((a) => a !== undefined);
+  return _uniqBy(assignmentsFlat as IUserAssignmentData[], (a: IUserAssignmentData) => a.id);
 };

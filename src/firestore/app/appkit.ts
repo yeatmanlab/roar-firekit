@@ -14,6 +14,7 @@ interface IAppkitConstructorParams {
   userInfo: IUserInfo;
   taskInfo: ITaskVariantInfo;
   assigningOrgs?: IOrgLists;
+  assignmentId?: string;
   runId?: string;
 }
 
@@ -31,6 +32,7 @@ export class RoarAppkit {
   private _userInfo: IUserInfo;
   private _taskInfo: ITaskVariantInfo;
   private _assigningOrgs?: IOrgLists;
+  private _assignmentId?: string;
   private _runId?: string;
   private _authenticated: boolean;
   private _initialized: boolean;
@@ -42,9 +44,18 @@ export class RoarAppkit {
    * @param {IUserInfo} input.userInfo - The user input object
    * @param {ITaskVariantInfo} input.taskInfo - The task input object
    * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
-   * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
+   * @param {string} input.assignmentId - The ID of the assignment this run belongs to
+   * @param {string} input.runId - The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ firebaseProject, firebaseConfig, userInfo, taskInfo, assigningOrgs, runId }: IAppkitConstructorParams) {
+  constructor({
+    firebaseProject,
+    firebaseConfig,
+    userInfo,
+    taskInfo,
+    assigningOrgs,
+    assignmentId,
+    runId,
+  }: IAppkitConstructorParams) {
     if (!firebaseProject && !firebaseConfig) {
       throw new Error('You must provide either a firebaseProjectKit or firebaseConfig');
     }
@@ -59,6 +70,7 @@ export class RoarAppkit {
     this._userInfo = userInfo;
     this._taskInfo = taskInfo;
     this._assigningOrgs = assigningOrgs;
+    this._assignmentId = assignmentId;
     this._runId = runId;
 
     this._authenticated = false;
@@ -87,6 +99,7 @@ export class RoarAppkit {
       user: this.user,
       task: this.task,
       assigningOrgs: this._assigningOrgs,
+      assignmentId: this._assignmentId,
       runId: this._runId,
     });
     await this.user.init();
