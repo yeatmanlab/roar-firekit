@@ -19,7 +19,6 @@ import { chunkOrgLists } from './util';
 import _flatten from 'lodash/flatten';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
-import _without from 'lodash/without';
 import { getRunById } from './query-assessment';
 
 interface IQueryInput {
