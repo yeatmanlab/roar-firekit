@@ -91,6 +91,7 @@ export class RoarTaskVariant {
     taskDescription,
     taskImage,
     taskURL,
+    external,
     variantName,
     variantDescription,
     variantParams = {},
@@ -101,7 +102,7 @@ export class RoarTaskVariant {
     this.taskDescription = taskDescription;
     this.taskImage = taskImage
     this.taskURL = taskURL
-    this.external = this.external
+    this.external = external
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.variantParams = variantParams;
