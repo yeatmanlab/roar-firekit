@@ -19,7 +19,6 @@ import { chunkOrgLists } from './util';
 import _flatten from 'lodash/flatten';
 import _union from 'lodash/union';
 import _uniqBy from 'lodash/uniqBy';
-import _without from 'lodash/without';
 import { getRunById } from './query-assessment';
 
 interface IQueryInput {
@@ -241,7 +240,7 @@ const getAssignmentData = async ({
 
   const assignmentData = docSnap.data() as IAssignmentData;
   const assessments = assignmentData.assessments;
-  const scoresPromises: Promise<[string, { [key: string]: unknown }][]>[] = [];
+  const scoresPromises: Promise<[string, { [key: string]: unknown }]>[] = [];
   if (includeScores) {
     // To retrieve scores, we first build an object where the keys are
     // the task IDs of each assessment and the values are the scores
@@ -257,11 +256,9 @@ const getAssignmentData = async ({
     }
   }
 
-  const [userDocSnap, scoresNested] = await Promise.all([userDocSnapPromise, Promise.all(scoresPromises)]);
+  const [userDocSnap, scores] = await Promise.all([userDocSnapPromise, Promise.all(scoresPromises)]);
 
   if (includeScores) {
-    const scores = _flatten(scoresNested);
-
     // Now we iterate over the scores and insert them into the
     // assessments array of objects.
     for (const [taskId, score] of scores) {
