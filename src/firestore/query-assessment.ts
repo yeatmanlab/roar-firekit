@@ -71,7 +71,6 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
     });
   });
 
-
   return tasks;
 };
 

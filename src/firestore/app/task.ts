@@ -21,7 +21,7 @@ export interface ITaskVariantInfo {
   taskDescription?: string;
   taskImage?: string;
   taskURL?: string;
-  external?: boolean
+  external?: boolean;
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
@@ -36,7 +36,7 @@ export interface IFirestoreTaskData {
   description?: string | null;
   image?: string;
   taskURL?: string;
-  external?: boolean
+  external?: boolean;
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
 }
@@ -49,7 +49,7 @@ export interface IFirestoreVariantData {
   name?: string;
   description?: string | null;
   taskURL?: string;
-  external?: boolean
+  external?: boolean;
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
 }
@@ -100,9 +100,9 @@ export class RoarTaskVariant {
     this.taskId = taskId;
     this.taskName = taskName;
     this.taskDescription = taskDescription;
-    this.taskImage = taskImage
-    this.taskURL = taskURL
-    this.external = external
+    this.taskImage = taskImage;
+    this.taskURL = taskURL;
+    this.external = external;
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.variantParams = variantParams;

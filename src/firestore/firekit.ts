@@ -1469,17 +1469,25 @@ export class RoarFirekit {
     taskURL,
     variantName,
     variantDescription,
-    variantParams = {}}: ITaskVariantInfo
-  ) {
+    variantParams = {},
+  }: ITaskVariantInfo) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const task = new RoarTaskVariant({db: this.app!.db, taskId, taskName, taskDescription, taskImage, taskURL, variantName, variantDescription, variantParams})
+    const task = new RoarTaskVariant({
+      db: this.app!.db,
+      taskId,
+      taskName,
+      taskDescription,
+      taskImage,
+      taskURL,
+      variantName,
+      variantDescription,
+      variantParams,
+    });
 
-    await task.toFirestore()
+    await task.toFirestore();
 
-    return task
+    return task;
   }
 }
-
-
