@@ -1304,6 +1304,10 @@ export class RoarFirekit {
     }
   }
 
+  async getOrgsById(orgType: OrgCollectionName, orgIds: string[]) {
+    return getOrganizations(this.admin!.db, orgType, orgIds);
+  }
+
   async getOrgs(orgType: OrgCollectionName) {
     this._verifyAuthentication();
     if (this._superAdmin) {
