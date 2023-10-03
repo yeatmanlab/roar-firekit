@@ -240,17 +240,21 @@ const getAssignmentData = async ({
 
   const assignmentData = docSnap.data() as IAssignmentData;
   const assessments = assignmentData.assessments;
-  const scoresPromises: Promise<[string, { [key: string]: unknown }]>[] = [];
+  const scoresPromises: Promise<[string, { [key: string]: unknown } | undefined]>[] = [];
   if (includeScores) {
     // To retrieve scores, we first build an object where the keys are
     // the task IDs of each assessment and the values are the scores
     // for the run associated with that assessment.
+    console.log('userRef', userRef)
     for (const assessment of assessments) {
       const runId = assessment.runId;
       if (runId) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         scoresPromises.push(
-          getRunById({ db: assessmentDb, runId: runId }).then((runData) => [assessment.taskId, runData.scores]),
+          getRunById({ db: assessmentDb, runId: runId }).catch((e) => {
+            console.log('caught error', e)
+            if(!e.message.includes('Could not find run with id')) throw(e)
+          }).then((runData) => [assessment.taskId, runData?.scores])
         );
       }
     }
@@ -262,13 +266,15 @@ const getAssignmentData = async ({
     // Now we iterate over the scores and insert them into the
     // assessments array of objects.
     for (const [taskId, score] of scores) {
-      const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
-      const oldAssessmentInfo = assessments[assessmentIdx];
-      const newAssessmentInfo = {
-        ...oldAssessmentInfo,
-        scores: score,
-      };
-      assessments[assessmentIdx] = newAssessmentInfo;
+      if(score && taskId){
+        const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
+        const oldAssessmentInfo = assessments[assessmentIdx];
+        const newAssessmentInfo = {
+          ...oldAssessmentInfo,
+          scores: score,
+        };
+        assessments[assessmentIdx] = newAssessmentInfo;
+      }
     }
     assignmentData.assessments = assessments;
   }
