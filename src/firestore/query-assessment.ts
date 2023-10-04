@@ -13,16 +13,23 @@ import {
   query,
   where,
   collectionGroup,
+  startAfter,
+  orderBy,
 } from 'firebase/firestore';
 import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
 import { OrgCollectionName } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
 import _chunk from 'lodash/chunk';
 
-export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[]) => {
+export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[], pageLimit = 50, startAfterDocId?: string) => {
   let q: ReturnType<typeof query>;
   if (!orgIds) {
-    q = query(collection(db, orgType));
+    if (startAfterDocId) {
+      q = query(collection(db, orgType), orderBy(documentId()), startAfter(startAfterDocId), limit(pageLimit));
+    } else {
+      q = query(collection(db, orgType), orderBy(documentId()), limit(pageLimit));
+    }
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => {
       const docData = doc.data() as DocumentData;
@@ -31,9 +38,15 @@ export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName
     });
   }
 
+  let remainingOrgIds = orgIds.sort();
+  if (startAfterDocId) {
+    const startIndex = remainingOrgIds.indexOf(startAfterDocId) + 1;
+    remainingOrgIds = remainingOrgIds.slice(startIndex, startIndex + pageLimit);
+  }
+
   const orgs = [];
   const maxQueryDisjunctions = 10;
-  for (const _orgsChunk of _chunk(orgIds, maxQueryDisjunctions)) {
+  for (const _orgsChunk of _chunk(remainingOrgIds, maxQueryDisjunctions)) {
     q = query(collection(db, orgType), where(documentId(), 'in', _orgsChunk));
     const snapshot = await getDocs(q);
     orgs.push(
@@ -44,7 +57,6 @@ export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName
       }),
     );
   }
-
   return orgs;
 };
 
