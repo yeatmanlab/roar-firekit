@@ -1378,7 +1378,7 @@ export class RoarFirekit {
       throw new Error('You must be a super admin to sync Clever organizations.');
     }
 
-    const syncCleverOrgs = httpsCallable(this.admin!.functions, 'syncCleverOrgs');
+    const syncCleverOrgs = httpsCallable(this.admin!.functions, 'syncCleverOrgs', { timeout: 300000 });
     const result = await syncCleverOrgs({ shallow });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
