@@ -113,6 +113,11 @@ interface ICurrentAssignments {
   completed: string[];
 }
 
+export interface IRequestConfig {
+  headers: { Authorization: string };
+  baseURL: string;
+}
+
 export class RoarFirekit {
   admin?: IFirekit;
   app?: IFirekit;
@@ -123,13 +128,15 @@ export class RoarFirekit {
   userData?: IUserData;
   listenerUpdateCallback: (...args: unknown[]) => void;
   private _idTokenReceived?: boolean;
+  private _idTokens: { admin?: string; app?: string };
   private _adminOrgs?: Record<string, string[]>;
   private _authPersistence: AuthPersistence;
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
   private _userDocListener?: Unsubscribe;
-  private _tokenListener?: Unsubscribe;
+  private _adminTokenListener?: Unsubscribe;
+  private _appTokenListener?: Unsubscribe;
   private _adminClaimsListener?: Unsubscribe;
   private _appClaimsListener?: Unsubscribe;
   /**
@@ -154,6 +161,7 @@ export class RoarFirekit {
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
     this._initialized = false;
+    this._idTokens = {};
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
   }
@@ -168,7 +176,9 @@ export class RoarFirekit {
     this._adminClaimsListener = undefined;
     this._appClaimsListener = undefined;
     this._userDocListener = undefined;
-    this._tokenListener = undefined;
+    this._adminTokenListener = undefined;
+    this._appTokenListener = undefined;
+    this._idTokens = {};
   }
 
   async init() {
@@ -188,11 +198,14 @@ export class RoarFirekit {
         if (user) {
           this.admin.user = user;
           this._adminClaimsListener = this._listenToClaims(this.admin);
-          this._tokenListener = this._listenToTokenChange();
+          this._adminTokenListener = this._listenToTokenChange(this.admin, 'admin');
+          user.getIdToken().then((idToken) => {
+            this._idTokens.admin = idToken;
+          });
         } else {
           this.admin.user = undefined;
           if (this._adminClaimsListener) this._adminClaimsListener();
-          if (this._tokenListener) this._tokenListener();
+          if (this._adminTokenListener) this._adminTokenListener();
           if (this._userDocListener) this._userDocListener();
           this._scrubAuthProperties();
         }
@@ -205,6 +218,10 @@ export class RoarFirekit {
         if (user) {
           this.app.user = user;
           this._appClaimsListener = this._listenToClaims(this.app);
+          this._appTokenListener = this._listenToTokenChange(this.app, 'app');
+          user.getIdToken().then((idToken) => {
+            this._idTokens.app = idToken;
+          });
         } else {
           this.app.user = undefined;
           if (this._appClaimsListener) this._appClaimsListener();
@@ -318,25 +335,30 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToTokenChange() {
+  private _listenToTokenChange(firekit: IFirekit, _type: 'admin' | 'app') {
     this._verifyInit();
-    if (!this._tokenListener) {
-      return onIdTokenChanged(this.admin!.auth, async (user) => {
+    if ((!this._adminTokenListener && _type === 'admin') || (!this._appTokenListener && _type === 'app')) {
+      return onIdTokenChanged(firekit.auth, async (user) => {
         if (user) {
           const idTokenResult = await user.getIdTokenResult(false);
-          this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-          if (idTokenResult.claims.roarUid) {
-            if (this.app?.user) {
-              this._userDocListener = this._listenToUserDoc();
+          if (_type === 'admin') {
+            this._superAdmin = Boolean(idTokenResult.claims.super_admin);
+            if (idTokenResult.claims.roarUid) {
+              if (this.app?.user) {
+                this._userDocListener = this._listenToUserDoc();
+              }
+              await this.getMyData();
             }
-            await this.getMyData();
+            this._idTokenReceived = true;
           }
-          this._idTokenReceived = true;
+          this._idTokens[_type] = idTokenResult.token;
         }
         this.listenerUpdateCallback();
       });
+    } else if (_type === 'admin') {
+      return this._adminTokenListener;
     }
-    return this._tokenListener;
+    return this._appTokenListener;
   }
 
   private async _setUidCustomClaims() {
@@ -637,6 +659,23 @@ export class RoarFirekit {
 
   public get idTokenReceived() {
     return this._idTokenReceived;
+  }
+
+  public get idTokens() {
+    return this._idTokens;
+  }
+
+  public get restConfig() {
+    return {
+      admin: {
+        headers: { Authorization: `Bearer ${this._idTokens.admin}` },
+        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-admin/databases/(default)/documents',
+      },
+      app: {
+        headers: { Authorization: `Bearer ${this._idTokens.app}` },
+        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-assessment/databases/(default)/documents',
+      },
+    };
   }
 
   public get adminOrgs() {
@@ -1304,14 +1343,24 @@ export class RoarFirekit {
     }
   }
 
-  async getOrgsById(orgType: OrgCollectionName, orgIds: string[]) {
-    return getOrganizations(this.admin!.db, orgType, orgIds);
+  async getOrgsById({
+    orgType,
+    orgIds,
+    pageLimit = 15,
+    startAfterDocId,
+  }: {
+    orgType: OrgCollectionName;
+    orgIds?: string[];
+    pageLimit?: number;
+    startAfterDocId?: string;
+  }) {
+    return getOrganizations({ db: this.admin!.db, orgType, orgIds, pageLimit, startAfterDocId });
   }
 
   async getOrgs(orgType: OrgCollectionName) {
     this._verifyAuthentication();
     if (this._superAdmin) {
-      return getOrganizations(this.admin!.db, orgType);
+      return getOrganizations({ db: this.admin!.db, orgType });
     } else if (this._adminOrgs) {
       const orgIds = this._adminOrgs[orgType] === undefined ? [] : [...this._adminOrgs[orgType]];
 
@@ -1321,7 +1370,7 @@ export class RoarFirekit {
         const districtIds = this._adminOrgs.districts;
         let schoolIds: string[] = [];
         if (districtIds !== undefined) {
-          const districts = await getOrganizations(this.admin!.db, 'districts', districtIds);
+          const districts = await getOrganizations({ db: this.admin!.db, orgType: 'districts', orgIds: districtIds });
           schoolIds = _union(...districts.map((d) => d.schools));
         }
 
@@ -1329,13 +1378,13 @@ export class RoarFirekit {
           orgIds.push(...schoolIds);
         } else if (orgType === 'classes') {
           const allSchoolIds = _union(schoolIds, this._adminOrgs.schools ?? []);
-          const schools = await getOrganizations(this.admin!.db, 'schools', allSchoolIds);
+          const schools = await getOrganizations({ db: this.admin!.db, orgType: 'schools', orgIds: allSchoolIds });
           const classIds: string[] = _union(...schools.map((s) => s.classes));
           orgIds.push(...classIds);
         }
       }
 
-      return getOrganizations(this.admin!.db, orgType, orgIds);
+      return getOrganizations({ db: this.admin!.db, orgType, orgIds });
     } else {
       throw new Error('You must be an admin to get organizations.');
     }

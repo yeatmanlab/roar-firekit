@@ -21,7 +21,19 @@ import { OrgCollectionName } from './interfaces';
 import { IFirestoreTaskData, ITaskData } from './app/task';
 import _chunk from 'lodash/chunk';
 
-export const getOrganizations = async (db: Firestore, orgType: OrgCollectionName, orgIds?: string[], pageLimit = 50, startAfterDocId?: string) => {
+export const getOrganizations = async ({
+  db,
+  orgType,
+  orgIds,
+  pageLimit = 15,
+  startAfterDocId,
+}: {
+  db: Firestore;
+  orgType: OrgCollectionName;
+  orgIds?: string[];
+  pageLimit?: number;
+  startAfterDocId?: string;
+}) => {
   let q: ReturnType<typeof query>;
   if (!orgIds) {
     if (startAfterDocId) {
