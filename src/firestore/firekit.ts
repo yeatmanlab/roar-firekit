@@ -204,10 +204,6 @@ export class RoarFirekit {
           });
         } else {
           this.admin.user = undefined;
-          if (this._adminClaimsListener) this._adminClaimsListener();
-          if (this._adminTokenListener) this._adminTokenListener();
-          if (this._userDocListener) this._userDocListener();
-          this._scrubAuthProperties();
         }
       }
       this.listenerUpdateCallback();
@@ -224,9 +220,6 @@ export class RoarFirekit {
           });
         } else {
           this.app.user = undefined;
-          if (this._appClaimsListener) this._appClaimsListener();
-          if (this._userDocListener) this._userDocListener();
-          this._scrubAuthProperties();
         }
       }
       this.listenerUpdateCallback();
@@ -631,10 +624,17 @@ export class RoarFirekit {
   }
 
   private async _signOutApp() {
+    if (this._appClaimsListener) this._appClaimsListener();
+    if (this._userDocListener) this._userDocListener();
+    this._scrubAuthProperties();
     await signOut(this.app!.auth);
   }
 
   private async _signOutAdmin() {
+    if (this._adminClaimsListener) this._adminClaimsListener();
+    if (this._adminTokenListener) this._adminTokenListener();
+    if (this._userDocListener) this._userDocListener();
+    this._scrubAuthProperties();
     await signOut(this.admin!.auth);
   }
 
