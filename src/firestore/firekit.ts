@@ -184,12 +184,17 @@ export class RoarFirekit {
     this._initialized = true;
 
     onAuthStateChanged(this.admin.auth, (user) => {
+      console.log('[rfk] onAuthStateChanged admin')
       if (this.admin) {
+        console.log('[rfk] admin db defined')
         if (user) {
+          console.log('[rfk] user defined')
           this.admin.user = user;
+          console.log('[rfk] setting up admin claims listeners')
           this._adminClaimsListener = this._listenToClaims(this.admin);
           this._tokenListener = this._listenToTokenChange();
         } else {
+          console.log('user NOT defined')
           this.admin.user = undefined;
           if (this._adminClaimsListener) this._adminClaimsListener();
           if (this._tokenListener) this._tokenListener();
@@ -201,11 +206,16 @@ export class RoarFirekit {
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
+      console.log('onAuthStateChanged app')
       if (this.app) {
+        console.log('[rfk] app db defined')
         if (user) {
+          console.log('user defined')
           this.app.user = user;
+          console.log('[rfk] setting up app claims listeners')
           this._appClaimsListener = this._listenToClaims(this.app);
         } else {
+          console.log('user NOT defined')
           this.app.user = undefined;
           if (this._appClaimsListener) this._appClaimsListener();
           if (this._userDocListener) this._userDocListener();
@@ -259,8 +269,10 @@ export class RoarFirekit {
   }
 
   private _listenToUserDoc() {
+    console.log('[rfk] in listenToUserDoc')
     this._verifyAuthentication();
     if (this.dbRefs && !this._userDocListener) {
+      console.log('dbRefs exists, userDocListener not started')
       let unsubscribe;
       try {
         unsubscribe = onSnapshot(
@@ -662,8 +674,10 @@ export class RoarFirekit {
   }
 
   private async _getUser(uid: string): Promise<IUserData | undefined> {
+    console.log('[rfk] _getUser called')
     this._verifyAuthentication();
     const userDocRef = doc(this.admin!.db, 'users', uid);
+    console.log('[rfk] userDocRef is', userDocRef)
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
@@ -698,8 +712,13 @@ export class RoarFirekit {
   }
 
   async getMyData() {
+    console.log('[rfk] GetMyData called')
     this._verifyInit();
-    if (!this._isAuthenticated() || !this.roarUid) {
+    if (!(this._isAuthenticated() && this.roarUid)) {
+      console.log('[rfk] in fail state- user is not auth:', this._isAuthenticated())
+      console.log('[rfk] in fail state- user roarUid (not !):', this.roarUid)
+      console.log('condition evaluating to', (!this._isAuthenticated() || !this.roarUid))
+      console.log('now eval to ', (!(this._isAuthenticated() && this.roarUid)))
       return;
     }
 
