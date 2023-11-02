@@ -19,7 +19,6 @@ import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
 import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
-import _union from 'lodash/union';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
 import { IOrgLists, OrgListKey } from './interfaces';
