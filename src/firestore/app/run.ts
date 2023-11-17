@@ -77,6 +77,7 @@ export interface IRunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
   assigningOrgs?: IOrgLists;
+  readOrgs?: IOrgLists;
   assignmentId?: string;
   runId?: string;
 }
@@ -104,6 +105,7 @@ export class RoarRun {
   task: RoarTaskVariant;
   runRef: DocumentReference;
   assigningOrgs?: IOrgLists;
+  readOrgs?: IOrgLists;
   assignmentId?: string;
   started: boolean;
   completed: boolean;
@@ -114,12 +116,14 @@ export class RoarRun {
    * @param {RoarAppUser} input.user - The user running the task
    * @param {RoarTaskVariant} input.task - The task variant being run
    * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
+   * @param {IOrgLists} input.readOrgs - The IDs of the orgs which can read this run
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    */
-  constructor({ user, task, assigningOrgs, assignmentId, runId }: IRunInput) {
+  constructor({ user, task, assigningOrgs, readOrgs, assignmentId, runId }: IRunInput) {
     this.user = user;
     this.task = task;
     this.assigningOrgs = assigningOrgs;
+    this.readOrgs = readOrgs ?? assigningOrgs;
     this.assignmentId = assignmentId;
 
     if (runId) {
@@ -160,6 +164,9 @@ export class RoarRun {
         const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
         for (const orgName of Object.keys(userOrgs)) {
           this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
+          if (this.readOrgs) {
+            this.readOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.readOrgs[orgName]);
+          }
         }
       } else {
         // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
@@ -172,6 +179,7 @@ export class RoarRun {
       id: this.runRef.id,
       assignmentId: this.assignmentId ?? null,
       assigningOrgs: this.assigningOrgs ?? null,
+      readOrgs: this.readOrgs ?? null,
       taskId: this.task.taskId,
       variantId: this.task.variantId,
       completed: false,
