@@ -134,11 +134,9 @@ export class RoarFirekit {
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
-  private _userDocListener?: Unsubscribe;
   private _adminTokenListener?: Unsubscribe;
   private _appTokenListener?: Unsubscribe;
   private _adminClaimsListener?: Unsubscribe;
-  private _appClaimsListener?: Unsubscribe;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[IRoarConfigData]] object.
@@ -174,8 +172,6 @@ export class RoarFirekit {
     this.currentAssignments = undefined;
     this.oAuthAccessToken = undefined;
     this._adminClaimsListener = undefined;
-    this._appClaimsListener = undefined;
-    this._userDocListener = undefined;
     this._adminTokenListener = undefined;
     this._appTokenListener = undefined;
     this._idTokens = {};
@@ -213,7 +209,6 @@ export class RoarFirekit {
       if (this.app) {
         if (user) {
           this.app.user = user;
-          this._appClaimsListener = this._listenToClaims(this.app);
           this._appTokenListener = this._listenToTokenChange(this.app, 'app');
           user.getIdToken().then((idToken) => {
             this._idTokens.app = idToken;
@@ -268,32 +263,6 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToUserDoc() {
-    this._verifyAuthentication();
-    if (this.dbRefs && !this._userDocListener) {
-      let unsubscribe;
-      try {
-        unsubscribe = onSnapshot(
-          this.dbRefs.admin.user,
-          async () => {
-            await this.getMyData();
-            this.listenerUpdateCallback();
-          },
-          (error) => {
-            throw error;
-          },
-        );
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
-        if (error.code !== 'permission-denied') {
-          throw error;
-        }
-      }
-      return unsubscribe;
-    }
-    return this._userDocListener;
-  }
-
   private _listenToClaims(firekit: IFirekit) {
     this._verifyInit();
     if (firekit.user) {
@@ -336,12 +305,6 @@ export class RoarFirekit {
           const idTokenResult = await user.getIdTokenResult(false);
           if (_type === 'admin') {
             this._superAdmin = Boolean(idTokenResult.claims.super_admin);
-            if (idTokenResult.claims.roarUid) {
-              if (this.app?.user) {
-                this._userDocListener = this._listenToUserDoc();
-              }
-              await this.getMyData();
-            }
             this._idTokenReceived = true;
           }
           this._idTokens[_type] = idTokenResult.token;
@@ -624,8 +587,6 @@ export class RoarFirekit {
   }
 
   private async _signOutApp() {
-    if (this._appClaimsListener) this._appClaimsListener();
-    if (this._userDocListener) this._userDocListener();
     this._scrubAuthProperties();
     await signOut(this.app!.auth);
   }
@@ -633,7 +594,6 @@ export class RoarFirekit {
   private async _signOutAdmin() {
     if (this._adminClaimsListener) this._adminClaimsListener();
     if (this._adminTokenListener) this._adminTokenListener();
-    if (this._userDocListener) this._userDocListener();
     this._scrubAuthProperties();
     await signOut(this.admin!.auth);
   }
@@ -745,35 +705,6 @@ export class RoarFirekit {
     this.userData = await this._getUser(this.roarUid!);
 
     if (this.userData) {
-      // Get current assignments by first getting all assignments and then filtering by dates
-      this.currentAssignments = {
-        assigned: _keys(this.userData?.assignmentsAssigned),
-        started: _keys(this.userData?.assignmentsStarted),
-        completed: _keys(this.userData?.assignmentsCompleted),
-      };
-
-      // Create a list of all assignments
-      const allAssignments = _union(...Object.values(this.currentAssignments)) as string[];
-      // Map that list into an object with the assignment IDs as the keys and the
-      // assignment data as the values
-      const assignmentInfo = _fromPairs(
-        await Promise.all(
-          _map(allAssignments, async (assignment) => {
-            return this._getAssignment(assignment).then((assignmentData) => [assignment, assignmentData]);
-          }),
-        ),
-      );
-
-      // Loop through the assignments and filter out non-current ones
-      const now = new Date();
-      for (const assignmentStatus in this.currentAssignments) {
-        const key = assignmentStatus as keyof ICurrentAssignments;
-        this.currentAssignments[key] = _filter(this.currentAssignments[key], (assignmentId) => {
-          const { dateOpened, dateClosed } = assignmentInfo[assignmentId];
-          return dateOpened.toDate() < now && dateClosed.toDate() > now;
-        });
-      }
-
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
       // First determine the PID. If the user has signed in through Clever, then
       // the PID has been set to the Clever ID in the firebase cloud function.
@@ -858,24 +789,6 @@ export class RoarFirekit {
     return this.admin?.user?.uid;
   }
 
-  private async _getAdministration(administrationId: string): Promise<IAdministrationData | undefined> {
-    this._verifyAuthentication();
-    const docRef = doc(this.admin!.db, 'administrations', administrationId);
-    const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return {
-        id: administrationId,
-        ...docSnap.data(),
-      } as IAdministrationData;
-    }
-  }
-
-  getAdministrations(administrationIds: string[]): Promise<IAdministrationData | undefined>[] {
-    this._verifyAuthentication();
-    return administrationIds.map((id) => this._getAdministration(id));
-  }
-
   private async _getAssignment(administrationId: string): Promise<IAssignmentData | undefined> {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
@@ -901,11 +814,6 @@ export class RoarFirekit {
         assessments: extendedAssessmentData,
       } as IAssignmentData;
     }
-  }
-
-  async getAssignments(administrationIds: string[]): Promise<(IAssignmentData | undefined)[]> {
-    this._verifyAuthentication();
-    return await Promise.all(_map(administrationIds, async (id) => await this._getAssignment(id)));
   }
 
   async startAssignment(administrationId: string, transaction?: Transaction) {
@@ -1328,21 +1236,6 @@ export class RoarFirekit {
     return getVariants(this.app!.db, requireRegistered);
   }
 
-  async getMyAdministrations(includeStats = true) {
-    this._verifyAuthentication();
-    if (this._superAdmin || this._adminOrgs) {
-      const orgs = this._superAdmin ? undefined : (this._adminOrgs as IOrgLists);
-      return getAdministrations({
-        db: this.admin!.db,
-        isSuperAdmin: this._superAdmin || false,
-        orgs,
-        includeStats,
-      });
-    } else {
-      throw new Error('You must be an admin to get organizations.');
-    }
-  }
-
   async getOrgsById({
     orgType,
     orgIds,
@@ -1489,29 +1382,6 @@ export class RoarFirekit {
     }
 
     return orgId;
-  }
-
-  async getUsersByAssignment({
-    assignmentId,
-    orgs,
-    countOnly = false,
-    includeScores = false,
-  }: {
-    assignmentId: string;
-    orgs?: IOrgLists;
-    countOnly?: boolean;
-    includeScores?: boolean;
-  }) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-    return getUsersByAssignment({
-      db: this.admin!.db,
-      assessmentDb: this.app!.db,
-      assignmentId,
-      orgs,
-      countOnly,
-      includeScores,
-    });
   }
 
   async registerTaskVariant({
