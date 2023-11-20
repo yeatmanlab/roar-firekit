@@ -14,6 +14,7 @@ interface IAppkitConstructorParams {
   userInfo: IUserInfo;
   taskInfo: ITaskVariantInfo;
   assigningOrgs?: IOrgLists;
+  readOrgs?: IOrgLists;
   assignmentId?: string;
   runId?: string;
 }
@@ -32,6 +33,7 @@ export class RoarAppkit {
   private _userInfo: IUserInfo;
   private _taskInfo: ITaskVariantInfo;
   private _assigningOrgs?: IOrgLists;
+  private _readOrgs?: IOrgLists;
   private _assignmentId?: string;
   private _runId?: string;
   private _authenticated: boolean;
@@ -44,6 +46,7 @@ export class RoarAppkit {
    * @param {IUserInfo} input.userInfo - The user input object
    * @param {ITaskVariantInfo} input.taskInfo - The task input object
    * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
+   * @param {IOrgLists} input.readOrgs - The IDs of the orgs that can read this run
    * @param {string} input.assignmentId - The ID of the assignment this run belongs to
    * @param {string} input.runId - The ID of the run. If undefined, a new run will be created.
    */
@@ -53,6 +56,7 @@ export class RoarAppkit {
     userInfo,
     taskInfo,
     assigningOrgs,
+    readOrgs,
     assignmentId,
     runId,
   }: IAppkitConstructorParams) {
@@ -70,6 +74,7 @@ export class RoarAppkit {
     this._userInfo = userInfo;
     this._taskInfo = taskInfo;
     this._assigningOrgs = assigningOrgs;
+    this._readOrgs = readOrgs ?? assigningOrgs;
     this._assignmentId = assignmentId;
     this._runId = runId;
 
@@ -99,6 +104,7 @@ export class RoarAppkit {
       user: this.user,
       task: this.task,
       assigningOrgs: this._assigningOrgs,
+      readOrgs: this._readOrgs,
       assignmentId: this._assignmentId,
       runId: this._runId,
     });

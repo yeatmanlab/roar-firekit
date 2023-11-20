@@ -122,6 +122,7 @@ export interface IAdministrationData extends IOrgLists {
   dateClosed: Date;
   sequential: boolean;
   assessments: IAssessmentData[];
+  readOrgs?: IOrgLists;
 }
 
 export interface IAssignedAssessmentData extends DocumentData {
@@ -142,6 +143,7 @@ export interface IAssignmentData extends DocumentData {
   dateOpened: Date;
   dateClosed: Date;
   assigningOrgs: IOrgLists;
+  readOrgs: IOrgLists;
   assessments: IAssignedAssessmentData[];
 }
 

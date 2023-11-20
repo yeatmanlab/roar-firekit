@@ -915,6 +915,7 @@ export class RoarFirekit {
           }
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+          const readOrgs = assignmentDocSnap.data().readOrgs;
           const taskAndVariant = await getTaskAndVariant({
             db: this.app!.db,
             taskId,
@@ -954,6 +955,7 @@ export class RoarFirekit {
             firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
             assigningOrgs,
+            readOrgs,
             assignmentId: administrationId,
             runId,
             taskInfo,
