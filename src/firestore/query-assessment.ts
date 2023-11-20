@@ -12,7 +12,6 @@ import {
   limit,
   query,
   where,
-  collectionGroup,
   startAfter,
   orderBy,
 } from 'firebase/firestore';
@@ -388,17 +387,4 @@ export const getTaskAndVariant = async ({
     task: undefined,
     variant: undefined,
   };
-};
-
-export const getRunById = async ({ db, runId }: { db: Firestore; runId: string }) => {
-  const q = query(collectionGroup(db, 'runs'), where('id', '==', runId));
-  const runsSnapshot = await getDocs(q);
-
-  if (runsSnapshot.empty) {
-    throw new Error(`Could not find run with id: ${runId}`);
-  } else if (runsSnapshot.docs.length > 1) {
-    throw new Error(`Found multiple runs with id: ${runId}`);
-  } else {
-    return runsSnapshot.docs[0].data();
-  }
 };

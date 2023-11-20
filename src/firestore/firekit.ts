@@ -1,11 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import _filter from 'lodash/filter';
-import _fromPairs from 'lodash/fromPairs';
 import _get from 'lodash/get';
 import _set from 'lodash/set';
 import _isEmpty from 'lodash/isEmpty';
-import _keys from 'lodash/keys';
-import _map from 'lodash/map';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
 import {
@@ -65,7 +61,6 @@ import {
 import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { getAdministrations, getUsersByAssignment, getUsersByOrgs } from './query-admin';
 import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
 
 enum AuthProviderType {
@@ -1238,20 +1233,6 @@ export class RoarFirekit {
     return getVariants(this.app!.db, requireRegistered);
   }
 
-  async getOrgsById({
-    orgType,
-    orgIds,
-    pageLimit = 15,
-    startAfterDocId,
-  }: {
-    orgType: OrgCollectionName;
-    orgIds?: string[];
-    pageLimit?: number;
-    startAfterDocId?: string;
-  }) {
-    return getOrganizations({ db: this.admin!.db, orgType, orgIds, pageLimit, startAfterDocId });
-  }
-
   async getOrgs(orgType: OrgCollectionName) {
     this._verifyAuthentication();
     if (this._superAdmin) {
@@ -1283,41 +1264,6 @@ export class RoarFirekit {
     } else {
       throw new Error('You must be an admin to get organizations.');
     }
-  }
-
-  async getUsersBySingleOrg({
-    orgType,
-    orgId,
-    countOnly = false,
-  }: {
-    orgType: OrgCollectionName;
-    orgId: string;
-    countOnly?: boolean;
-  }) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const orgs = emptyOrgList();
-    orgs[orgType] = [orgId];
-
-    return getUsersByOrgs({
-      db: this.admin!.db,
-      isSuperAdmin: this._superAdmin || false,
-      orgs,
-      countOnly,
-    });
-  }
-
-  async getUsersByOrgs({ orgs, countOnly = false }: { orgs: IOrgLists; countOnly?: boolean }) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    return getUsersByOrgs({
-      db: this.admin!.db,
-      isSuperAdmin: this._superAdmin || false,
-      orgs,
-      countOnly,
-    });
   }
 
   async syncCleverOrgs(shallow = false) {
