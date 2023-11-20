@@ -12,7 +12,6 @@ import {
   limit,
   query,
   where,
-  collectionGroup,
   startAfter,
   orderBy,
 } from 'firebase/firestore';
