@@ -1110,7 +1110,7 @@ export class RoarFirekit {
       }
 
       // Create the administration doc in the admin Firestore,
-      transaction.set(administrationDocRef, administrationData);
+      transaction.set(administrationDocRef, administrationData, { merge: true });
 
       // Then add the ID to the admin's list of administrationsCreated
       const userDocRef = this.dbRefs!.admin.user;
