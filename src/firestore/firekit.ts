@@ -1024,6 +1024,7 @@ export class RoarFirekit {
 
   // These are all methods that will be important for admins, but not necessary for students
   /**
+   * Create or update an administration
    *
    * @param input input object
    * @param input.name The administration name
@@ -1035,8 +1036,8 @@ export class RoarFirekit {
    * @param input.orgs The orgs assigned to this administration
    * @param input.tags Metadata tags for this administration
    * @param input.administrationId Optional ID of an existing administration. If
-   *                                provided, this method will update an
-   *                                existing administration.
+   *                               provided, this method will update an
+   *                               existing administration.
    */
   async createAdministration({
     name,
@@ -1120,6 +1121,11 @@ export class RoarFirekit {
     });
   }
 
+  /**
+   * Delete an administration
+   *
+   * @param administrationId The administration ID to delete
+   */
   async deleteAdministration(administrationId: string) {
     this._verifyAuthentication();
     this._verifyAdmin();
