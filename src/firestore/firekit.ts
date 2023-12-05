@@ -1482,6 +1482,17 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Create or update an organization.
+   *
+   * @param orgsCollection The type of organization to create or update.
+   * @param orgData The organization data to create or update.
+   * @param isTestData Whether or not this is a test org.
+   * @param isDemoData Whether or not this is a demo org.
+   * @param organizationId Optional ID of an existing org. If provided, this
+   *                       method will update an existing org.
+   * @returns The newly created or updated organization ID.
+   */
   async createOrg(
     orgsCollection: OrgCollectionName,
     orgData: RoarOrg,
@@ -1573,6 +1584,15 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Delete an organization.
+   *
+   * @param recursive
+   * @param orgsCollection The type of organization to create or update.
+   * @param orgId The ID of the organization to delete.
+   * @param recursive if true, recursively delete all children of this org.
+   *                  Default is true.
+   */
   async deleteOrg(orgsCollection: OrgCollectionName, orgId: string, recursive = true) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1582,58 +1602,56 @@ export class RoarFirekit {
     }
 
     // Loop over the admin and assessment databases
-    for (const db of [this.admin!.db, this.app!.db]) {
-      runTransaction(db, async (transaction) => {
-        const orgDocRef = doc(db, orgsCollection, orgId);
-        const docSnap = await transaction.get(orgDocRef);
-        if (docSnap.exists()) {
-          const orgData = docSnap.data();
+    runTransaction(this.admin!.db, async (transaction) => {
+      const orgDocRef = doc(this.admin!.db, orgsCollection, orgId);
+      const docSnap = await transaction.get(orgDocRef);
+      if (docSnap.exists()) {
+        const orgData = docSnap.data();
 
-          // Save the dependent schools and classes for recursive deletion
-          // later. Why are we doing this here? Because all transaction reads
-          // have to take place before any writes, updates, or deletions.  We
-          // are potentially reading school docs to get all of the classes.
-          const { schools = [], classes = [] } = orgData;
-          if (recursive) {
-            for (const school of schools) {
-              const schoolRef = doc(db, 'schools', school);
-              const schoolDocSnap = await transaction.get(schoolRef);
-              if (schoolDocSnap.exists()) {
-                const schoolData = schoolDocSnap.data();
-                classes.push(...schoolData.classes);
-              }
+        // Save the dependent schools and classes for recursive deletion
+        // later. Why are we doing this here? Because all transaction reads
+        // have to take place before any writes, updates, or deletions.  We
+        // are potentially reading school docs to get all of the classes.
+        const { schools = [], classes = [] } = orgData;
+        if (recursive) {
+          for (const school of schools) {
+            const schoolRef = doc(this.admin!.db, 'schools', school);
+            const schoolDocSnap = await transaction.get(schoolRef);
+            if (schoolDocSnap.exists()) {
+              const schoolData = schoolDocSnap.data();
+              classes.push(...schoolData.classes);
             }
           }
-
-          // Remove this org from the parent's list of child orgs.
-          const { schoolId, districtId } = orgData;
-          if (schoolId !== undefined) {
-            const schoolRef = doc(db, 'schools', schoolId);
-            transaction.update(schoolRef, { classes: arrayRemove(orgId) });
-          } else if (districtId !== undefined) {
-            const districtRef = doc(db, 'districts', districtId);
-            transaction.update(districtRef, { schools: arrayRemove(orgId) });
-          }
-
-          transaction.delete(orgDocRef);
-
-          // Remove children orgs if recursive is true
-          if (recursive) {
-            for (const _class of classes) {
-              const classRef = doc(db, 'classes', _class);
-              transaction.delete(classRef);
-            }
-
-            for (const school of schools) {
-              const schoolRef = doc(db, 'schools', school);
-              transaction.delete(schoolRef);
-            }
-          }
-        } else {
-          throw new Error(`Could not find an organization with ID ${orgId} in the ROAR database.`);
         }
-      });
-    }
+
+        // Remove this org from the parent's list of child orgs.
+        const { schoolId, districtId } = orgData;
+        if (schoolId !== undefined) {
+          const schoolRef = doc(this.admin!.db, 'schools', schoolId);
+          transaction.update(schoolRef, { classes: arrayRemove(orgId) });
+        } else if (districtId !== undefined) {
+          const districtRef = doc(this.admin!.db, 'districts', districtId);
+          transaction.update(districtRef, { schools: arrayRemove(orgId) });
+        }
+
+        transaction.delete(orgDocRef);
+
+        // Remove children orgs if recursive is true
+        if (recursive) {
+          for (const _class of classes) {
+            const classRef = doc(this.admin!.db, 'classes', _class);
+            transaction.delete(classRef);
+          }
+
+          for (const school of schools) {
+            const schoolRef = doc(this.admin!.db, 'schools', school);
+            transaction.delete(schoolRef);
+          }
+        }
+      } else {
+        throw new Error(`Could not find an organization with ID ${orgId} in the ROAR database.`);
+      }
+    });
   }
 
   async registerTaskVariant({
