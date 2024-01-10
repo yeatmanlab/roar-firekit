@@ -185,6 +185,7 @@ export class RoarRun {
       completed: false,
       timeStarted: serverTimestamp(),
       timeFinished: null,
+      reliable: true,
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
@@ -197,6 +198,30 @@ export class RoarRun {
       .then(() => this.user.updateFirestoreTimestamp());
 
     this.started = true;
+  }
+
+  /**
+   * Add engagement flags to a run.
+   * @method
+   * @async
+   * @param {string[]} engagementFlags - Engagement flags to add to the run
+   * @param {boolean} markAsUnreliable - Whether or not to mark the run as unreliable, defaults to true
+   */
+  async addEngagementFlags(engagementFlags: string[], markAsUnreliable = true) {
+    if (!this.started) {
+      throw new Error('Run has not been started yet. Use the startRun method first.');
+    }
+
+    const engagementObj = engagementFlags.reduce((acc: { [x: string]: unknown }, flag) => {
+      acc[flag] = true;
+      return acc;
+    }, {});
+
+    if (!this.aborted) {
+      return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: !markAsUnreliable });
+    } else {
+      throw new Error('Run has already been aborted.');
+    }
   }
 
   /**

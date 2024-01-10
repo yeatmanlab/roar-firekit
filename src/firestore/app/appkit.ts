@@ -182,6 +182,22 @@ export class RoarAppkit {
   }
 
   /**
+   * Update the engagement flags for the current run.
+   *
+   * @param {string[]} flagNames - The names of the engagement flags to add.
+   * @param {boolean} markAsUnreliable - Whether or not to mark the run as unreliable, defaults to true
+   * @method
+   * @async
+   */
+  async updateEngagementFlags(flagNames: string[], markAsUnreliable = true) {
+    if (this._started) {
+      return this.run!.addEngagementFlags(flagNames, markAsUnreliable);
+    } else {
+      throw new Error('This run has not started. Use the startRun method first.');
+    }
+  }
+
+  /**
    * Finish the ROAR run by marking it as finished in Firestore.
    * Call this method after the jsPsych experiment finishes. For example:
    *
