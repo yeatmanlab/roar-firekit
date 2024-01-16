@@ -205,9 +205,9 @@ export class RoarRun {
    * @method
    * @async
    * @param {string[]} engagementFlags - Engagement flags to add to the run
-   * @param {boolean} markAsUnreliable - Whether or not to mark the run as unreliable, defaults to true
+   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false 
    */
-  async addEngagementFlags(engagementFlags: string[], markAsUnreliable = true) {
+  async addEngagementFlags(engagementFlags: string[], markAsReliable = false) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
@@ -218,7 +218,7 @@ export class RoarRun {
     }, {});
 
     if (!this.aborted) {
-      return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: !markAsUnreliable });
+      return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable });
     } else {
       throw new Error('Run has already been aborted.');
     }
