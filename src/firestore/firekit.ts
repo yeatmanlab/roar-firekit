@@ -49,6 +49,7 @@ import {
   IAssessmentData,
   IAssignedAssessmentData,
   IAssignmentData,
+  IChildData,
   IExternalUserData,
   IFirekit,
   IName,
@@ -56,6 +57,7 @@ import {
   IOrgLists,
   IRoarConfigData,
   IStudentData,
+  // ICreateParentInput,
   IUserData,
   OrgCollectionName,
   UserType,
@@ -64,6 +66,7 @@ import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
+import { forEach } from 'lodash';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -72,6 +75,14 @@ enum AuthProviderType {
   EMAIL = 'email',
   USERNAME = 'username',
 }
+
+const RoarProviderId = {
+  ...ProviderId,
+  CLEVER: 'oidc.clever',
+  ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
+};
+
+
 
 interface ICreateUserInput {
   dob: string;
@@ -1275,6 +1286,7 @@ export class RoarFirekit {
 
     // TODO: this can probably be optimized.
     _set(userDocData, 'email', email);
+
     if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
     if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
     if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
@@ -1294,6 +1306,72 @@ export class RoarFirekit {
     if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
+
+
+    //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
+    // const userDdataInfotmation = {
+    //   username: 'username',
+    //   name: 'name',
+    //   dob: 'studentData.dob',
+    //   gender: 'studentData.gender',
+    //   grade: 'studentData.grade',
+    //   state_id: 'studentData.state_id',
+    //   hispanic_ethnicity: 'studentData.hispanic_ethnicity',
+    //   ell_status: 'studentData.ell_status',
+    //   iep_status: 'studentData.iep_status',
+    //   frl_status: 'studentData.frl_status',
+    //   race: 'studentData.race',
+    //   home_language: 'studentData.home_language',
+    //   district: 'orgIds.district',
+    //   school: 'orgIds.school',
+    //   class: 'orgIds.class',
+    //   group: 'orgIds.group',
+    //   family: 'orgIds.family',
+    // };
+    
+    // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
+    //   const value = _get(userData, userDataItem);
+    //   if (value !== undefined) {
+    //     _set(userDocData, userDataItemPath, value);
+    //   }
+    // }
+    
+
+
+
+
+
+    //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
+    // const userDdataInfotmation = {
+    //   username: 'username',
+    //   name: 'name',
+    //   dob: 'studentData.dob',
+    //   gender: 'studentData.gender',
+    //   grade: 'studentData.grade',
+    //   state_id: 'studentData.state_id',
+    //   hispanic_ethnicity: 'studentData.hispanic_ethnicity',
+    //   ell_status: 'studentData.ell_status',
+    //   iep_status: 'studentData.iep_status',
+    //   frl_status: 'studentData.frl_status',
+    //   race: 'studentData.race',
+    //   home_language: 'studentData.home_language',
+    //   district: 'orgIds.district',
+    //   school: 'orgIds.school',
+    //   class: 'orgIds.class',
+    //   group: 'orgIds.group',
+    //   family: 'orgIds.family',
+    // };
+    
+    // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
+    //   const value = _get(userData, userDataItem);
+    //   if (value !== undefined) {
+    //     _set(userDocData, userDataItemPath, value);
+    //   }
+    // }
+    
+
+
+
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
@@ -1373,6 +1451,18 @@ export class RoarFirekit {
     }
   }
 
+  // async createFamily(email:string, 
+  //   password:string, 
+  //   caregiverData: ICreateParentInput, 
+  //   children:[{
+  //     childrenData: ICreateUserInput,
+  //     email: string,
+  //     password: string,
+  //     orgCode:string,
+  //   }]){
+  //     const cloudCreateFamily = httpsCallable(this.admin!functions, '')
+  // }
+
   async getTasks(requireRegistered = true) {
     this._verifyAuthentication();
     return getTasks(this.app!.db, requireRegistered);
@@ -1432,6 +1522,7 @@ export class RoarFirekit {
   }
 
   async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
+    
     this._verifyAuthentication();
     this._verifyAdmin();
 
