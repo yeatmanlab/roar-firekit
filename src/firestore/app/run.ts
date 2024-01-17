@@ -185,7 +185,7 @@ export class RoarRun {
       completed: false,
       timeStarted: serverTimestamp(),
       timeFinished: null,
-      reliable: true,
+      reliable: false,
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
