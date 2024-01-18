@@ -1270,17 +1270,8 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-    const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
-    const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
-    const adminUid = _get(adminResponse, 'data.adminUid');
-
-    const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
-    const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
-    // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
-    const assessmentUid = _get(appResponse, 'data.assessmentUid');
-
-    const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
-    await cloudUpdateUserClaims({ adminUid, assessmentUid });
+    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'wipnewcreatestudentaccount');
+    await cloudCreateStudent({ email, password, userData: userDocData });
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
