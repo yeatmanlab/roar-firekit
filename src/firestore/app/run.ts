@@ -205,10 +205,10 @@ export class RoarRun {
    * @method
    * @async
    * @param {string[]} engagementFlags - Engagement flags to add to the run
-   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false 
-   * 
-   * Please note that calling this function with a new set of engagement flags will 
-   * overwrite the previous set. 
+   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false
+   *
+   * Please note that calling this function with a new set of engagement flags will
+   * overwrite the previous set.
    */
   async addEngagementFlags(engagementFlags: string[], markAsReliable = false) {
     if (!this.started) {
