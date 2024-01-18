@@ -1270,7 +1270,7 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'wipnewcreatestudentaccount');
+    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
   }
 
