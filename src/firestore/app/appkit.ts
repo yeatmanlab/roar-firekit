@@ -188,6 +188,9 @@ export class RoarAppkit {
    * @param {boolean} markAsUnreliable - Whether or not to mark the run as unreliable, defaults to true
    * @method
    * @async
+   * 
+   * Please note that calling this function with a new set of engagement flags will 
+   * overwrite the previous set. 
    */
   async updateEngagementFlags(flagNames: string[], markAsUnreliable = true) {
     if (this._started) {
