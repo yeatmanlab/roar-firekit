@@ -859,7 +859,7 @@ export class RoarFirekit {
     }
   }
 
-  async startAssessment(administrationId: string, taskId: string) {
+  async startAssessment(administrationId: string, taskId: string, variant: string) {
     this._verifyAuthentication();
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
@@ -869,7 +869,14 @@ export class RoarFirekit {
       if (administrationDocSnap.exists()) {
         let assessmentParams: { [x: string]: unknown } = {};
         const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
-        const thisAssessment = assessments.find((a) => a.taskId === taskId);
+        let thisAssessment: IAssessmentData | undefined;
+
+        if (taskId === 'core-tasks') {
+          thisAssessment = assessments.find((a) => a.params.taskName === variant);
+        } else {
+          thisAssessment = assessments.find((a) => a.taskId === taskId);
+        }
+
         if (thisAssessment) {
           assessmentParams = thisAssessment.params;
         } else {
