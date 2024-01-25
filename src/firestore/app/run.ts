@@ -180,6 +180,7 @@ export class RoarRun {
       'assessmentUid',
       'birthMonth',
       'birthYear',
+      'schoolLevel',
     ]);
 
     const runData = {
