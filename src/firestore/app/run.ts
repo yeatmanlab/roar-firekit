@@ -157,22 +157,30 @@ export class RoarRun {
       await this.task.toFirestore();
     }
 
+    const userDocSnap = await getDoc(this.user.userRef);
+    if (!userDocSnap.exists()) {
+      // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
+      throw new Error('User does not exist');
+    }
+
     if (this.assigningOrgs) {
-      const userDocSnap = await getDoc(this.user.userRef);
-      if (userDocSnap.exists()) {
-        const userDocData = userDocSnap.data();
-        const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
-        for (const orgName of Object.keys(userOrgs)) {
-          this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
-          if (this.readOrgs) {
-            this.readOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.readOrgs[orgName]);
-          }
+      const userDocData = userDocSnap.data();
+      const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
+      for (const orgName of Object.keys(userOrgs)) {
+        this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
+        if (this.readOrgs) {
+          this.readOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.readOrgs[orgName]);
         }
-      } else {
-        // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
-        throw new Error('User does not exist');
       }
     }
+
+    const userDocData = _pick(userDocSnap.data(), [
+      'grade',
+      'assessmentPid',
+      'assessmentUid',
+      'birthMonth',
+      'birthYear',
+    ]);
 
     const runData = {
       ...additionalRunMetadata,
@@ -186,6 +194,7 @@ export class RoarRun {
       timeStarted: serverTimestamp(),
       timeFinished: null,
       reliable: false,
+      userData: userDocData,
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
