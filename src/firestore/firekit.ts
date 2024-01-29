@@ -54,7 +54,6 @@ import {
   IOrgLists,
   IRoarConfigData,
   IStudentData,
-  // ICreateParentInput,
   IUserData,
   OrgCollectionName,
   UserType,
@@ -63,7 +62,6 @@ import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
-import { forEach } from 'lodash';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -111,7 +109,6 @@ interface ICreateParentInput {
   };
 }
 
-//EMILY -> PLEASE CHECK THIS
 export interface IChildData {
   email: string;
   password: string;
@@ -1183,7 +1180,6 @@ export class RoarFirekit {
 
     // TODO: this can probably be optimized.
     _set(userDocData, 'email', email);
-
     if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
     if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
     if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
@@ -1251,6 +1247,7 @@ export class RoarFirekit {
     caretakerUserData: ICreateParentInput,
     children: IChildData[],
   ) {
+    // Format children objects
     const formattedChildren = children.map((child) => {
       let returnChild = {
         email: child.email,
@@ -1262,7 +1259,7 @@ export class RoarFirekit {
       pidParts.push(emailCheckSum);
       _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
 
-      // Move grade into the studentData object.
+      // Move attributes into the studentData object.
       _set(returnChild, 'userData.username', child.email.split('@')[0]);
       if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
       if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
@@ -1282,6 +1279,8 @@ export class RoarFirekit {
         _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
       return returnChild;
     });
+
+    // Call cloud function
     const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
     await cloudCreateFamily({
       caretakerEmail,

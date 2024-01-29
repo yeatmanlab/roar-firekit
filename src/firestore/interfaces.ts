@@ -27,7 +27,6 @@ export enum UserType {
   caregiver = 'caregiver',
   guest = 'guest',
   researcher = 'researcher',
-  // parent = 'parent',
 }
 
 export interface IExtraMetadata extends DocumentData {
@@ -71,8 +70,6 @@ export interface IName {
   middle?: string;
   last: string;
 }
-
-
 
 export interface IUserData extends DocumentData {
   id?: string;
