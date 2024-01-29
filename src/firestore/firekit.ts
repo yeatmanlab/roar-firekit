@@ -1251,18 +1251,44 @@ export class RoarFirekit {
     caretakerUserData: ICreateParentInput,
     children: IChildData[],
   ) {
+    const formattedChildren = children.map((child) => {
+      let returnChild = {
+        email: child.email,
+        password: child.password,
+      };
+      // Create a PID for the student.
+      const emailCheckSum = crc32String(child.email!);
+      const pidParts: string[] = [];
+      pidParts.push(emailCheckSum);
+      _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
+
+      // Move grade into the studentData object.
+      _set(returnChild, 'userData.username', child.email.split('@')[0]);
+      if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
+      if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
+      if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
+      if (_get(child, 'userData.dob')) _set(returnChild, 'userData.studentData.dob', child.userData.dob);
+      if (_get(child, 'userData.state_id')) _set(returnChild, 'userData.studentData.state_id', child.userData.state_id);
+      if (_get(child, 'userData.hispanic_ethnicity'))
+        _set(returnChild, 'userData.studentData.hispanic_ethnicity', child.userData.hispanic_ethnicity);
+      if (_get(child, 'userData.ell_status'))
+        _set(returnChild, 'userData.studentData.ell_status', child.userData.ell_status);
+      if (_get(child, 'userData.iep_status'))
+        _set(returnChild, 'userData.studentData.iep_status', child.userData.iep_status);
+      if (_get(child, 'userData.frl_status'))
+        _set(returnChild, 'userData.studentData.frl_status', child.userData.frl_status);
+      if (_get(child, 'userData.race')) _set(returnChild, 'userData.studentData.race', child.userData.race);
+      if (_get(child, 'userData.home_language'))
+        _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
+      return returnChild;
+    });
     const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
-    const familyResponse = await cloudCreateFamily({
+    await cloudCreateFamily({
       caretakerEmail,
       caretakerPassword,
       caretakerUserData,
-      children,
+      children: formattedChildren,
     });
-
-    if (_get(familyResponse.data, 'status') !== 'ok') {
-      //set status
-      throw new Error('Failed to create family.');
-    }
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
@@ -1289,18 +1315,6 @@ export class RoarFirekit {
       throw new Error('Failed to create administrator user account.');
     }
   }
-
-  // async createFamily(email:string,
-  //   password:string,
-  //   caregiverData: ICreateParentInput,
-  //   children:[{
-  //     childrenData: ICreateUserInput,
-  //     email: string,
-  //     password: string,
-  //     orgCode:string,
-  //   }]){
-  //     const cloudCreateFamily = httpsCallable(this.admin!functions, '')
-  // }
 
   async getTasks(requireRegistered = true) {
     this._verifyAuthentication();
