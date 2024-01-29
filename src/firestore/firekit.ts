@@ -47,7 +47,6 @@ import {
   IAssessmentData,
   IAssignedAssessmentData,
   IAssignmentData,
-  IChildData,
   IExternalUserData,
   IFirekit,
   IName,
@@ -80,8 +79,6 @@ const RoarProviderId = {
   ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
 };
 
-
-
 interface ICreateUserInput {
   dob: string;
   grade: string;
@@ -107,7 +104,7 @@ interface ICreateUserInput {
   group: { id: string; abbreviation?: string } | null;
 }
 
-interface ICreateParentInput{
+interface ICreateParentInput {
   name: {
     first: string;
     last: string;
@@ -115,12 +112,12 @@ interface ICreateParentInput{
 }
 
 //EMILY -> PLEASE CHECK THIS
-export interface IChildData{
-  email: string, 
-  password: string,
-  userData: ICreateUserInput,
-  familyId:string,
-  orgCode:string,
+export interface IChildData {
+  email: string;
+  password: string;
+  userData: ICreateUserInput;
+  familyId: string;
+  orgCode: string;
 }
 
 interface ICurrentAssignments {
@@ -1207,7 +1204,6 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-
     //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
     // const userDdataInfotmation = {
     //   username: 'username',
@@ -1228,17 +1224,13 @@ export class RoarFirekit {
     //   group: 'orgIds.group',
     //   family: 'orgIds.family',
     // };
-    
+
     // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
     //   const value = _get(userData, userDataItem);
     //   if (value !== undefined) {
     //     _set(userDocData, userDataItemPath, value);
     //   }
     // }
-    
-
-
-
 
     const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
@@ -1253,72 +1245,24 @@ export class RoarFirekit {
     await cloudUpdateUserClaims({ adminUid, assessmentUid });
   }
 
-  
-
-  // async createNewFamily(email:string, password:string, caregiverData: ICreateParentInput, children:[ICreateUserInput]){
-  //   // this._verifyAuthentication();
-  //   // this._verifyAdmin();
-
-  //   const userDocData: IUserData = {
-  //     userType: UserType.caregiver,
-  //     //studentData: {} as IStudentData,
-  //     districts: emptyOrg(),
-  //     schools: emptyOrg(),
-  //     classes: emptyOrg(),
-  //     families: emptyOrg(),
-  //     groups: emptyOrg(),
-  //     archived: false,
-  //   };    
-
-  //   // const familyId = await this.createOrg('families',{name:`${userData.name.last}' family`});
-    
-  //   // _set(userDocData, 'orgIds.family', familyId);
-
-  //   _set(userDocData, 'email', email);
-  //   if (_get(caregiverData, 'name')) _set(userDocData, 'name', caregiverData.name);
-    
-  //   console.log("Sending parent UserDocData",userDocData);
-
-  //   const cloudCreateAdminFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
-  //   const adminResponse = await cloudCreateAdminFamily({ email, password, userData: userDocData });
-  //   const adminUid = _get(adminResponse, 'data.adminUid');
-
-  //   const cloudCreateAppFamily = httpsCallable(this.app!.functions, 'createnewfamily');
-  //   const appResponse = await cloudCreateAppFamily({ adminUid, email, password, userData: userDocData });
-  //   // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
-  //   const assessmentUid = _get(appResponse, 'data.assessmentUid');
-
-  //   const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
-  //   await cloudUpdateUserClaims({ adminUid, assessmentUid });
-
-  // }
-
-  //EMILY - REVIEW THIS ---
-
-  async createNewFamily(caretakerEmail:string, caretakerPassword:string, caregiverData: ICreateParentInput, children:IChildData[]){
-
+  async createNewFamily(
+    caretakerEmail: string,
+    caretakerPassword: string,
+    caretakerUserData: ICreateParentInput,
+    children: IChildData[],
+  ) {
     const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
     const familyResponse = await cloudCreateFamily({
       caretakerEmail,
       caretakerPassword,
-      
-      caregiverData,
+      caretakerUserData,
       children,
     });
-      
-    if (_get(familyResponse.data, 'status') !== 'ok') { //set status
+
+    if (_get(familyResponse.data, 'status') !== 'ok') {
+      //set status
       throw new Error('Failed to create family.');
     }
-
-    //EMILY -> PLEASE CHECK THIS
-    //maybe we can create childs here? and then we don't need to create new function
-    //because the parent already will be an admin here?
-
-    const createUserPromises = children.map(async (child) => {
-      await createUserWithEmailAndPassword(child.email, child.password, child.userData);
-    });
-
-    await Promise.all(createUserPromises);
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
@@ -1346,9 +1290,9 @@ export class RoarFirekit {
     }
   }
 
-  // async createFamily(email:string, 
-  //   password:string, 
-  //   caregiverData: ICreateParentInput, 
+  // async createFamily(email:string,
+  //   password:string,
+  //   caregiverData: ICreateParentInput,
   //   children:[{
   //     childrenData: ICreateUserInput,
   //     email: string,
@@ -1417,7 +1361,6 @@ export class RoarFirekit {
   }
 
   async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
-    
     this._verifyAuthentication();
     this._verifyAdmin();
 
