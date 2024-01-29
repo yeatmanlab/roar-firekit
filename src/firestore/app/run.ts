@@ -238,6 +238,35 @@ export class RoarRun {
   }
 
   /**
+   * Add engagement flags to a run.
+   * @method
+   * @async
+   * @param {string[]} engagementFlags - Engagement flags to add to the run
+   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false 
+   * @param {Object} reliableByBlock - Stores the reliability of the run by block
+   * For Example: {DEL: false, FSM: true, LSM: false}
+   * 
+   * Please note that calling this function with a new set of engagement flags will 
+   * overwrite the previous set. 
+   */
+  async addEngagementFlagsByBlock(engagementFlags: string[], markAsReliable = false, reliableByBlock = {}) {
+    if (!this.started) {
+      throw new Error('Run has not been started yet. Use the startRun method first.');
+    }
+
+    const engagementObj = engagementFlags.reduce((acc: { [x: string]: unknown }, flag) => {
+      acc[flag] = true;
+      return acc;
+    }, {});
+
+    if (!this.aborted) {
+      return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable, reliableByBlock: reliableByBlock });
+    } else {
+      throw new Error('Run has already been aborted.');
+    }
+  }
+
+  /**
    * Mark this run as complete on Firestore
    * @method
    * @async
