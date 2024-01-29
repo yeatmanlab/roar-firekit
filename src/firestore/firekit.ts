@@ -943,11 +943,6 @@ export class RoarFirekit {
             variantParams: assessmentParams,
           };
 
-          this.selectBestRun({
-            assignmentId: administrationId,
-            taskId,
-          });
-
           return new RoarAppkit({
             firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
@@ -980,10 +975,6 @@ export class RoarFirekit {
 
       // Update this assignment's `completedOn` timestamp
       await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
-      this.selectBestRun({
-        assignmentId: administrationId,
-        taskId,
-      });
 
       if (docSnap.exists()) {
         // Now check to see if all of the assessments in this assignment have
@@ -1009,17 +1000,6 @@ export class RoarFirekit {
     await runTransaction(this.admin!.db, async (transaction) => {
       this._updateAssignedAssessment(administrationId, taskId, { rewardShown: true }, transaction);
     });
-  }
-
-  async selectBestRun({ assignmentId, taskId }: { assignmentId: string; taskId: string }) {
-    this._verifyAuthentication();
-    const cloudSelectBestRun = httpsCallable(this.admin!.functions, 'selectBestRun');
-    const response = await cloudSelectBestRun({ assignmentId, taskId });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(response.data as any, 'status') !== 'ok') {
-      throw new Error('Failed to create administrator user account.');
-    }
-    return _get(response.data, 'bestRun');
   }
 
   // These are all methods that will be important for admins, but not necessary for students
