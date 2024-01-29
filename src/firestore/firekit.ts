@@ -1325,7 +1325,7 @@ export class RoarFirekit {
   ) {
     // Format children objects
     const formattedChildren = children.map((child) => {
-      let returnChild = {
+      const returnChild = {
         email: child.email,
         password: child.password,
       };
