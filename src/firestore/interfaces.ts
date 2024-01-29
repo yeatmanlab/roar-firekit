@@ -1,6 +1,6 @@
 import { FirebaseApp } from 'firebase/app';
 import { Auth, User } from 'firebase/auth';
-import { DocumentData, Firestore } from 'firebase/firestore';
+import { DocumentData, Firestore, Timestamp } from 'firebase/firestore';
 import { Functions } from 'firebase/functions';
 import { FirebaseConfigData } from './util';
 
@@ -117,11 +117,12 @@ export interface IAdministrationData extends IOrgLists {
   id?: string;
   name: string;
   createdBy: string;
-  dateCreated: Date;
-  dateOpened: Date;
-  dateClosed: Date;
+  dateCreated: Date | Timestamp;
+  dateOpened: Date | Timestamp;
+  dateClosed: Date | Timestamp;
   sequential: boolean;
   assessments: IAssessmentData[];
+  tags?: string[];
   readOrgs?: IOrgLists;
 }
 

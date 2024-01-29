@@ -157,22 +157,31 @@ export class RoarRun {
       await this.task.toFirestore();
     }
 
+    const userDocSnap = await getDoc(this.user.userRef);
+    if (!userDocSnap.exists()) {
+      // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
+      throw new Error('User does not exist');
+    }
+
     if (this.assigningOrgs) {
-      const userDocSnap = await getDoc(this.user.userRef);
-      if (userDocSnap.exists()) {
-        const userDocData = userDocSnap.data();
-        const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
-        for (const orgName of Object.keys(userOrgs)) {
-          this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
-          if (this.readOrgs) {
-            this.readOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.readOrgs[orgName]);
-          }
+      const userDocData = userDocSnap.data();
+      const userOrgs = _pick(userDocData, Object.keys(this.assigningOrgs));
+      for (const orgName of Object.keys(userOrgs)) {
+        this.assigningOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.assigningOrgs[orgName]);
+        if (this.readOrgs) {
+          this.readOrgs[orgName] = _intersection(userOrgs[orgName]?.current, this.readOrgs[orgName]);
         }
-      } else {
-        // This should never happen because of ``this.user.checkUserExists`` above. But just in case:
-        throw new Error('User does not exist');
       }
     }
+
+    const userDocData = _pick(userDocSnap.data(), [
+      'grade',
+      'assessmentPid',
+      'assessmentUid',
+      'birthMonth',
+      'birthYear',
+      'schoolLevel',
+    ]);
 
     const runData = {
       ...additionalRunMetadata,
@@ -185,6 +194,8 @@ export class RoarRun {
       completed: false,
       timeStarted: serverTimestamp(),
       timeFinished: null,
+      reliable: false,
+      userData: userDocData,
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
@@ -197,6 +208,33 @@ export class RoarRun {
       .then(() => this.user.updateFirestoreTimestamp());
 
     this.started = true;
+  }
+
+  /**
+   * Add engagement flags to a run.
+   * @method
+   * @async
+   * @param {string[]} engagementFlags - Engagement flags to add to the run
+   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false
+   *
+   * Please note that calling this function with a new set of engagement flags will
+   * overwrite the previous set.
+   */
+  async addEngagementFlags(engagementFlags: string[], markAsReliable = false) {
+    if (!this.started) {
+      throw new Error('Run has not been started yet. Use the startRun method first.');
+    }
+
+    const engagementObj = engagementFlags.reduce((acc: { [x: string]: unknown }, flag) => {
+      acc[flag] = true;
+      return acc;
+    }, {});
+
+    if (!this.aborted) {
+      return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable });
+    } else {
+      throw new Error('Run has already been aborted.');
+    }
   }
 
   /**

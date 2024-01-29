@@ -24,6 +24,8 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
+  DocumentReference,
+  Timestamp,
   Transaction,
   Unsubscribe,
   addDoc,
@@ -1036,6 +1038,22 @@ export class RoarFirekit {
   }
 
   // These are all methods that will be important for admins, but not necessary for students
+  /**
+   * Create or update an administration
+   *
+   * @param input input object
+   * @param input.name The administration name
+   * @param input.assessments The list of assessments for this administration
+   * @param input.dateOpen The start date for this administration
+   * @param input.dateClose The end date for this administration
+   * @param input.sequential Whether or not the assessments in this
+   *                         administration must be taken sequentially
+   * @param input.orgs The orgs assigned to this administration
+   * @param input.tags Metadata tags for this administration
+   * @param input.administrationId Optional ID of an existing administration. If
+   *                               provided, this method will update an
+   *                               existing administration.
+   */
   async createAdministration({
     name,
     assessments,
@@ -1043,6 +1061,8 @@ export class RoarFirekit {
     dateClose,
     sequential = true,
     orgs = emptyOrgList(),
+    tags = [],
+    administrationId,
   }: {
     name: string;
     assessments: IAssessmentData[];
@@ -1050,8 +1070,21 @@ export class RoarFirekit {
     dateClose: Date;
     sequential: boolean;
     orgs: IOrgLists;
+    tags: string[];
+    administrationId?: string;
   }) {
     this._verifyAuthentication();
+    this._verifyAdmin();
+
+    if ([name, dateOpen, dateClose, assessments].some((param) => param === undefined || param === null)) {
+      throw new Error('The parameters name, dateOpen, dateClose, and assessments are required');
+    }
+
+    if (dateClose < dateOpen) {
+      throw new Error(
+        `The end date cannot be before the start date: ${dateClose.toISOString()} < ${dateOpen.toISOString()}`,
+      );
+    }
 
     // First add the administration to the database
     const administrationData: IAdministrationData = {
@@ -1067,17 +1100,69 @@ export class RoarFirekit {
       dateClosed: dateClose,
       assessments: assessments,
       sequential: sequential,
+      tags: tags,
     };
+
     await runTransaction(this.admin!.db, async (transaction) => {
+      let administrationDocRef: DocumentReference;
+      if (administrationId !== undefined) {
+        // Set the doc ref to the existing administration
+        administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+
+        // Get the existing administration to make sure update is allowed.
+        const docSnap = await transaction.get(administrationDocRef);
+        if (docSnap.exists()) {
+          const docData = docSnap.data() as IAdministrationData;
+          const now = new Date();
+          if ((docData.dateOpened as Timestamp).toDate() < now) {
+            throw new Error('Cannot edit an administration that has already started.');
+          }
+        } else {
+          throw new Error(`Could not find administration with id ${administrationId}`);
+        }
+      } else {
+        // Create a new administration doc ref
+        administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
+      }
+
       // Create the administration doc in the admin Firestore,
-      const administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
-      transaction.set(administrationDocRef, administrationData);
+      transaction.set(administrationDocRef, administrationData, { merge: true });
 
       // Then add the ID to the admin's list of administrationsCreated
       const userDocRef = this.dbRefs!.admin.user;
       transaction.update(userDocRef, {
         'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
       });
+    });
+  }
+
+  /**
+   * Delete an administration
+   *
+   * @param administrationId The administration ID to delete
+   */
+  async deleteAdministration(administrationId: string) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    if (!this._superAdmin) {
+      throw new Error('You must be a super admin to delete an administration.');
+    }
+
+    await runTransaction(this.admin!.db, async (transaction) => {
+      const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+      const statsDocRef = doc(administrationDocRef, 'stats', 'completion');
+
+      const docSnap = await transaction.get(administrationDocRef);
+      if (docSnap.exists()) {
+        // Delete the stats/completion doc if it exists
+        const statsDocSnap = await transaction.get(statsDocRef);
+        if (statsDocSnap.exists()) {
+          transaction.delete(statsDocRef);
+        }
+
+        // Delete the administration doc
+        transaction.delete(administrationDocRef);
+      }
     });
   }
 
@@ -1228,17 +1313,8 @@ export class RoarFirekit {
     //   }
     // }
 
-    const cloudCreateAdminStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
-    const adminResponse = await cloudCreateAdminStudent({ email, password, userData: userDocData });
-    const adminUid = _get(adminResponse, 'data.adminUid');
-
-    const cloudCreateAppStudent = httpsCallable(this.app!.functions, 'createstudentaccount');
-    const appResponse = await cloudCreateAppStudent({ adminUid, email, password, userData: userDocData });
-    // cloud function returns all relevant Uids (since at this point, all of the associations and claims have been made)
-    const assessmentUid = _get(appResponse, 'data.assessmentUid');
-
-    const cloudUpdateUserClaims = httpsCallable(this.admin!.functions, 'associateassessmentuid');
-    await cloudUpdateUserClaims({ adminUid, assessmentUid });
+    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
+    await cloudCreateStudent({ email, password, userData: userDocData });
   }
 
   async createNewFamily(
