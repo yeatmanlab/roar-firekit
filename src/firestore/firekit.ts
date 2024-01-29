@@ -49,7 +49,6 @@ import {
   IAssessmentData,
   IAssignedAssessmentData,
   IAssignmentData,
-  IChildData,
   IExternalUserData,
   IFirekit,
   IName,
@@ -81,8 +80,6 @@ const RoarProviderId = {
   CLEVER: 'oidc.clever',
   ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
 };
-
-
 
 interface ICreateUserInput {
   dob: string;
@@ -1307,7 +1304,6 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-
     //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
     // const userDdataInfotmation = {
     //   username: 'username',
@@ -1328,17 +1324,13 @@ export class RoarFirekit {
     //   group: 'orgIds.group',
     //   family: 'orgIds.family',
     // };
-    
+
     // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
     //   const value = _get(userData, userDataItem);
     //   if (value !== undefined) {
     //     _set(userDocData, userDataItemPath, value);
     //   }
     // }
-    
-
-
-
 
 
     //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
@@ -1451,9 +1443,9 @@ export class RoarFirekit {
     }
   }
 
-  // async createFamily(email:string, 
-  //   password:string, 
-  //   caregiverData: ICreateParentInput, 
+  // async createFamily(email:string,
+  //   password:string,
+  //   caregiverData: ICreateParentInput,
   //   children:[{
   //     childrenData: ICreateUserInput,
   //     email: string,
@@ -1522,7 +1514,6 @@ export class RoarFirekit {
   }
 
   async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
-    
     this._verifyAuthentication();
     this._verifyAdmin();
 
