@@ -192,30 +192,9 @@ export class RoarAppkit {
    * Please note that calling this function with a new set of engagement flags will
    * overwrite the previous set.
    */
-  async updateEngagementFlags(flagNames: string[], markAsReliable = false) {
+  async updateEngagementFlags(flagNames: string[], markAsReliable = false, reliableByBlock = undefined) {
     if (this._started) {
-      return this.run!.addEngagementFlags(flagNames, markAsReliable);
-    } else {
-      throw new Error('This run has not started. Use the startRun method first.');
-    }
-  }
-
-  /**
-   * Update the engagement flags for the current run in a block-based administration.
-   *
-   * @param {string[]} flagNames - The names of the engagement flags to add.
-   * @param {boolean} markAsReliable - Whether or not to mark the run as reliable, defaults to false
-   * @param {Object} reliableByBlock - Stores the reliability of the run by block
-   * For Example: {DEL: false, FSM: true, LSM: false}
-   * @method
-   * @async
-   *
-   * Please note that calling this function with a new set of engagement flags will
-   * overwrite the previous set.
-   */
-  async updateEngagementFlagsByBlock(flagNames: string[], markAsReliable = false, reliableByBlock = {}) {
-    if (this._started) {
-      return this.run!.addEngagementFlagsByBlock(flagNames, markAsReliable, reliableByBlock);
+      return this.run!.addEngagementFlags(flagNames, markAsReliable, reliableByBlock);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
