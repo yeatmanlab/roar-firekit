@@ -240,13 +240,16 @@ export class RoarRun {
       }
       // In cases we want to store reliability by block, we need to store the reliable attribute as well as the reliableByBlock attribute
       else {
-        return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable, reliableByBlock: reliableByBlock });
+        return updateDoc(this.runRef, {
+          engagementFlags: engagementObj,
+          reliable: markAsReliable,
+          reliableByBlock: reliableByBlock,
+        });
       }
     } else {
       throw new Error('Run has already been aborted.');
     }
   }
-
 
   /**
    * Mark this run as complete on Firestore
