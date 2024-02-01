@@ -141,11 +141,15 @@ export class RoarTaskVariant {
     );
     const querySnapshot = await getDocs(q);
 
+    let foundVariantWithCurrentParams = false;
+
     // If this query snapshot yielded results, then we can use it and
     // update the timestamp
     querySnapshot.forEach((docRef) => {
       this.variantId = docRef.id;
       this.variantRef = doc(this.variantsCollectionRef, this.variantId);
+      foundVariantWithCurrentParams = true;
+
       updateDoc(
         this.variantRef,
         removeUndefined({
@@ -170,7 +174,7 @@ export class RoarTaskVariant {
       this.variantRef = doc(this.variantsCollectionRef);
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
-    } else if (this._firestoreUpdateAllowed) {
+    } else if (this._firestoreUpdateAllowed && !foundVariantWithCurrentParams) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       await updateDoc(this.variantRef!, removeUndefined(variantData));
     }
