@@ -72,8 +72,6 @@ export class RoarTaskVariant {
   variantParams: { [key: string]: unknown };
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
-  private _firestoreUpdateAllowed: boolean;
-  private _createNewVariant?: boolean;
   /** Create a ROAR task
    * @param {ITaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
@@ -111,7 +109,6 @@ export class RoarTaskVariant {
     this.variantsCollectionRef = collection(this.taskRef, 'variants');
     this.variantId = undefined;
     this.variantRef = undefined;
-    this._firestoreUpdateAllowed = false;
   }
 
   /**
@@ -141,11 +138,15 @@ export class RoarTaskVariant {
     );
     const querySnapshot = await getDocs(q);
 
+    let foundVariantWithCurrentParams = false;
+
     // If this query snapshot yielded results, then we can use it and
     // update the timestamp
     querySnapshot.forEach((docRef) => {
       this.variantId = docRef.id;
       this.variantRef = doc(this.variantsCollectionRef, this.variantId);
+      foundVariantWithCurrentParams = true;
+
       updateDoc(
         this.variantRef,
         removeUndefined({
@@ -164,15 +165,10 @@ export class RoarTaskVariant {
       lastUpdated: serverTimestamp(),
     };
 
-    // no match, ask Firestore to generate a new document id for the variant
-    // and push it to Firestore.
-    if (!this.variantId || this._createNewVariant) {
+    if (!foundVariantWithCurrentParams) {
       this.variantRef = doc(this.variantsCollectionRef);
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;
-    } else if (this._firestoreUpdateAllowed) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await updateDoc(this.variantRef!, removeUndefined(variantData));
     }
   }
 
@@ -193,14 +189,9 @@ export class RoarTaskVariant {
     const cleanParams = replaceValues(newParams);
 
     // Only allow updating the task params if we are updating previously null values.
-    const { keysAdded, merged } = mergeGameParams(oldParams, cleanParams);
+    const { merged } = mergeGameParams(oldParams, cleanParams);
 
     this.variantParams = merged;
-    this._firestoreUpdateAllowed = true;
-    this._createNewVariant = keysAdded;
-    await this.toFirestore().then(() => {
-      this._firestoreUpdateAllowed = false;
-      this._createNewVariant = undefined;
-    });
+    await this.toFirestore();
   }
 }
