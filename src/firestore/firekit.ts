@@ -124,6 +124,17 @@ export interface IRequestConfig {
   baseURL: string;
 }
 
+interface LevanteUserData {
+  id: string,
+  userType: string,
+  childId: string,
+  parentId: string,
+  teacherId: string,
+  month: string,
+  year: string
+  group: string[]
+}
+
 export class RoarFirekit {
   admin?: IFirekit;
   app?: IFirekit;
@@ -410,7 +421,14 @@ export class RoarFirekit {
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
-      return signInWithEmailAndPassword(this.app!.auth, email, password).then(this._setUidCustomClaims.bind(this));
+      return signInWithEmailAndPassword(this.app!.auth, email, password)
+        .then(this._setUidCustomClaims.bind(this))
+        .catch((error: AuthError) => {
+          console.error('(Inside) Error signing in', error);
+        });
+    })
+    .catch((error: AuthError) => {
+      console.error('(Outside) Error signing in', error);
     });
   }
 
@@ -1203,10 +1221,19 @@ export class RoarFirekit {
     // }
   }
 
-  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
+  // TODO: Create types for these functions
+  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
+    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
+    return await cloudCreateLevanteUsers({ userData });
+  }
+
+  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+    
     if (!_get(userData, 'dob')) {
       throw new Error('Student date of birth must be supplied.');
     }
