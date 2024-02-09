@@ -73,12 +73,6 @@ enum AuthProviderType {
   USERNAME = 'username',
 }
 
-const RoarProviderId = {
-  ...ProviderId,
-  CLEVER: 'oidc.clever',
-  ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
-};
-
 interface ICreateUserInput {
   dob: string;
   grade: string;
@@ -159,6 +153,14 @@ export class RoarFirekit {
     this._idTokens = {};
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
+  }
+
+  private _getProviderIds() {
+    return {
+      ...ProviderId,
+      CLEVER: 'oidc.clever',
+      ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
+    };
   }
 
   private _scrubAuthProperties() {
@@ -420,7 +422,8 @@ export class RoarFirekit {
     this._verifyInit();
     return signInWithEmailLink(this.admin!.auth, email, emailLink)
       .then(async (userCredential) => {
-        const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+        const roarProviderIds = this._getProviderIds();
+        const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
         const roarAdminIdToken = await getIdToken(userCredential.user);
         const roarAdminCredential = roarAdminProvider.credential({
           idToken: roarAdminIdToken,
@@ -448,7 +451,8 @@ export class RoarFirekit {
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -476,7 +480,8 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
 
-          const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+          const roarProviderIds = this._getProviderIds();
+          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
           const roarAdminIdToken = await getIdToken(adminUserCredential.user);
           const roarAdminCredential = roarAdminProvider.credential({
             idToken: roarAdminIdToken,
@@ -511,7 +516,8 @@ export class RoarFirekit {
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -536,21 +542,22 @@ export class RoarFirekit {
       .then(async (adminUserCredential) => {
         if (adminUserCredential !== null) {
           const providerId = adminUserCredential.providerId;
-          if (providerId === RoarProviderId.GOOGLE) {
+          const roarProviderIds = this._getProviderIds();
+          if (providerId === roarProviderIds.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.GOOGLE;
             oAuthAccessToken = credential?.accessToken;
             return credential;
-          } else if (providerId === RoarProviderId.CLEVER) {
+          } else if (providerId === roarProviderIds.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
 
-            const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+            const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
             const roarAdminIdToken = await getIdToken(adminUserCredential.user);
             const roarAdminCredential = roarAdminProvider.credential({
               idToken: roarAdminIdToken,
@@ -626,11 +633,11 @@ export class RoarFirekit {
     return {
       admin: {
         headers: { Authorization: `Bearer ${this._idTokens.admin}` },
-        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-admin/databases/(default)/documents',
+        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.admin.projectId}/databases/(default)/documents`,
       },
       app: {
         headers: { Authorization: `Bearer ${this._idTokens.app}` },
-        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-assessment/databases/(default)/documents',
+        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.app.projectId}/databases/(default)/documents`,
       },
     };
   }
