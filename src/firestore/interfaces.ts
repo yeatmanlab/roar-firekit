@@ -2,6 +2,7 @@ import { FirebaseApp } from 'firebase/app';
 import { Auth, User } from 'firebase/auth';
 import { DocumentData, Firestore, Timestamp } from 'firebase/firestore';
 import { Functions } from 'firebase/functions';
+import { FirebasePerformance } from 'firebase/performance';
 import { FirebaseConfigData } from './util';
 
 export interface IRoarConfigData {
@@ -14,6 +15,7 @@ export interface IFirekit {
   db: Firestore;
   auth: Auth;
   functions: Functions;
+  perf?: FirebasePerformance;
   user?: User;
   claimsLastUpdated?: Date;
 }
