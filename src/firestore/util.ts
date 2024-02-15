@@ -11,7 +11,7 @@ import {
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
-import { getPerformance } from 'firebase/performance';
+import { getPerformance, FirebasePerformance } from 'firebase/performance';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
@@ -161,13 +161,22 @@ export const initializeFirebaseProject = async (
     };
   } else {
     const app = safeInitializeApp(config as RealConfigData, name);
+    let performance: FirebasePerformance | undefined = undefined;
+    try {
+      performance = getPerformance(app);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      if (error.code !== 'performance/FB not default') {
+        throw error;
+      }
+    }
     const kit = {
       firebaseApp: app,
       auth: optionallyMarkRaw('auth', getAuth(app)),
       db: optionallyMarkRaw('db', getFirestore(app)),
       functions: optionallyMarkRaw('functions', getFunctions(app)),
       storage: optionallyMarkRaw('storage', getStorage(app)),
-      perf: getPerformance(app),
+      perf: performance,
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a
