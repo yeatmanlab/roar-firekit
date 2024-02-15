@@ -902,10 +902,6 @@ export class RoarFirekit {
             allRunIds: allRunIdsForThisTask,
           };
 
-          if (allRunIdsForThisTask.length === 1) {
-            assessmentUpdateData.runId = runId;
-          }
-
           // Append runId to `allRunIds` for this assessment
           // in the userId/assignments collection
           await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
