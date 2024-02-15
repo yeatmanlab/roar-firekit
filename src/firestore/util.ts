@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
@@ -117,7 +118,7 @@ export interface MarkRawConfig {
   functions?: boolean;
 }
 
-type FirebaseProduct = Auth | Firestore | Functions;
+type FirebaseProduct = Auth | Firestore | Functions | FirebaseStorage;
 
 export const initializeFirebaseProject = async (
   config: FirebaseConfigData,
@@ -139,6 +140,7 @@ export const initializeFirebaseProject = async (
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
     const functions = optionallyMarkRaw('functions', getFunctions(app));
+    const storage = optionallyMarkRaw('storage', getStorage(app));
 
     connectFirestoreEmulator(db, '127.0.0.1', ports.db);
     connectFunctionsEmulator(functions, '127.0.0.1', ports.functions);
@@ -154,6 +156,7 @@ export const initializeFirebaseProject = async (
       auth,
       db,
       functions,
+      storage,
     };
   } else {
     const app = safeInitializeApp(config as RealConfigData, name);
@@ -162,6 +165,7 @@ export const initializeFirebaseProject = async (
       auth: optionallyMarkRaw('auth', getAuth(app)),
       db: optionallyMarkRaw('db', getFirestore(app)),
       functions: optionallyMarkRaw('functions', getFunctions(app)),
+      storage: optionallyMarkRaw('storage', getStorage(app)),
     };
 
     // Auth state persistence is set with ``setPersistence`` and specifies how a
