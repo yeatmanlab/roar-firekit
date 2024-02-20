@@ -1285,34 +1285,6 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-    //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
-    // const userDdataInfotmation = {
-    //   username: 'username',
-    //   name: 'name',
-    //   dob: 'studentData.dob',
-    //   gender: 'studentData.gender',
-    //   grade: 'studentData.grade',
-    //   state_id: 'studentData.state_id',
-    //   hispanic_ethnicity: 'studentData.hispanic_ethnicity',
-    //   ell_status: 'studentData.ell_status',
-    //   iep_status: 'studentData.iep_status',
-    //   frl_status: 'studentData.frl_status',
-    //   race: 'studentData.race',
-    //   home_language: 'studentData.home_language',
-    //   district: 'orgIds.district',
-    //   school: 'orgIds.school',
-    //   class: 'orgIds.class',
-    //   group: 'orgIds.group',
-    //   family: 'orgIds.family',
-    // };
-
-    // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
-    //   const value = _get(userData, userDataItem);
-    //   if (value !== undefined) {
-    //     _set(userDocData, userDataItemPath, value);
-    //   }
-    // }
-
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
   }
