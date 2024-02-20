@@ -104,14 +104,14 @@ interface ICreateUserInput {
   group: { id: string; abbreviation?: string } | null;
 }
 
-interface ICreateParentInput {
+interface CreateParentInput {
   name: {
     first: string;
     last: string;
   };
 }
 
-export interface IChildData {
+export interface ChildData {
   email: string;
   password: string;
   userData: ICreateUserInput;
@@ -1292,8 +1292,8 @@ export class RoarFirekit {
   async createNewFamily(
     caretakerEmail: string,
     caretakerPassword: string,
-    caretakerUserData: ICreateParentInput,
-    children: IChildData[],
+    caretakerUserData: CreateParentInput,
+    children: ChildData[],
   ) {
     // Format children objects
     const formattedChildren = children.map((child) => {
