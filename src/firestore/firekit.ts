@@ -98,6 +98,21 @@ interface ICreateUserInput {
   group: { id: string; abbreviation?: string } | null;
 }
 
+interface CreateParentInput {
+  name: {
+    first: string;
+    last: string;
+  };
+}
+
+export interface ChildData {
+  email: string;
+  password: string;
+  userData: ICreateUserInput;
+  familyId: string;
+  orgCode: string;
+}
+
 interface ICurrentAssignments {
   assigned: string[];
   started: string[];
@@ -1255,6 +1270,55 @@ export class RoarFirekit {
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
+  }
+
+  async createNewFamily(
+    caretakerEmail: string,
+    caretakerPassword: string,
+    caretakerUserData: CreateParentInput,
+    children: ChildData[],
+  ) {
+    // Format children objects
+    const formattedChildren = children.map((child) => {
+      const returnChild = {
+        email: child.email,
+        password: child.password,
+      };
+      // Create a PID for the student.
+      const emailCheckSum = crc32String(child.email!);
+      const pidParts: string[] = [];
+      pidParts.push(emailCheckSum);
+      _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
+
+      // Move attributes into the studentData object.
+      _set(returnChild, 'userData.username', child.email.split('@')[0]);
+      if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
+      if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
+      if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
+      if (_get(child, 'userData.dob')) _set(returnChild, 'userData.studentData.dob', child.userData.dob);
+      if (_get(child, 'userData.state_id')) _set(returnChild, 'userData.studentData.state_id', child.userData.state_id);
+      if (_get(child, 'userData.hispanic_ethnicity'))
+        _set(returnChild, 'userData.studentData.hispanic_ethnicity', child.userData.hispanic_ethnicity);
+      if (_get(child, 'userData.ell_status'))
+        _set(returnChild, 'userData.studentData.ell_status', child.userData.ell_status);
+      if (_get(child, 'userData.iep_status'))
+        _set(returnChild, 'userData.studentData.iep_status', child.userData.iep_status);
+      if (_get(child, 'userData.frl_status'))
+        _set(returnChild, 'userData.studentData.frl_status', child.userData.frl_status);
+      if (_get(child, 'userData.race')) _set(returnChild, 'userData.studentData.race', child.userData.race);
+      if (_get(child, 'userData.home_language'))
+        _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
+      return returnChild;
+    });
+
+    // Call cloud function
+    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
+    await cloudCreateFamily({
+      caretakerEmail,
+      caretakerPassword,
+      caretakerUserData,
+      children: formattedChildren,
+    });
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {

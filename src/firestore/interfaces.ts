@@ -175,6 +175,7 @@ export interface IClass extends DocumentData {
 }
 
 export interface IFamily extends DocumentData {
+  name: string;
   [x: string]: unknown;
 }
 
