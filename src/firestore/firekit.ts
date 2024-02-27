@@ -56,7 +56,6 @@ import {
   IOrgLists,
   IRoarConfigData,
   IStudentData,
-  // ICreateParentInput,
   IUserData,
   OrgCollectionName,
   UserType,
@@ -74,13 +73,6 @@ enum AuthProviderType {
   EMAIL = 'email',
   USERNAME = 'username',
 }
-
-const RoarProviderId = {
-  ...ProviderId,
-  CLEVER: 'oidc.clever',
-  ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
-};
-
 interface ICreateUserInput {
   dob: string;
   grade: string;
@@ -133,14 +125,18 @@ export interface IRequestConfig {
 }
 
 interface LevanteUserData {
-  id: string,
-  userType: string,
-  childId: string,
-  parentId: string,
-  teacherId: string,
-  month: string,
-  year: string
-  group: string[]
+  id: string;
+  userType: string;
+  childId: string;
+  parentId: string;
+  teacherId: string;
+  month: string;
+  year: string;
+  group: string[];
+}
+
+interface LevanteSurveyResponses {
+  [key: string]: string;
 }
 
 export class RoarFirekit {
@@ -428,16 +424,17 @@ export class RoarFirekit {
 
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
-    return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
-      return signInWithEmailAndPassword(this.app!.auth, email, password)
-        .then(this._setUidCustomClaims.bind(this))
-        .catch((error: AuthError) => {
-          console.error('(Inside) Error signing in', error);
-        });
-    })
-    .catch((error: AuthError) => {
-      console.error('(Outside) Error signing in', error);
-    });
+    return signInWithEmailAndPassword(this.admin!.auth, email, password)
+      .then(() => {
+        return signInWithEmailAndPassword(this.app!.auth, email, password)
+          .then(this._setUidCustomClaims.bind(this))
+          .catch((error: AuthError) => {
+            console.error('(Inside) Error signing in', error);
+          });
+      })
+      .catch((error: AuthError) => {
+        console.error('(Outside) Error signing in', error);
+      });
   }
 
   async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
@@ -1229,19 +1226,10 @@ export class RoarFirekit {
     // }
   }
 
-  // TODO: Create types for these functions
-  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
-    return await cloudCreateLevanteUsers({ userData });
-  }
-
   async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
-    
+
     if (!_get(userData, 'dob')) {
       throw new Error('Student date of birth must be supplied.');
     }
@@ -1303,67 +1291,6 @@ export class RoarFirekit {
     if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
-
-    //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
-    // const userDdataInfotmation = {
-    //   username: 'username',
-    //   name: 'name',
-    //   dob: 'studentData.dob',
-    //   gender: 'studentData.gender',
-    //   grade: 'studentData.grade',
-    //   state_id: 'studentData.state_id',
-    //   hispanic_ethnicity: 'studentData.hispanic_ethnicity',
-    //   ell_status: 'studentData.ell_status',
-    //   iep_status: 'studentData.iep_status',
-    //   frl_status: 'studentData.frl_status',
-    //   race: 'studentData.race',
-    //   home_language: 'studentData.home_language',
-    //   district: 'orgIds.district',
-    //   school: 'orgIds.school',
-    //   class: 'orgIds.class',
-    //   group: 'orgIds.group',
-    //   family: 'orgIds.family',
-    // };
-
-    // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
-    //   const value = _get(userData, userDataItem);
-    //   if (value !== undefined) {
-    //     _set(userDocData, userDataItemPath, value);
-    //   }
-    // }
-
-
-    //EMILY -> MAYBE COULD BE OPTIMIZED LIKE THIS --PLEASE REVIEW :)
-    // const userDdataInfotmation = {
-    //   username: 'username',
-    //   name: 'name',
-    //   dob: 'studentData.dob',
-    //   gender: 'studentData.gender',
-    //   grade: 'studentData.grade',
-    //   state_id: 'studentData.state_id',
-    //   hispanic_ethnicity: 'studentData.hispanic_ethnicity',
-    //   ell_status: 'studentData.ell_status',
-    //   iep_status: 'studentData.iep_status',
-    //   frl_status: 'studentData.frl_status',
-    //   race: 'studentData.race',
-    //   home_language: 'studentData.home_language',
-    //   district: 'orgIds.district',
-    //   school: 'orgIds.school',
-    //   class: 'orgIds.class',
-    //   group: 'orgIds.group',
-    //   family: 'orgIds.family',
-    // };
-    
-    // for (const [userDataItem, userDataItemPath] of Object.entries(userDdataInfotmation)) {
-    //   const value = _get(userData, userDataItem);
-    //   if (value !== undefined) {
-    //     _set(userDocData, userDataItemPath, value);
-    //   }
-    // }
-    
-
-
-
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
@@ -1442,18 +1369,6 @@ export class RoarFirekit {
       throw new Error('Failed to create administrator user account.');
     }
   }
-
-  // async createFamily(email:string,
-  //   password:string,
-  //   caregiverData: ICreateParentInput,
-  //   children:[{
-  //     childrenData: ICreateUserInput,
-  //     email: string,
-  //     password: string,
-  //     orgCode:string,
-  //   }]){
-  //     const cloudCreateFamily = httpsCallable(this.admin!functions, '')
-  // }
 
   async getTasks(requireRegistered = true) {
     this._verifyAuthentication();
@@ -1592,5 +1507,21 @@ export class RoarFirekit {
     await task.toFirestore();
 
     return task;
+  }
+
+  // LEVANTE
+  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
+    return await cloudCreateLevanteUsers({ userData });
+  }
+
+  async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
+    this._verifyAuthentication();
+
+    const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
+    return await cloudSaveSurveyResponses({ surveyResponses });
   }
 }
