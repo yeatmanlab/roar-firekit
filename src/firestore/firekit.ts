@@ -73,12 +73,6 @@ enum AuthProviderType {
   USERNAME = 'username',
 }
 
-const RoarProviderId = {
-  ...ProviderId,
-  CLEVER: 'oidc.clever',
-  ROAR_ADMIN_PROJECT: 'oidc.gse-roar-admin',
-};
-
 interface ICreateUserInput {
   dob: string;
   grade: string;
@@ -102,6 +96,21 @@ interface ICreateUserInput {
   class: { id: string; abbreviation?: string } | null;
   family: { id: string; abbreviation?: string } | null;
   group: { id: string; abbreviation?: string } | null;
+}
+
+interface CreateParentInput {
+  name: {
+    first: string;
+    last: string;
+  };
+}
+
+export interface ChildData {
+  email: string;
+  password: string;
+  userData: ICreateUserInput;
+  familyId: string;
+  orgCode: string;
 }
 
 interface ICurrentAssignments {
@@ -159,6 +168,14 @@ export class RoarFirekit {
     this._idTokens = {};
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     this.listenerUpdateCallback = listenerUpdateCallback ?? (() => {});
+  }
+
+  private _getProviderIds() {
+    return {
+      ...ProviderId,
+      CLEVER: 'oidc.clever',
+      ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
+    };
   }
 
   private _scrubAuthProperties() {
@@ -270,6 +287,7 @@ export class RoarFirekit {
           async (doc) => {
             const data = doc.data();
             this._adminOrgs = data?.claims?.adminOrgs;
+            this._superAdmin = data?.claims?.super_admin;
             if (data?.lastUpdated) {
               const lastUpdated = new Date(data!.lastUpdated);
               if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
@@ -301,7 +319,6 @@ export class RoarFirekit {
         if (user) {
           const idTokenResult = await user.getIdTokenResult(false);
           if (_type === 'admin') {
-            this._superAdmin = Boolean(idTokenResult.claims.super_admin);
             this._idTokenReceived = true;
           }
           this._idTokens[_type] = idTokenResult.token;
@@ -420,7 +437,8 @@ export class RoarFirekit {
     this._verifyInit();
     return signInWithEmailLink(this.admin!.auth, email, emailLink)
       .then(async (userCredential) => {
-        const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+        const roarProviderIds = this._getProviderIds();
+        const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
         const roarAdminIdToken = await getIdToken(userCredential.user);
         const roarAdminCredential = roarAdminProvider.credential({
           idToken: roarAdminIdToken,
@@ -448,7 +466,8 @@ export class RoarFirekit {
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -476,7 +495,8 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
 
-          const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+          const roarProviderIds = this._getProviderIds();
+          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
           const roarAdminIdToken = await getIdToken(adminUserCredential.user);
           const roarAdminCredential = roarAdminProvider.credential({
             idToken: roarAdminIdToken,
@@ -511,7 +531,8 @@ export class RoarFirekit {
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(RoarProviderId.CLEVER);
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -536,21 +557,22 @@ export class RoarFirekit {
       .then(async (adminUserCredential) => {
         if (adminUserCredential !== null) {
           const providerId = adminUserCredential.providerId;
-          if (providerId === RoarProviderId.GOOGLE) {
+          const roarProviderIds = this._getProviderIds();
+          if (providerId === roarProviderIds.GOOGLE) {
             const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.GOOGLE;
             oAuthAccessToken = credential?.accessToken;
             return credential;
-          } else if (providerId === RoarProviderId.CLEVER) {
+          } else if (providerId === roarProviderIds.CLEVER) {
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
 
-            const roarAdminProvider = new OAuthProvider(RoarProviderId.ROAR_ADMIN_PROJECT);
+            const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
             const roarAdminIdToken = await getIdToken(adminUserCredential.user);
             const roarAdminCredential = roarAdminProvider.credential({
               idToken: roarAdminIdToken,
@@ -626,11 +648,11 @@ export class RoarFirekit {
     return {
       admin: {
         headers: { Authorization: `Bearer ${this._idTokens.admin}` },
-        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-admin/databases/(default)/documents',
+        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.admin.projectId}/databases/(default)/documents`,
       },
       app: {
         headers: { Authorization: `Bearer ${this._idTokens.app}` },
-        baseURL: 'https://firestore.googleapis.com/v1/projects/gse-roar-assessment/databases/(default)/documents',
+        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.app.projectId}/databases/(default)/documents`,
       },
     };
   }
@@ -876,28 +898,15 @@ export class RoarFirekit {
           throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
         }
 
-        // Create the run in the assessment Firestore, record the runId and then
-        // pass it to the app
-        const runRef = doc(this.dbRefs!.app.runs);
-        const runId = runRef.id;
-
         // Check the assignment to see if none of the assessments have been
         // started yet. If not, start the assignment
         const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
         const assignmentDocSnap = await transaction.get(assignmentDocRef);
         if (assignmentDocSnap.exists()) {
           const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
-          const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
-          allRunIdsForThisTask.push(runId);
-
-          const assessmentUpdateData: { startedOn: Date; allRunIds: string[]; runId?: string } = {
+          const assessmentUpdateData = {
             startedOn: new Date(),
-            allRunIds: allRunIdsForThisTask,
           };
-
-          if (allRunIdsForThisTask.length === 1) {
-            assessmentUpdateData.runId = runId;
-          }
 
           // Append runId to `allRunIds` for this assessment
           // in the userId/assignments collection
@@ -949,7 +958,6 @@ export class RoarFirekit {
             assigningOrgs,
             readOrgs,
             assignmentId: administrationId,
-            runId,
             taskInfo,
           });
         } else {
@@ -1252,6 +1260,55 @@ export class RoarFirekit {
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
+  }
+
+  async createNewFamily(
+    caretakerEmail: string,
+    caretakerPassword: string,
+    caretakerUserData: CreateParentInput,
+    children: ChildData[],
+  ) {
+    // Format children objects
+    const formattedChildren = children.map((child) => {
+      const returnChild = {
+        email: child.email,
+        password: child.password,
+      };
+      // Create a PID for the student.
+      const emailCheckSum = crc32String(child.email!);
+      const pidParts: string[] = [];
+      pidParts.push(emailCheckSum);
+      _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
+
+      // Move attributes into the studentData object.
+      _set(returnChild, 'userData.username', child.email.split('@')[0]);
+      if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
+      if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
+      if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
+      if (_get(child, 'userData.dob')) _set(returnChild, 'userData.studentData.dob', child.userData.dob);
+      if (_get(child, 'userData.state_id')) _set(returnChild, 'userData.studentData.state_id', child.userData.state_id);
+      if (_get(child, 'userData.hispanic_ethnicity'))
+        _set(returnChild, 'userData.studentData.hispanic_ethnicity', child.userData.hispanic_ethnicity);
+      if (_get(child, 'userData.ell_status'))
+        _set(returnChild, 'userData.studentData.ell_status', child.userData.ell_status);
+      if (_get(child, 'userData.iep_status'))
+        _set(returnChild, 'userData.studentData.iep_status', child.userData.iep_status);
+      if (_get(child, 'userData.frl_status'))
+        _set(returnChild, 'userData.studentData.frl_status', child.userData.frl_status);
+      if (_get(child, 'userData.race')) _set(returnChild, 'userData.studentData.race', child.userData.race);
+      if (_get(child, 'userData.home_language'))
+        _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
+      return returnChild;
+    });
+
+    // Call cloud function
+    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
+    await cloudCreateFamily({
+      caretakerEmail,
+      caretakerPassword,
+      caretakerUserData,
+      children: formattedChildren,
+    });
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {

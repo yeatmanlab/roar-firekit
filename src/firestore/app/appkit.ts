@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-
+import { ref, getDownloadURL } from 'firebase/storage';
 import { IComputedScores, IRawScores, RoarRun } from './run';
 import { ITaskVariantInfo, RoarTaskVariant } from './task';
 import { IUserInfo, IUserUpdateInput, RoarAppUser } from './user';
@@ -302,5 +302,14 @@ export class RoarAppkit {
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
+  }
+
+  async getStorageDownloadUrl(filePath: string) {
+    if (!this._initialized) {
+      await this._init();
+    }
+
+    const storageRef = ref(this.firebaseProject!.storage, filePath);
+    return getDownloadURL(storageRef);
   }
 }
