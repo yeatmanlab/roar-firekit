@@ -898,23 +898,14 @@ export class RoarFirekit {
           throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
         }
 
-        // Create the run in the assessment Firestore, record the runId and then
-        // pass it to the app
-        const runRef = doc(this.dbRefs!.app.runs);
-        const runId = runRef.id;
-
         // Check the assignment to see if none of the assessments have been
         // started yet. If not, start the assignment
         const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
         const assignmentDocSnap = await transaction.get(assignmentDocRef);
         if (assignmentDocSnap.exists()) {
           const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
-          const allRunIdsForThisTask = assignedAssessments.find((a) => a.taskId === taskId)?.allRunIds || [];
-          allRunIdsForThisTask.push(runId);
-
-          const assessmentUpdateData: { startedOn: Date; allRunIds: string[]; runId?: string } = {
+          const assessmentUpdateData = {
             startedOn: new Date(),
-            allRunIds: allRunIdsForThisTask,
           };
 
           // Append runId to `allRunIds` for this assessment
@@ -967,7 +958,6 @@ export class RoarFirekit {
             assigningOrgs,
             readOrgs,
             assignmentId: administrationId,
-            runId,
             taskInfo,
           });
         } else {
