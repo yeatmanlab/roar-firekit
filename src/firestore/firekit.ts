@@ -1267,6 +1267,7 @@ export class RoarFirekit {
     caretakerPassword: string,
     caretakerUserData: CreateParentInput,
     children: ChildData[],
+    isTestData = false,
   ) {
     // Format children objects
     const formattedChildren = children.map((child) => {
@@ -1308,6 +1309,7 @@ export class RoarFirekit {
       caretakerPassword,
       caretakerUserData,
       children: formattedChildren,
+      isTestData,
     });
   }
 
