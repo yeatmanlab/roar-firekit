@@ -1267,7 +1267,7 @@ export class RoarFirekit {
     caretakerPassword: string,
     caretakerUserData: CreateParentInput,
     children: ChildData[],
-    isTestData: boolean = false,
+    isTestData = false,
   ) {
     // Format children objects
     const formattedChildren = children.map((child) => {
