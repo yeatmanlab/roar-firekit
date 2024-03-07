@@ -64,7 +64,6 @@ import { IUserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
 import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
-import { forEach } from 'lodash';
 
 enum AuthProviderType {
   CLEVER = 'clever',
