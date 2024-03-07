@@ -204,33 +204,56 @@ export class RoarFirekit {
     this._initialized = true;
 
     onAuthStateChanged(this.admin.auth, (user) => {
+      console.log('[RoarFirekit] onAuthStateChanged triggered for admin auth');
       if (this.admin) {
         if (user) {
+          console.log('[RoarFirekit] admin firebase instance and user are defined');
           this.admin.user = user;
           this._adminClaimsListener = this._listenToClaims(this.admin);
+          console.log('[RoarFirekit] adminClaimsListener instance set up using listenToClaims');
           this._adminTokenListener = this._listenToTokenChange(this.admin, 'admin');
+          console.log('[RoarFirekit] adminTokenListener instance set up using listenToClaims');
+          console.log(
+            '[RoarFirekit] [admin] Attempting to fire user.getIdToken(), existing token is',
+            this._idTokens.admin,
+          );
           user.getIdToken().then((idToken) => {
+            console.log('[RoarFirekit] in .then() for user.getIdToken() with new token', idToken);
             this._idTokens.admin = idToken;
+            console.log('[RoarFirekit] Updated internal admin token to', idToken);
           });
         } else {
+          console.log('[RoarFirekit] User for admin is undefined.');
           this.admin.user = undefined;
         }
       }
+      console.log('[RoarFirekit] [admin] Call this.listenerUpdateCallback()');
       this.listenerUpdateCallback();
     });
 
     onAuthStateChanged(this.app.auth, (user) => {
+      console.log('[RoarFirekit] onAuthStateChanged triggered for assessment auth');
       if (this.app) {
         if (user) {
+          console.log('[RoarFirekit] assessment firebase instance and user are defiend');
           this.app.user = user;
           this._appTokenListener = this._listenToTokenChange(this.app, 'app');
+          console.log('[RoarFirekit] appTokenListener instance set up using listenToTokenChange');
+          console.log(
+            '[RoarFirekit] [app] Attempting to fire user.getIdToken() from app , existing token is',
+            this._idTokens.app,
+          );
           user.getIdToken().then((idToken) => {
+            console.log('[RoarFirekit] in .then() for user.getItToken() with new token', idToken);
             this._idTokens.app = idToken;
+            console.log('[RoarFirekit] Updated internal app token to', idToken);
           });
         } else {
+          console.log('[RoarFirekit] User for app is undefined');
           this.app.user = undefined;
         }
       }
+      console.log('[RoarFirekit] [app] Call this.listenerUpdateCallback()');
       this.listenerUpdateCallback();
     });
 
@@ -278,24 +301,39 @@ export class RoarFirekit {
   }
 
   private _listenToClaims(firekit: IFirekit) {
+    console.log('[RoarFirekit] entry point to listenToClaims');
     this._verifyInit();
     if (firekit.user) {
+      console.log('[RoarFirekit] firekit.user is defined');
       let unsubscribe;
+      console.log('[RoarFirekit] About to try setting up the claims listener');
       try {
+        console.log('[RoarFirekit] Beginning onSnapshot definition');
         unsubscribe = onSnapshot(
           doc(firekit.db, 'userClaims', firekit.user!.uid),
           async (doc) => {
+            console.log('[RoarFirekit] In onSnapshot call for listenToClaims');
             const data = doc.data();
             this._adminOrgs = data?.claims?.adminOrgs;
             this._superAdmin = data?.claims?.super_admin;
+            console.log('[RoarFirekit] data, adminOrgs, superAdmin are retrieved from doc.data()');
+            console.log('[RoarFirekit] about to check for existance of data.lastUpdated');
             if (data?.lastUpdated) {
+              console.log('[RoarFirekit] lastUpdate exists.');
               const lastUpdated = new Date(data!.lastUpdated);
+              console.log(
+                '[RoarFirekit] Checking for firekit.claimsLastUpdated existance or outdated (< lastUpdated from retrieved data)',
+              );
               if (!firekit.claimsLastUpdated || lastUpdated > firekit.claimsLastUpdated) {
+                console.log(
+                  "[RoarFirekit] Firekit's last updated either does not exist or is outdated. Await getIdToken and update firekit's claimsLastUpdated field.",
+                );
                 // Update the user's ID token and refresh claimsLastUpdated.
                 await getIdToken(firekit.user!, true);
                 firekit.claimsLastUpdated = lastUpdated;
               }
             }
+            console.log('[RoarFirekit] Call listenerUpdateCallback from listenToClaims');
             this.listenerUpdateCallback();
           },
           (error) => {
@@ -304,6 +342,7 @@ export class RoarFirekit {
         );
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
+        console.log('[RoarFirekit] Attempt to set up claims listener failed. Error is', error);
         if (error.code !== 'permission-denied') {
           throw error;
         }
@@ -313,60 +352,87 @@ export class RoarFirekit {
   }
 
   private _listenToTokenChange(firekit: IFirekit, _type: 'admin' | 'app') {
+    console.log('[RoarFirekit] Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
+    console.log('[RoarFirekit] Checking for existance of tokenListener with type', _type);
     if ((!this._adminTokenListener && _type === 'admin') || (!this._appTokenListener && _type === 'app')) {
+      console.log('[RoarFirekit] Token listener does not exist, create now.');
       return onIdTokenChanged(firekit.auth, async (user) => {
+        console.log('[RoarFirekit] onIdTokenChanged body');
         if (user) {
+          console.log('[RoarFirekit] user exists, await user.getIdTokenResult(false)');
           const idTokenResult = await user.getIdTokenResult(false);
+          console.log('[RoarFirekit] Returned with token', idTokenResult);
           if (_type === 'admin') {
+            console.log('[RoarFirekit] Type is admin, set idTokenRecieved flag');
             this._idTokenReceived = true;
           }
+          console.log(`[RoarFirekit] Setting idTokens.${_type} to token`, idTokenResult.token);
           this._idTokens[_type] = idTokenResult.token;
         }
+        console.log('[RoarFirekit] Calling listenerUpdateCallback from listenToTokenChange', _type);
         this.listenerUpdateCallback();
       });
     } else if (_type === 'admin') {
+      console.log('[RoarFirekit] Type is admin, invoking _adminTokenListener');
       return this._adminTokenListener;
     }
+    console.log('[RoarFirekit] Type is app, invoking _appTokenListener');
     return this._appTokenListener;
   }
 
   private async _setUidCustomClaims() {
+    console.log('[RoarFirekit] Entry point to setUidCustomClaims');
     this._verifyAuthentication();
 
+    console.log('[RoarFirekit] Calling cloud function for setAdminUidClaims');
     const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setuidclaims');
     const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
+    console.log('[RoarFirekit] setAdminUidClaims returned with result', adminResult);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResult.data as any, 'status') !== 'ok') {
+      console.log('[RoarFirekit] Error in calling setAdminUidClaims cloud function', adminResult.data);
       throw new Error('Failed to associate admin and assessment UIDs in the admin Firebase project.');
     }
 
+    console.log('[RoarFirekit] Calling cloud function for setAppUidClaims');
     const setAppUidClaims = httpsCallable(this.app!.functions, 'setuidclaims');
     const appResult = await setAppUidClaims({ adminUid: this.admin!.user!.uid, roarUid: this.roarUid! });
+    console.log('[RoarFirekit] setAppUidCustomClaims returned with results', appResult);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(appResult.data as any, 'status') !== 'ok') {
+      console.log('[RoarFirekit] Error in calling setAppUidClaims cloud function', appResult.data);
       throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
     }
 
+    console.log('[RoarFirekit] Returning appResult from setUidCustomClaims', appResult);
     return appResult;
   }
 
   private async _syncCleverUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
+    console.log('[RoarFirekit] Entry point for syncCleverUser');
     if (authProvider === AuthProviderType.CLEVER) {
       if (oAuthAccessToken === undefined) {
+        console.log('[RoarFirekit] Not OAuth token provided.');
         throw new Error('No OAuth access token provided.');
       }
       this._verifyAuthentication();
+      console.log('[RoarFirekit] Calling syncCleverUser cloud function');
       const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
       const adminResult = await syncCleverUser({
         assessmentUid: this.app!.user!.uid,
         accessToken: oAuthAccessToken,
       });
+      console.log('[RoarFirekit] syncCleverUser cloud function returned with result', adminResult);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (_get(adminResult.data as any, 'status') !== 'ok') {
+        console.log(
+          '[RoarFirekit] There was an error with the cloud function syncCleverUser cloud function',
+          adminResult.data,
+        );
         throw new Error('Failed to sync Clever and ROAR data.');
       }
     }
@@ -524,28 +590,39 @@ export class RoarFirekit {
   }
 
   async initiateRedirect(provider: AuthProviderType) {
+    console.log('[RoarFirekit] Entry point for initiateRedirect');
     this._verifyInit();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
 
     let authProvider;
+    console.log('[RoarFirekit] Attempting sign in with AuthProvider', provider);
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
+      console.log('[RoarFirekit] Google AuthProvider object:', authProvider);
     } else if (provider === AuthProviderType.CLEVER) {
       const roarProviderIds = this._getProviderIds();
+      console.log('[RoarFirekit] Clever roarProviderIds', roarProviderIds);
       authProvider = new OAuthProvider(roarProviderIds.CLEVER);
+      console.log('[RoarFirekit] Clever AuthProvider object:', authProvider);
     } else {
+      console.log('[RoarFirekit] Provider must be GOOGLE or CLEVER');
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
 
+    console.log('[RoarFirekit] Calling signInWithRedirect from initiateRedirect with provider', authProvider);
     return signInWithRedirect(this.admin!.auth, authProvider);
   }
 
   async signInFromRedirectResult(enableCookiesCallback: () => void) {
     this._verifyInit();
+    console.log('[RoarFirekit] Entry point for signInFromRedirectResult');
     const catchEnableCookiesError = (error: AuthError) => {
+      console.log('[RoarFirekit] Catching error, checking if it is the enableCookies error');
       if (error.code == 'auth/web-storage-unsupported') {
+        console.log('[RoarFirekit] Error was known enableCookies error, invoking enableCookiesCallback()');
         enableCookiesCallback();
       } else {
+        console.log('[RoarFirekit] It was not the known enableCookies error', error);
         throw error;
       }
     };
@@ -553,30 +630,47 @@ export class RoarFirekit {
     let oAuthAccessToken: string | undefined;
     let authProvider: AuthProviderType | undefined;
 
+    console.log('[RoarFirekit] calling getRedirect result from signInFromRedirect');
     return getRedirectResult(this.admin!.auth)
       .then(async (adminUserCredential) => {
+        console.log('[RoarFirekit] Then block for getRedirectResult');
         if (adminUserCredential !== null) {
+          console.log('[RoarFirekit] adminUserCredential is not null');
           const providerId = adminUserCredential.providerId;
           const roarProviderIds = this._getProviderIds();
+          console.log('[RoarFirekit] providerId is', providerId);
+          console.log('[RoarFirekit] roarProviderIds are', roarProviderIds);
           if (providerId === roarProviderIds.GOOGLE) {
+            console.log('[RoarFirekit] ProviderId is google, calling credentialFromResult with ', adminUserCredential);
             const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.GOOGLE;
             oAuthAccessToken = credential?.accessToken;
+            console.log('[RoarFirekit] oAuthAccessToken = ', oAuthAccessToken);
+            console.log('[RoarFirekit] returning credential from first .then() ->', credential);
             return credential;
           } else if (providerId === roarProviderIds.CLEVER) {
+            console.log('[RoarFirekit] ProviderId is clever, calling credentialFromResult with', adminUserCredential);
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever Access Token. You can use it to access Clever APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.CLEVER;
             oAuthAccessToken = credential?.accessToken;
+            console.log('[RoarFirekit] authProvider is', authProvider);
+            console.log('[RoarFirekit] oAuthAccesToken is', oAuthAccessToken);
 
             const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
+            console.log('[RoarFirekit] Attempting to call getIdToken with', adminUserCredential.user);
             const roarAdminIdToken = await getIdToken(adminUserCredential.user);
+            console.log('[RoarFirekit] updated token is', roarAdminIdToken);
             const roarAdminCredential = roarAdminProvider.credential({
               idToken: roarAdminIdToken,
             });
+            console.log(
+              `[RoarFirekit] Using new idToken ${roarAdminIdToken}, created new admin credential`,
+              roarAdminCredential,
+            );
 
             return roarAdminCredential;
           }
@@ -585,19 +679,25 @@ export class RoarFirekit {
       })
       .catch(catchEnableCookiesError)
       .then((credential) => {
+        console.log('[RoarFirekit] Attempting sign in using credential', credential);
         if (credential) {
+          console.log('[RoarFirekit] Calling signInWithCredential with creds', credential);
           return signInWithCredential(this.app!.auth, credential);
         }
         return null;
       })
       .then((credential) => {
+        console.log('[RoarFirekit] Attempting to set uid custom claims using credential', credential);
         if (credential) {
+          console.log('[RoarFirekit] Calling setUidCustomClaims with creds', credential);
           return this._setUidCustomClaims();
         }
         return null;
       })
       .then((setClaimsResult) => {
+        console.log('[RoarFirekit] Claim result is', setClaimsResult);
         if (setClaimsResult) {
+          console.log('[RoarFirekit] Calling syncCleverUser with oAuthAccessToken', oAuthAccessToken);
           this._syncCleverUser(oAuthAccessToken, authProvider);
           return { status: 'ok' };
         }
