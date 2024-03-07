@@ -72,7 +72,6 @@ enum AuthProviderType {
   EMAIL = 'email',
   USERNAME = 'username',
 }
-
 interface ICreateUserInput {
   dob: string;
   grade: string;
@@ -122,6 +121,21 @@ interface ICurrentAssignments {
 export interface IRequestConfig {
   headers: { Authorization: string };
   baseURL: string;
+}
+
+interface LevanteUserData {
+  id: string;
+  userType: string;
+  childId: string;
+  parentId: string;
+  teacherId: string;
+  month: string;
+  year: string;
+  group: string[];
+}
+
+interface LevanteSurveyResponses {
+  [key: string]: string;
 }
 
 export class RoarFirekit {
@@ -478,9 +492,17 @@ export class RoarFirekit {
 
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
-    return signInWithEmailAndPassword(this.admin!.auth, email, password).then(() => {
-      return signInWithEmailAndPassword(this.app!.auth, email, password).then(this._setUidCustomClaims.bind(this));
-    });
+    return signInWithEmailAndPassword(this.admin!.auth, email, password)
+      .then(() => {
+        return signInWithEmailAndPassword(this.app!.auth, email, password)
+          .then(this._setUidCustomClaims.bind(this))
+          .catch((error: AuthError) => {
+            console.error('(Inside) Error signing in', error);
+          });
+      })
+      .catch((error: AuthError) => {
+        console.error('(Outside) Error signing in', error);
+      });
   }
 
   async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
@@ -1338,6 +1360,7 @@ export class RoarFirekit {
 
     // TODO: this can probably be optimized.
     _set(userDocData, 'email', email);
+
     if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
     if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
     if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
@@ -1575,5 +1598,21 @@ export class RoarFirekit {
     await task.toFirestore();
 
     return task;
+  }
+
+  // LEVANTE
+  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
+    return await cloudCreateLevanteUsers({ userData });
+  }
+
+  async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
+    this._verifyAuthentication();
+
+    const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
+    return await cloudSaveSurveyResponses({ surveyResponses });
   }
 }
