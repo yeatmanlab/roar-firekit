@@ -1158,6 +1158,7 @@ export class RoarFirekit {
     orgs = emptyOrgList(),
     tags = [],
     administrationId,
+    isTestData = false,
   }: {
     name: string;
     assessments: IAssessmentData[];
@@ -1167,6 +1168,7 @@ export class RoarFirekit {
     orgs: IOrgLists;
     tags: string[];
     administrationId?: string;
+    isTestData: boolean;
   }) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1197,6 +1199,8 @@ export class RoarFirekit {
       sequential: sequential,
       tags: tags,
     };
+
+    if (isTestData) administrationData.testData = true;
 
     await runTransaction(this.admin!.db, async (transaction) => {
       let administrationDocRef: DocumentReference;
