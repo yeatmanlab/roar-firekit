@@ -482,6 +482,7 @@ export class RoarFirekit {
         console.log('Error creating user', error);
         console.log(error.code);
         console.log(error.message);
+        throw error;
       })
       .then(() => {
         return createUserWithEmailAndPassword(this.app!.auth, email, password).then(
@@ -498,10 +499,12 @@ export class RoarFirekit {
           .then(this._setUidCustomClaims.bind(this))
           .catch((error: AuthError) => {
             console.error('(Inside) Error signing in', error);
+            throw error;
           });
       })
       .catch((error: AuthError) => {
         console.error('(Outside) Error signing in', error);
+        throw error;
       });
   }
 
