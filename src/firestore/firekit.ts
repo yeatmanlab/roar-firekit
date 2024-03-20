@@ -1118,9 +1118,9 @@ export class RoarFirekit {
         // called `.get`).  We therefore check to see if all of the assessments
         // have been completed **or** have the current taskId.
         if (
-          docSnap
-            .data()
-            .assessments.every((a: IAssignedAssessmentData) => Boolean(a.completedOn) || a.taskId === taskId)
+          docSnap.data().assessments.every((a: IAssignedAssessmentData) => {
+            return Boolean(a.completedOn) || a.optional || a.taskId === taskId;
+          })
         ) {
           this.completeAssignment(administrationId, transaction);
         }
