@@ -1622,4 +1622,12 @@ export class RoarFirekit {
     const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
     return await cloudSaveSurveyResponses({ surveyResponses });
   }
+
+  async createLevanteGroup(groupData: IOrg) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateLevanteGroup = httpsCallable(this.admin!.functions, 'createLevanteGroup');
+    return await cloudCreateLevanteGroup({ groupData });
+  }
 }
