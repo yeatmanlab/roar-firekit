@@ -62,7 +62,7 @@ import {
 } from './interfaces';
 import { UserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
-import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
+import { getTaskAndVariant } from './query-assessment';
 import { TaskVariantInfo, RoarTaskVariant } from './app/task';
 
 enum AuthProviderType {
@@ -1466,49 +1466,6 @@ export class RoarFirekit {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResponse.data as any, 'status') !== 'ok') {
       throw new Error('Failed to create administrator user account.');
-    }
-  }
-
-  async getTasks(requireRegistered = true) {
-    this._verifyAuthentication();
-    return getTasks(this.app!.db, requireRegistered);
-  }
-
-  async getVariants(requireRegistered = true) {
-    this._verifyAuthentication();
-    return getVariants(this.app!.db, requireRegistered);
-  }
-
-  async getOrgs(orgType: OrgCollectionName) {
-    this._verifyAuthentication();
-    if (this._superAdmin) {
-      return getOrganizations({ db: this.admin!.db, orgType });
-    } else if (this._adminOrgs) {
-      const orgIds = this._adminOrgs[orgType] === undefined ? [] : [...this._adminOrgs[orgType]];
-
-      // If orgType is school or class, and the user has district or school
-      // admin orgs, we must add all subordinate orgs to the orgIds.
-      if (['schools', 'classes'].includes(orgType)) {
-        const districtIds = this._adminOrgs.districts;
-        let schoolIds: string[] = [];
-        if (districtIds !== undefined) {
-          const districts = await getOrganizations({ db: this.admin!.db, orgType: 'districts', orgIds: districtIds });
-          schoolIds = _union(...districts.map((d) => d.schools));
-        }
-
-        if (orgType === 'schools') {
-          orgIds.push(...schoolIds);
-        } else if (orgType === 'classes') {
-          const allSchoolIds = _union(schoolIds, this._adminOrgs.schools ?? []);
-          const schools = await getOrganizations({ db: this.admin!.db, orgType: 'schools', orgIds: allSchoolIds });
-          const classIds: string[] = _union(...schools.map((s) => s.classes));
-          orgIds.push(...classIds);
-        }
-      }
-
-      return getOrganizations({ db: this.admin!.db, orgType, orgIds });
-    } else {
-      throw new Error('You must be an admin to get organizations.');
     }
   }
 

@@ -195,54 +195,6 @@ export const initializeFirebaseProject = async (
   }
 };
 
-/** Get unique entries from a single id string and an array of id strings
- *
- * @function
- * @param {string} id - a single id string
- * @param {string[]} idArray - an array of id strings
- * @returns {string[]} the merged array of unique ids
- */
-export const mergeIds = (id: string | undefined, idArray: string[] | undefined) => {
-  const resultIds: string[] = [];
-  if (id) resultIds.push(id);
-  if (idArray && idArray.length) resultIds.push(...idArray);
-
-  return [...new Set(resultIds)];
-};
-
-export interface UserDocument {
-  districtId?: string;
-  schoolId?: string;
-  schools?: string[];
-  classId?: string;
-  classes?: string[];
-  groupId?: string;
-  groups?: string[];
-}
-
-export const getOrgs = (docData: UserDocument) => {
-  const { districtId, schoolId, schools, classId, classes, groupId, groups } = docData;
-  const districtIds = mergeIds(districtId, undefined);
-  const schoolIds = mergeIds(schoolId, schools);
-  const classIds = mergeIds(classId, classes);
-  const groupIds = mergeIds(groupId, groups);
-
-  return {
-    districtIds,
-    schoolIds,
-    classIds,
-    groupIds,
-  };
-};
-
-export const userHasSelectedOrgs = (usersOrgs: string[], selectedOrgs: string[]) => {
-  // If the selected org list is empty, assume that the user wants all users
-  if (selectedOrgs.length === 0) {
-    return true;
-  }
-  return Boolean(usersOrgs.filter((value) => selectedOrgs.includes(value)).length);
-};
-
 export const emptyOrg = () => {
   return {
     current: [],
@@ -259,16 +211,6 @@ export const emptyOrgList = (): OrgLists => {
     groups: [],
     families: [],
   };
-};
-
-export const waitFor = (conditionFunction: () => boolean) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const poll = (resolve: any) => {
-    if (conditionFunction()) resolve();
-    else setTimeout(() => poll(resolve), 300);
-  };
-
-  return new Promise(poll);
 };
 
 /**
