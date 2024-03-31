@@ -17,7 +17,7 @@ import _set from 'lodash/set';
 import dot from 'dot-object';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
-import { IOrgLists } from '../interfaces';
+import { OrgLists } from '../interfaces';
 import { removeUndefined } from '../util';
 import { FirebaseError } from '@firebase/util';
 
@@ -49,7 +49,7 @@ export const convertTrialToFirestore = (trialData: object): object => {
 
 const requiredTrialFields = ['assessment_stage', 'correct'];
 
-interface ISummaryScores {
+interface SummaryScores {
   thetaEstimate: number | null;
   thetaSE: number | null;
   numAttempted: number;
@@ -57,34 +57,34 @@ interface ISummaryScores {
   numIncorrect: number;
 }
 
-export interface IRawScores {
+export interface RawScores {
   [key: string]: {
-    practice: ISummaryScores;
-    test: ISummaryScores;
+    practice: SummaryScores;
+    test: SummaryScores;
   };
 }
 
-export interface IComputedScores {
+export interface ComputedScores {
   [key: string]: unknown;
 }
 
-export interface IRunScores {
-  raw: IRawScores;
-  computed: IComputedScores;
+interface RunScores {
+  raw: RawScores;
+  computed: ComputedScores;
 }
 
-export interface IRunInput {
+export interface RunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
-  assigningOrgs?: IOrgLists;
-  readOrgs?: IOrgLists;
+  assigningOrgs?: OrgLists;
+  readOrgs?: OrgLists;
   assignmentId?: string;
   runId?: string;
   testData?: boolean;
   demoData?: boolean;
 }
 
-interface IScoreUpdate {
+interface ScoreUpdate {
   [key: string]: number | FieldValue | null | undefined;
 }
 
@@ -106,21 +106,21 @@ export class RoarRun {
   user: RoarAppUser;
   task: RoarTaskVariant;
   runRef: DocumentReference;
-  assigningOrgs?: IOrgLists;
-  readOrgs?: IOrgLists;
+  assigningOrgs?: OrgLists;
+  readOrgs?: OrgLists;
   assignmentId?: string;
   started: boolean;
   completed: boolean;
   aborted: boolean;
   testData: boolean;
   demoData: boolean;
-  scores: IRunScores;
+  scores: RunScores;
   /** Create a ROAR run
-   * @param {IRunInput} input
+   * @param {RunInput} input
    * @param {RoarAppUser} input.user - The user running the task
    * @param {RoarTaskVariant} input.task - The task variant being run
-   * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
-   * @param {IOrgLists} input.readOrgs - The IDs of the orgs which can read this run
+   * @param {OrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
+   * @param {OrgLists} input.readOrgs - The IDs of the orgs which can read this run
    * @param {string} input.assignmentId = The ID of the assignment
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
    * @param {string} input.testData = Boolean flag indicating test data
@@ -135,7 +135,7 @@ export class RoarRun {
     runId,
     testData = false,
     demoData = false,
-  }: IRunInput) {
+  }: RunInput) {
     this.user = user;
     this.task = task;
     this.assigningOrgs = assigningOrgs;
@@ -330,7 +330,7 @@ export class RoarRun {
    */
   async writeTrial(
     trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
+    computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
   ) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
@@ -367,7 +367,7 @@ export class RoarRun {
 
             const stage = trialData.assessment_stage.split('_')[0] as 'test' | 'practice';
 
-            let scoreUpdate: IScoreUpdate = {};
+            let scoreUpdate: ScoreUpdate = {};
             if (subtask in this.scores.raw) {
               // Then this subtask has already been added to this run.
               // Simply update the block's scores.

@@ -45,25 +45,25 @@ import { httpsCallable } from 'firebase/functions';
 import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
 import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
 import {
-  IAdministrationData,
-  IAssessmentData,
-  IAssignedAssessmentData,
-  IAssignmentData,
-  IExternalUserData,
-  IFirekit,
-  IName,
-  IOrg,
-  IOrgLists,
-  IRoarConfigData,
-  IStudentData,
-  IUserData,
+  Administration,
+  Assessment,
+  AssignedAssessment,
+  Assignment,
+  ExternalUserData,
+  FirebaseProject,
+  Name,
+  RoarOrg,
+  OrgLists,
+  RoarConfig,
+  StudentData,
+  UserDataInAdminDb,
   OrgCollectionName,
   UserType,
 } from './interfaces';
-import { IUserInput } from './app/user';
+import { UserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getOrganizations, getTaskAndVariant, getTasks, getVariants } from './query-assessment';
-import { ITaskVariantInfo, RoarTaskVariant } from './app/task';
+import { TaskVariantInfo, RoarTaskVariant } from './app/task';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -72,7 +72,8 @@ enum AuthProviderType {
   EMAIL = 'email',
   USERNAME = 'username',
 }
-interface ICreateUserInput {
+
+interface CreateUserInput {
   dob: string;
   grade: string;
   pid?: string;
@@ -107,18 +108,18 @@ interface CreateParentInput {
 export interface ChildData {
   email: string;
   password: string;
-  userData: ICreateUserInput;
+  userData: CreateUserInput;
   familyId: string;
   orgCode: string;
 }
 
-interface ICurrentAssignments {
+interface CurrentAssignments {
   assigned: string[];
   started: string[];
   completed: string[];
 }
 
-export interface IRequestConfig {
+export interface RequestConfig {
   headers: { Authorization: string };
   baseURL: string;
 }
@@ -139,13 +140,13 @@ interface LevanteSurveyResponses {
 }
 
 export class RoarFirekit {
-  admin?: IFirekit;
-  app?: IFirekit;
-  currentAssignments?: ICurrentAssignments;
+  admin?: FirebaseProject;
+  app?: FirebaseProject;
+  currentAssignments?: CurrentAssignments;
   oAuthAccessToken?: string;
-  roarAppUserInfo?: IUserInput;
-  roarConfig: IRoarConfigData;
-  userData?: IUserData;
+  roarAppUserInfo?: UserInput;
+  roarConfig: RoarConfig;
+  userData?: UserDataInAdminDb;
   listenerUpdateCallback: (...args: unknown[]) => void;
   private _idTokenReceived?: boolean;
   private _idTokens: { admin?: string; app?: string };
@@ -160,8 +161,8 @@ export class RoarFirekit {
   private _adminClaimsListener?: Unsubscribe;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
-   * where `roarConfig` is a [[IRoarConfigData]] object.
-   * @param {{roarConfig: IRoarConfigData }=} destructuredParam
+   * where `roarConfig` is a [[RoarConfig]] object.
+   * @param {{roarConfig: RoarConfig }=} destructuredParam
    *     roarConfig: The ROAR firebase config object
    */
   constructor({
@@ -171,7 +172,7 @@ export class RoarFirekit {
     markRawConfig = {},
     listenerUpdateCallback,
   }: {
-    roarConfig: IRoarConfigData;
+    roarConfig: RoarConfig;
     dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
@@ -320,7 +321,7 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToClaims(firekit: IFirekit) {
+  private _listenToClaims(firekit: FirebaseProject) {
     this.verboseLog('entry point to listenToClaims');
     this._verifyInit();
     if (firekit.user) {
@@ -371,7 +372,7 @@ export class RoarFirekit {
     }
   }
 
-  private _listenToTokenChange(firekit: IFirekit, _type: 'admin' | 'app') {
+  private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin' | 'app') {
     this.verboseLog('Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
     this.verboseLog('Checking for existance of tokenListener with type', _type);
@@ -804,7 +805,7 @@ export class RoarFirekit {
     }
   }
 
-  private async _getUser(uid: string): Promise<IUserData | undefined> {
+  private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
     this._verifyAuthentication();
     const userDocRef = doc(this.admin!.db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
@@ -813,7 +814,7 @@ export class RoarFirekit {
       const userData = {
         userType: UserType.guest,
         ...userDocSnap.data(),
-      } as IUserData;
+      } as UserDataInAdminDb;
 
       const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
       let externalData = {};
@@ -821,7 +822,7 @@ export class RoarFirekit {
         // doc.data() is never undefined for query doc snapshots returned by ``getDocs``
         externalData = {
           ...externalData,
-          [doc.id]: doc.data() as IExternalUserData,
+          [doc.id]: doc.data() as ExternalUserData,
         };
       });
       userData.externalData = externalData;
@@ -924,7 +925,7 @@ export class RoarFirekit {
   }
 
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
-  getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
+  getUsers(uidArray: string[]): Promise<UserDataInAdminDb | undefined>[] {
     this._verifyAuthentication();
     return uidArray.map((uid) => this._getUser(uid));
   }
@@ -933,12 +934,12 @@ export class RoarFirekit {
     return this.admin?.user?.uid;
   }
 
-  private async _getAssignment(administrationId: string): Promise<IAssignmentData | undefined> {
+  private async _getAssignment(administrationId: string): Promise<Assignment | undefined> {
     this._verifyAuthentication();
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const docData = docSnap.data() as IAssignmentData;
+      const docData = docSnap.data() as Assignment;
       const assessments = _get(docData, 'assessments', []);
       // Loop through these assessments and append their task data to docData
       const extendedAssessmentData = await Promise.all(
@@ -956,7 +957,7 @@ export class RoarFirekit {
       return {
         ...docData,
         assessments: extendedAssessmentData,
-      } as IAssignmentData;
+      } as Assignment;
     }
   }
 
@@ -992,7 +993,7 @@ export class RoarFirekit {
     const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
     const docSnap = await transaction.get(docRef);
     if (docSnap.exists()) {
-      const assessments: IAssignedAssessmentData[] = docSnap.data().assessments;
+      const assessments: AssignedAssessment[] = docSnap.data().assessments;
       const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
       const oldAssessmentInfo = assessments[assessmentIdx];
       const newAssessmentInfo = {
@@ -1015,7 +1016,7 @@ export class RoarFirekit {
       const administrationDocSnap = await transaction.get(administrationDocRef);
       if (administrationDocSnap.exists()) {
         let assessmentParams: { [x: string]: unknown } = {};
-        const assessments: IAssessmentData[] = administrationDocSnap.data().assessments;
+        const assessments: Assessment[] = administrationDocSnap.data().assessments;
         const thisAssessment = assessments.find((a) => a.taskId === taskId);
         if (thisAssessment) {
           assessmentParams = thisAssessment.params;
@@ -1028,7 +1029,7 @@ export class RoarFirekit {
         const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
         const assignmentDocSnap = await transaction.get(assignmentDocRef);
         if (assignmentDocSnap.exists()) {
-          const assignedAssessments = assignmentDocSnap.data().assessments as IAssignedAssessmentData[];
+          const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
           const assessmentUpdateData = {
             startedOn: new Date(),
           };
@@ -1037,7 +1038,7 @@ export class RoarFirekit {
           // in the userId/assignments collection
           await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
 
-          if (!assignedAssessments.some((a: IAssignedAssessmentData) => Boolean(a.startedOn))) {
+          if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
             await this.startAssignment(administrationId, transaction);
           }
 
@@ -1118,7 +1119,7 @@ export class RoarFirekit {
         // called `.get`).  We therefore check to see if all of the assessments
         // have been completed **or** have the current taskId.
         if (
-          docSnap.data().assessments.every((a: IAssignedAssessmentData) => {
+          docSnap.data().assessments.every((a: AssignedAssessment) => {
             return Boolean(a.completedOn) || a.optional || a.taskId === taskId;
           })
         ) {
@@ -1164,11 +1165,11 @@ export class RoarFirekit {
     isTestData = false,
   }: {
     name: string;
-    assessments: IAssessmentData[];
+    assessments: Assessment[];
     dateOpen: Date;
     dateClose: Date;
     sequential: boolean;
-    orgs: IOrgLists;
+    orgs: OrgLists;
     tags: string[];
     administrationId?: string;
     isTestData: boolean;
@@ -1187,7 +1188,7 @@ export class RoarFirekit {
     }
 
     // First add the administration to the database
-    const administrationData: IAdministrationData = {
+    const administrationData: Administration = {
       name,
       createdBy: this.roarUid!,
       groups: orgs.groups ?? [],
@@ -1214,7 +1215,7 @@ export class RoarFirekit {
         // Get the existing administration to make sure update is allowed.
         const docSnap = await transaction.get(administrationDocRef);
         if (docSnap.exists()) {
-          const docData = docSnap.data() as IAdministrationData;
+          const docData = docSnap.data() as Administration;
           const now = new Date();
           if ((docData.dateOpened as Timestamp).toDate() < now) {
             throw new Error('Cannot edit an administration that has already started.');
@@ -1268,7 +1269,7 @@ export class RoarFirekit {
     });
   }
 
-  async assignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
+  async assignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verifyAdmin();
     const docRef = doc(this.admin!.db, 'administrations', administrationId);
@@ -1282,7 +1283,7 @@ export class RoarFirekit {
     });
   }
 
-  async unassignAdministrationToOrgs(administrationId: string, orgs: IOrgLists = emptyOrgList()) {
+  async unassignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1298,7 +1299,7 @@ export class RoarFirekit {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async updateUserExternalData(uid: string, externalResourceId: string, externalData: IExternalUserData) {
+  async updateUserExternalData(uid: string, externalResourceId: string, externalData: ExternalUserData) {
     throw new Error('Method not currently implemented.');
     // this._verifyAuthentication();
     // this._verifyAdmin();
@@ -1322,7 +1323,7 @@ export class RoarFirekit {
     // }
   }
 
-  async createStudentWithEmailPassword(email: string, password: string, userData: ICreateUserInput) {
+  async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1330,9 +1331,9 @@ export class RoarFirekit {
       throw new Error('Student date of birth must be supplied.');
     }
 
-    const userDocData: IUserData = {
+    const userDocData: UserDataInAdminDb = {
       userType: UserType.student,
-      studentData: {} as IStudentData,
+      studentData: {} as StudentData,
       districts: emptyOrg(),
       schools: emptyOrg(),
       classes: emptyOrg(),
@@ -1443,7 +1444,7 @@ export class RoarFirekit {
     });
   }
 
-  async createStudentWithUsernamePassword(username: string, password: string, userData: ICreateUserInput) {
+  async createStudentWithUsernamePassword(username: string, password: string, userData: CreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1451,7 +1452,7 @@ export class RoarFirekit {
     return this.createStudentWithEmailPassword(email, password, userData);
   }
 
-  async createAdministrator(email: string, name: IName, targetOrgs: IOrgLists, targetAdminOrgs: IOrgLists) {
+  async createAdministrator(email: string, name: Name, targetOrgs: OrgLists, targetAdminOrgs: OrgLists) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1526,7 +1527,7 @@ export class RoarFirekit {
     }
   }
 
-  async createOrg(orgsCollection: OrgCollectionName, orgData: IOrg) {
+  async createOrg(orgsCollection: OrgCollectionName, orgData: RoarOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1586,7 +1587,7 @@ export class RoarFirekit {
     variantName,
     variantDescription,
     variantParams = {},
-  }: ITaskVariantInfo) {
+  }: TaskVariantInfo) {
     this._verifyAuthentication();
     this._verifyAdmin();
 

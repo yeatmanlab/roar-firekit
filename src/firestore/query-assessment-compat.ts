@@ -10,7 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { RoarFirekit } from './firekit';
-import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
+import { getOrgs, UserDocument, userHasSelectedOrgs } from './util';
 
 export const getRootDocs = async (firekit: RoarFirekit) => {
   if (firekit.app) {
@@ -126,7 +126,7 @@ export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], 
 
     const usersSnapshot = await getDocs(userQuery);
     usersSnapshot.forEach((doc) => {
-      const { districtIds, schoolIds, groupIds, classIds } = getOrgs(doc.data() as IUserDocument);
+      const { districtIds, schoolIds, groupIds, classIds } = getOrgs(doc.data() as UserDocument);
 
       users.push({
         roarUid: doc.id,

@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { mergeGameParams, removeUndefined, replaceValues } from '../util';
 
-export interface ITaskVariantInfo {
+export interface TaskVariantInfo {
   taskId: string;
   taskName?: string;
   taskDescription?: string;
@@ -29,11 +29,11 @@ export interface ITaskVariantInfo {
   demoData?: boolean;
 }
 
-export interface ITaskVariantInput extends ITaskVariantInfo {
+export interface TaskVariantInput extends TaskVariantInfo {
   db: Firestore;
 }
 
-export interface IFirestoreTaskData {
+export interface FirestoreTaskData {
   name?: string;
   description?: string | null;
   image?: string;
@@ -45,11 +45,11 @@ export interface IFirestoreTaskData {
   demoData?: boolean;
 }
 
-export interface ITaskData extends IFirestoreTaskData {
+export interface TaskData extends FirestoreTaskData {
   id: string;
 }
 
-export interface IFirestoreVariantData {
+export interface FirestoreVariantData {
   name?: string;
   description?: string | null;
   taskURL?: string;
@@ -81,7 +81,7 @@ export class RoarTaskVariant {
   testData: boolean;
   demoData: boolean;
   /** Create a ROAR task
-   * @param {ITaskVariantInput} input
+   * @param {TaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
    * @param {string} input.taskId - The ID of the parent task. Should be a short initialism, e.g. "swr" or "sre"
    * @param {string} input.taskName - The name of the parent task
@@ -105,7 +105,7 @@ export class RoarTaskVariant {
     variantParams = {},
     testData = false,
     demoData = false,
-  }: ITaskVariantInput) {
+  }: TaskVariantInput) {
     this.db = db;
     this.taskId = taskId;
     this.taskName = taskName;
@@ -132,7 +132,7 @@ export class RoarTaskVariant {
    */
   async toFirestore() {
     // Push/update the task using the user provided task ID
-    const taskData: IFirestoreTaskData = {
+    const taskData: FirestoreTaskData = {
       name: this.taskName,
       description: this.taskDescription,
       image: this.taskImage,
@@ -178,7 +178,7 @@ export class RoarTaskVariant {
       );
     });
 
-    const variantData: IFirestoreVariantData = {
+    const variantData: FirestoreVariantData = {
       name: this.variantName,
       description: this.variantDescription,
       taskURL: this.taskURL,

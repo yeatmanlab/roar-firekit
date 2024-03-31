@@ -13,7 +13,7 @@ import _extend from 'lodash/extend';
 import { UserType } from '../interfaces';
 import { removeUndefined } from '../util';
 
-export interface IUserInfo {
+export interface UserInfo {
   roarUid?: string;
   assessmentUid: string;
   assessmentPid?: string;
@@ -23,11 +23,11 @@ export interface IUserInfo {
   demoData?: boolean;
 }
 
-export interface IUserInput extends IUserInfo {
+export interface UserInput extends UserInfo {
   db: Firestore;
 }
 
-export interface IUserUpdateInput {
+export interface UserUpdateInput {
   /** These are keys that all users can update */
   tasks?: string[];
   variants?: string[];
@@ -37,7 +37,7 @@ export interface IUserUpdateInput {
 }
 
 /** This interface holds data that the user can update on Firestore */
-interface IFirestoreUserUpdate {
+interface FirestoreUserUpdate {
   /** These are keys that all users can update */
   tasks?: ReturnType<typeof arrayUnion>;
   variants?: ReturnType<typeof arrayUnion>;
@@ -80,7 +80,7 @@ export class RoarAppUser {
     userMetadata = {},
     testData = false,
     demoData = false,
-  }: IUserInput) {
+  }: UserInput) {
     const allowedUserCategories = Object.values(UserType);
     if (!allowedUserCategories.includes(userType)) {
       throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
@@ -174,10 +174,10 @@ export class RoarAppUser {
    * @method
    * @async
    */
-  async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
+  async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: UserUpdateInput): Promise<void> {
     this.checkUserExists();
 
-    let userData: IFirestoreUserUpdate = {
+    let userData: FirestoreUserUpdate = {
       lastUpdated: serverTimestamp(),
     };
 

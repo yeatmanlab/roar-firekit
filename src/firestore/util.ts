@@ -23,7 +23,7 @@ import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
-import { IOrgLists, OrgListKey } from './interfaces';
+import { OrgLists, OrgListKey } from './interfaces';
 
 /** Remove null attributes from an object
  * @function
@@ -72,7 +72,7 @@ export interface CommonFirebaseConfig {
   apiKey: string;
 }
 
-export interface EmulatorConfigData extends CommonFirebaseConfig {
+export interface EmulatorFirebaseConfig extends CommonFirebaseConfig {
   emulatorPorts: {
     db: number;
     auth: number;
@@ -80,7 +80,7 @@ export interface EmulatorConfigData extends CommonFirebaseConfig {
   };
 }
 
-export interface RealConfigData extends CommonFirebaseConfig {
+export interface LiveFirebaseConfig extends CommonFirebaseConfig {
   authDomain: string;
   storageBucket: string;
   messagingSenderId: string;
@@ -88,9 +88,9 @@ export interface RealConfigData extends CommonFirebaseConfig {
   measurementId?: string;
 }
 
-export type FirebaseConfigData = RealConfigData | EmulatorConfigData;
+export type FirebaseConfig = LiveFirebaseConfig | EmulatorFirebaseConfig;
 
-export const safeInitializeApp = (config: RealConfigData, name: string) => {
+export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   try {
     const app = getApp(name);
     if (!_isEqual(app.options, config)) {
@@ -122,7 +122,7 @@ export interface MarkRawConfig {
 type FirebaseProduct = Auth | Firestore | Functions | FirebaseStorage;
 
 export const initializeFirebaseProject = async (
-  config: FirebaseConfigData,
+  config: FirebaseConfig,
   name: string,
   authPersistence = AuthPersistence.session,
   markRawConfig: MarkRawConfig = {},
@@ -135,9 +135,9 @@ export const initializeFirebaseProject = async (
     }
   };
 
-  if ((config as EmulatorConfigData).emulatorPorts) {
+  if ((config as EmulatorFirebaseConfig).emulatorPorts) {
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
-    const ports = (config as EmulatorConfigData).emulatorPorts;
+    const ports = (config as EmulatorFirebaseConfig).emulatorPorts;
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
     const functions = optionallyMarkRaw('functions', getFunctions(app));
@@ -160,7 +160,7 @@ export const initializeFirebaseProject = async (
       storage,
     };
   } else {
-    const app = safeInitializeApp(config as RealConfigData, name);
+    const app = safeInitializeApp(config as LiveFirebaseConfig, name);
     let performance: FirebasePerformance | undefined = undefined;
     try {
       performance = getPerformance(app);
@@ -210,7 +210,7 @@ export const mergeIds = (id: string | undefined, idArray: string[] | undefined) 
   return [...new Set(resultIds)];
 };
 
-export interface IUserDocument {
+export interface UserDocument {
   districtId?: string;
   schoolId?: string;
   schools?: string[];
@@ -220,7 +220,7 @@ export interface IUserDocument {
   groups?: string[];
 }
 
-export const getOrgs = (docData: IUserDocument) => {
+export const getOrgs = (docData: UserDocument) => {
   const { districtId, schoolId, schools, classId, classes, groupId, groups } = docData;
   const districtIds = mergeIds(districtId, undefined);
   const schoolIds = mergeIds(schoolId, schools);
@@ -251,7 +251,7 @@ export const emptyOrg = () => {
   };
 };
 
-export const emptyOrgList = (): IOrgLists => {
+export const emptyOrgList = (): OrgLists => {
   return {
     districts: [],
     schools: [],
@@ -324,43 +324,43 @@ export const crc32String = (inputString: string) => {
   return toUint32(crc32(inputString)).toString(16);
 };
 
-interface IMap {
+interface Node {
   id: string;
   [key: string]: unknown;
 }
 
-interface IOrgMaps {
-  districts?: IMap[];
-  schools?: IMap[];
-  classes?: IMap[];
-  groups?: IMap[];
-  families?: IMap[];
+interface OrgNodes {
+  districts?: Node[];
+  schools?: Node[];
+  classes?: Node[];
+  groups?: Node[];
+  families?: Node[];
 }
 
-interface ITreeTableEntry {
+interface TreeTableNode {
   key: string;
-  data: IMap;
-  children?: ITreeTableEntry[];
+  data: Node;
+  children?: TreeTableNode[];
 }
 
-const treeTableFormat = (orgs: IMap[], orgType: string, startIndex = 0) => {
+const treeTableFormat = (orgs: Node[], orgType: string, startIndex = 0) => {
   return orgs.map((element, index) => ({
     key: (index + startIndex).toString(),
     data: {
       ...element,
       orgType,
     },
-  })) as ITreeTableEntry[];
+  })) as TreeTableNode[];
 };
 
-export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
+export const getTreeTableOrgs = (inputOrgs: OrgNodes) => {
   const { districts = [], schools = [], classes = [], groups = [], families = [] } = inputOrgs;
 
   const ttDistricts = treeTableFormat(districts, 'district');
   const ttSchools = treeTableFormat(schools, 'school');
   const ttClasses = treeTableFormat(classes, 'class');
 
-  let topLevelOrgs: ITreeTableEntry[] = [];
+  let topLevelOrgs: TreeTableNode[] = [];
 
   if (districts.length) {
     topLevelOrgs = ttDistricts;
@@ -491,7 +491,7 @@ export const getTreeTableOrgs = (inputOrgs: IOrgMaps) => {
   return topLevelOrgs;
 };
 
-export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: IOrgLists; chunkSize: number }) => {
+export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: OrgLists; chunkSize: number }) => {
   if (!orgs) return [undefined];
 
   const orgPairs = _flatten(

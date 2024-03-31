@@ -2,19 +2,19 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { IComputedScores, IRawScores, RoarRun } from './run';
-import { ITaskVariantInfo, RoarTaskVariant } from './task';
-import { IUserInfo, IUserUpdateInput, RoarAppUser } from './user';
-import { IFirekit, IOrgLists } from '../interfaces';
-import { FirebaseConfigData, initializeFirebaseProject } from '../util';
+import { ComputedScores, RawScores, RoarRun } from './run';
+import { TaskVariantInfo, RoarTaskVariant } from './task';
+import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
+import { FirebaseProject, OrgLists } from '../interfaces';
+import { FirebaseConfig, initializeFirebaseProject } from '../util';
 
-interface IAppkitConstructorParams {
-  firebaseProject?: IFirekit;
-  firebaseConfig?: FirebaseConfigData;
-  userInfo: IUserInfo;
-  taskInfo: ITaskVariantInfo;
-  assigningOrgs?: IOrgLists;
-  readOrgs?: IOrgLists;
+interface AppkitInput {
+  firebaseProject?: FirebaseProject;
+  firebaseConfig?: FirebaseConfig;
+  userInfo: UserInfo;
+  taskInfo: TaskVariantInfo;
+  assigningOrgs?: OrgLists;
+  readOrgs?: OrgLists;
   assignmentId?: string;
   runId?: string;
 }
@@ -25,15 +25,15 @@ interface IAppkitConstructorParams {
  * provides methods for interacting with them.
  */
 export class RoarAppkit {
-  firebaseProject?: IFirekit;
-  firebaseConfig?: FirebaseConfigData;
+  firebaseProject?: FirebaseProject;
+  firebaseConfig?: FirebaseConfig;
   run?: RoarRun;
   task?: RoarTaskVariant;
   user?: RoarAppUser;
-  private _userInfo: IUserInfo;
-  private _taskInfo: ITaskVariantInfo;
-  private _assigningOrgs?: IOrgLists;
-  private _readOrgs?: IOrgLists;
+  private _userInfo: UserInfo;
+  private _taskInfo: TaskVariantInfo;
+  private _assigningOrgs?: OrgLists;
+  private _readOrgs?: OrgLists;
   private _assignmentId?: string;
   private _runId?: string;
   private _authenticated: boolean;
@@ -42,11 +42,11 @@ export class RoarAppkit {
   /**
    * Create a RoarAppkit.
    *
-   * @param {IAppkitConstructorParams} input
-   * @param {IUserInfo} input.userInfo - The user input object
-   * @param {ITaskVariantInfo} input.taskInfo - The task input object
-   * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
-   * @param {IOrgLists} input.readOrgs - The IDs of the orgs that can read this run
+   * @param {AppkitInput} input
+   * @param {UserInfo} input.userInfo - The user input object
+   * @param {TaskVariantInfo} input.taskInfo - The task input object
+   * @param {OrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
+   * @param {OrgLists} input.readOrgs - The IDs of the orgs that can read this run
    * @param {string} input.assignmentId - The ID of the assignment this run belongs to
    * @param {string} input.runId - The ID of the run. If undefined, a new run will be created.
    */
@@ -59,7 +59,7 @@ export class RoarAppkit {
     readOrgs,
     assignmentId,
     runId,
-  }: IAppkitConstructorParams) {
+  }: AppkitInput) {
     if (!firebaseProject && !firebaseConfig) {
       throw new Error('You must provide either a firebaseProjectKit or firebaseConfig');
     }
@@ -126,7 +126,7 @@ export class RoarAppkit {
    * @method
    * @async
    */
-  async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: IUserUpdateInput): Promise<void> {
+  async updateUser({ tasks, variants, assessmentPid, ...userMetadata }: UserUpdateInput): Promise<void> {
     if (!this._initialized) {
       await this._init();
     }
@@ -295,7 +295,7 @@ export class RoarAppkit {
    */
   async writeTrial(
     trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
+    computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
   ) {
     if (this._started) {
       return this.run!.writeTrial(trialData, computedScoreCallback);

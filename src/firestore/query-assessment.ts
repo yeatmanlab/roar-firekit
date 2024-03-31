@@ -15,9 +15,9 @@ import {
   startAfter,
   orderBy,
 } from 'firebase/firestore';
-import { getOrgs, IUserDocument, userHasSelectedOrgs } from './util';
+import { getOrgs, UserDocument, userHasSelectedOrgs } from './util';
 import { OrgCollectionName } from './interfaces';
-import { IFirestoreTaskData, ITaskData } from './app/task';
+import { FirestoreTaskData, TaskData } from './app/task';
 import _chunk from 'lodash/chunk';
 
 export const getOrganizations = async ({
@@ -81,9 +81,9 @@ export const getTasks = async (db: Firestore, requireRegistered = true) => {
 
   const tasksSnapshot = await getDocs(q);
 
-  const tasks: ITaskData[] = [];
+  const tasks: TaskData[] = [];
   tasksSnapshot.forEach((doc) => {
-    const docData = doc.data() as IFirestoreTaskData;
+    const docData = doc.data() as FirestoreTaskData;
     tasks.push({
       id: doc.id,
       image: docData.image,
@@ -107,7 +107,7 @@ interface IVariant {
 
 export interface ITaskVariant {
   id: string;
-  task: ITaskData;
+  task: TaskData;
   variant: IVariant;
 }
 
@@ -168,7 +168,7 @@ export const queryUsers = async (rootDoc: DocumentReference, taskIds: string[], 
 
     const usersSnapshot = await getDocs(userQuery);
     usersSnapshot.forEach((doc) => {
-      const { districtIds, schoolIds, groupIds, classIds } = getOrgs(doc.data() as IUserDocument);
+      const { districtIds, schoolIds, groupIds, classIds } = getOrgs(doc.data() as UserDocument);
 
       users.push({
         roarUid: doc.id,
