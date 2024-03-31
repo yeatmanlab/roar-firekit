@@ -80,6 +80,8 @@ export interface IRunInput {
   readOrgs?: IOrgLists;
   assignmentId?: string;
   runId?: string;
+  testData?: boolean;
+  demoData?: boolean;
 }
 
 interface IScoreUpdate {
@@ -110,6 +112,8 @@ export class RoarRun {
   started: boolean;
   completed: boolean;
   aborted: boolean;
+  testData: boolean;
+  demoData: boolean;
   scores: IRunScores;
   /** Create a ROAR run
    * @param {IRunInput} input
@@ -117,14 +121,28 @@ export class RoarRun {
    * @param {RoarTaskVariant} input.task - The task variant being run
    * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
    * @param {IOrgLists} input.readOrgs - The IDs of the orgs which can read this run
+   * @param {string} input.assignmentId = The ID of the assignment
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
+   * @param {string} input.testData = Boolean flag indicating test data
+   * @param {string} input.demoData = Boolean flag indicating demo data
    */
-  constructor({ user, task, assigningOrgs, readOrgs, assignmentId, runId }: IRunInput) {
+  constructor({
+    user,
+    task,
+    assigningOrgs,
+    readOrgs,
+    assignmentId,
+    runId,
+    testData = false,
+    demoData = false,
+  }: IRunInput) {
     this.user = user;
     this.task = task;
     this.assigningOrgs = assigningOrgs;
     this.readOrgs = readOrgs ?? assigningOrgs;
     this.assignmentId = assignmentId;
+    this.testData = testData;
+    this.demoData = demoData;
 
     if (runId) {
       this.runRef = doc(this.user.userRef, 'runs', runId);
@@ -183,6 +201,19 @@ export class RoarRun {
       'schoolLevel',
     ]);
 
+    // Grab the testData and demoData flags from the user document.
+    const { testData, demoData } = userDocSnap.data();
+
+    // Update testData and demoData for this instance.
+    // Explanation: The constructor input flags could be passed in for a normal
+    // (non-test) user who is just taking a test assessment. But if the entire user
+    // is a test or demo user, then we want those flags to propagate to ALL
+    // of their runs, regardless of what the constructor input flags were.
+    // We also want to update the internal state because we will use it later in
+    // the `writeTrial` method.
+    if (testData) this.testData = true;
+    if (demoData) this.demoData = true;
+
     const runData = {
       ...additionalRunMetadata,
       id: this.runRef.id,
@@ -196,6 +227,14 @@ export class RoarRun {
       timeFinished: null,
       reliable: false,
       userData: userDocData,
+      // Use conditional spreading to add the testData flag only if it exists on
+      // the userDoc and is true.
+      // Explaination: We use the && operator to return the object only when
+      // condition is true. If the object is returned then it will be spread
+      // into runData.
+      ...(this.testData && { testData: true }),
+      // Same for demoData
+      ...(this.demoData && { demoData: true }),
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
@@ -312,6 +351,8 @@ export class RoarRun {
 
       return setDoc(trialRef, {
         ...convertTrialToFirestore(trialData),
+        ...(this.testData && { testData: true }),
+        ...(this.demoData && { demoData: true }),
         serverTimestamp: serverTimestamp(),
       })
         .then(async () => {

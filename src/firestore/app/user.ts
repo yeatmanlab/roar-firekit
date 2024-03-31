@@ -19,6 +19,8 @@ export interface IUserInfo {
   assessmentPid?: string;
   userType?: UserType;
   userMetadata?: { [key: string]: unknown };
+  testData?: boolean;
+  demoData?: boolean;
 }
 
 export interface IUserInput extends IUserInfo {
@@ -56,6 +58,8 @@ export class RoarAppUser {
   onFirestore?: boolean;
   userRef: DocumentReference;
   userMetadata: { [key: string]: unknown };
+  testData: boolean;
+  demoData: boolean;
   /** Create a ROAR user
    * @param {object} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this user's data will be written
@@ -64,8 +68,19 @@ export class RoarAppUser {
    * @param {string} input.assessmentPid - The assessment PID of the user
    * @param {string} input.userType - The user type. Must be either 'admin', 'educator', 'student', 'caregiver', 'guest', or 'researcher.'
    * @param {object} input.userMetadata - An object containing additional user metadata
+   * @param {string} input.testData = Boolean flag indicating test data
+   * @param {string} input.demoData = Boolean flag indicating demo data
    */
-  constructor({ db, roarUid, assessmentUid, assessmentPid, userType = UserType.guest, userMetadata = {} }: IUserInput) {
+  constructor({
+    db,
+    roarUid,
+    assessmentUid,
+    assessmentPid,
+    userType = UserType.guest,
+    userMetadata = {},
+    testData = false,
+    demoData = false,
+  }: IUserInput) {
     const allowedUserCategories = Object.values(UserType);
     if (!allowedUserCategories.includes(userType)) {
       throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
@@ -89,6 +104,8 @@ export class RoarAppUser {
     this.assessmentUid = assessmentUid;
     this.userType = userType;
     this.userMetadata = userMetadata;
+    this.testData = testData;
+    this.demoData = demoData;
 
     if (userType === UserType.guest) {
       this.userRef = doc(this.db, 'guests', this.assessmentUid);
@@ -120,6 +137,14 @@ export class RoarAppUser {
       assessmentPid: this.assessmentPid,
       assessmentUid: this.assessmentUid,
       userType: this.userType,
+      // Use conditional spreading to add the testData flag only if it exists on
+      // the userDoc and is true.
+      // Explaination: We use the && operator to return the object only when
+      // condition is true. If the object is returned then it will be spread
+      // into runData.
+      ...(this.testData && { testData: true }),
+      // Same for demoData
+      ...(this.demoData && { demoData: true }),
     });
     return setDoc(this.userRef, {
       ...this.userData,
