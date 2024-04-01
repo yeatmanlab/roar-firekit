@@ -1418,7 +1418,13 @@ export class RoarFirekit {
     return this.createStudentWithEmailPassword(email, password, userData);
   }
 
-  async createAdministrator(email: string, name: Name, targetOrgs: OrgLists, targetAdminOrgs: OrgLists) {
+  async createAdministrator(
+    email: string,
+    name: Name,
+    targetOrgs: OrgLists,
+    targetAdminOrgs: OrgLists,
+    isTestData = false,
+  ) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1428,6 +1434,7 @@ export class RoarFirekit {
       name,
       orgs: targetOrgs,
       adminOrgs: targetAdminOrgs,
+      isTestData,
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResponse.data as any, 'status') !== 'ok') {
