@@ -1019,8 +1019,8 @@ export class RoarFirekit {
 
           const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
           const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
-          const isTaskTest = taskAndVariant.task.testData || taskAndVariant.variant.testData;
-          const isTaskDemo = taskAndVariant.task.demoData || taskAndVariant.variant.demoData;
+          const { testData: isTaskTest, demoData: isTaskDemo } = taskAndVariant.task;
+          const { testData: isVariantTest, demoData: isVariantDemo } = taskAndVariant.variant;
 
           const taskInfo = {
             db: this.app!.db,
@@ -1030,8 +1030,14 @@ export class RoarFirekit {
             variantName,
             variantDescription,
             variantParams: assessmentParams,
-            testData: isTaskTest,
-            demoData: isTaskDemo,
+            testData: {
+              task: isTaskTest ?? false,
+              variant: isVariantTest ?? false,
+            },
+            demoData: {
+              task: isTaskDemo ?? false,
+              variant: isVariantDemo ?? false,
+            },
           };
 
           return new RoarAppkit({
@@ -1044,11 +1050,13 @@ export class RoarFirekit {
             testData: {
               user: isUserTest,
               task: isTaskTest,
+              variant: isVariantTest,
               run: isAssignmentTest,
             },
             demoData: {
               user: isUserDemo,
               task: isTaskDemo,
+              variant: isVariantDemo,
               run: isAssignmentDemo,
             },
           });
@@ -1457,7 +1465,7 @@ export class RoarFirekit {
     }
   }
 
-  async createOrg(orgsCollection: OrgCollectionName, orgData: RoarOrg) {
+  async createOrg(orgsCollection: OrgCollectionName, orgData: RoarOrg, isTestData = false, isDemoData = false) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -1484,25 +1492,21 @@ export class RoarFirekit {
       };
     }
 
-    const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then(async (docRef) => {
-      await setDoc(doc(this.app!.db, orgsCollection, docRef.id), orgData);
+    if (isTestData) orgData.testData = true;
+    if (isDemoData) orgData.demoData = true;
+
+    const orgId = await addDoc(collection(this.admin!.db, orgsCollection), orgData).then((docRef) => {
       return docRef.id;
     });
 
     if (orgsCollection === 'schools') {
       const districtId = orgData.districtId as string;
       const adminDistrictRef = doc(this.admin!.db, 'districts', districtId);
-      const appDistrictRef = doc(this.app!.db, 'districts', districtId);
-
       await updateDoc(adminDistrictRef, { schools: arrayUnion(orgId) });
-      await updateDoc(appDistrictRef, { schools: arrayUnion(orgId) });
     } else if (orgsCollection === 'classes') {
       const schoolId = orgData.schoolId as string;
       const adminSchoolRef = doc(this.admin!.db, 'schools', schoolId);
-      const appSchoolRef = doc(this.app!.db, 'schools', schoolId);
-
       await updateDoc(adminSchoolRef, { classes: arrayUnion(orgId) });
-      await updateDoc(appSchoolRef, { classes: arrayUnion(orgId) });
     }
 
     return orgId;
@@ -1517,6 +1521,8 @@ export class RoarFirekit {
     variantName,
     variantDescription,
     variantParams = {},
+    testData = { task: false, variant: false },
+    demoData = { task: false, variant: false },
   }: TaskVariantInfo) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1531,6 +1537,8 @@ export class RoarFirekit {
       variantName,
       variantDescription,
       variantParams,
+      testData,
+      demoData,
     });
 
     await task.toFirestore();

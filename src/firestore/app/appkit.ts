@@ -11,6 +11,7 @@ import { FirebaseConfig, initializeFirebaseProject } from '../util';
 interface DataFlags {
   user?: boolean;
   task?: boolean;
+  variant?: boolean;
   run?: boolean;
 }
 
@@ -119,13 +120,18 @@ export class RoarAppkit {
       ...(this.demoData.user && { demoData: true }),
     });
     this.task = new RoarTaskVariant({
+      // Define testData and demoData first so that spreading this._taskInfo can
+      // overwrite them.
+      testData: {
+        task: this.testData.task,
+        variant: this.testData.variant,
+      },
+      demoData: {
+        task: this.demoData.task,
+        variant: this.demoData.variant,
+      },
       ...this._taskInfo,
       db: this.firebaseProject!.db,
-      // Use conditional spreading here to prevent overwriting testData or
-      // demoData from this._taskInfo. Only if the below values are true do we
-      // want to overwrite.
-      ...(this.testData.task && { testData: true }),
-      ...(this.demoData.task && { demoData: true }),
     });
     this.run = new RoarRun({
       user: this.user,

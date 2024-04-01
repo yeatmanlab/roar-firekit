@@ -25,8 +25,8 @@ export interface TaskVariantInfo {
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
-  testData?: boolean;
-  demoData?: boolean;
+  testData?: TaskVariantDataFlags;
+  demoData?: TaskVariantDataFlags;
 }
 
 export interface TaskVariantInput extends TaskVariantInfo {
@@ -60,6 +60,11 @@ export interface FirestoreVariantData {
   demoData?: boolean;
 }
 
+interface TaskVariantDataFlags {
+  task?: boolean;
+  variant?: boolean;
+}
+
 /**
  * Class representing a ROAR task.
  */
@@ -78,8 +83,8 @@ export class RoarTaskVariant {
   variantParams: { [key: string]: unknown };
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
-  testData: boolean;
-  demoData: boolean;
+  testData: TaskVariantDataFlags;
+  demoData: TaskVariantDataFlags;
   /** Create a ROAR task
    * @param {TaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
@@ -89,8 +94,8 @@ export class RoarTaskVariant {
    * @param {string} input.variantName - The name of the task variant
    * @param {string} input.variantDescription - The description of the variant
    * @param {object} input.variantParams - The parameters of the task variant
-   * @param {string} input.testData = Boolean flag indicating test data
-   * @param {string} input.demoData = Boolean flag indicating demo data
+   * @param {TaskVariantDataFlags} input.testData = Boolean flags indicating test data
+   * @param {TaskVariantDataFlags} input.demoData = Boolean flags indicating demo data
    */
   constructor({
     db,
@@ -103,8 +108,8 @@ export class RoarTaskVariant {
     variantName,
     variantDescription,
     variantParams = {},
-    testData = false,
-    demoData = false,
+    testData = { task: false, variant: false },
+    demoData = { task: false, variant: false },
   }: TaskVariantInput) {
     this.db = db;
     this.taskId = taskId;
@@ -144,9 +149,9 @@ export class RoarTaskVariant {
       // Explaination: We use the && operator to return the object only when
       // condition is true. If the object is returned then it will be spread
       // into runData.
-      ...(this.testData && { testData: true }),
+      ...(this.testData.task && { testData: true }),
       // Same for demoData
-      ...(this.demoData && { demoData: true }),
+      ...(this.demoData.task && { demoData: true }),
     };
 
     await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
@@ -186,8 +191,8 @@ export class RoarTaskVariant {
       params: this.variantParams,
       lastUpdated: serverTimestamp(),
       // See comments about conditional spreading above
-      ...(this.testData && { testData: true }),
-      ...(this.demoData && { demoData: true }),
+      ...(this.testData.variant && { testData: true }),
+      ...(this.demoData.variant && { demoData: true }),
     };
 
     if (!foundVariantWithCurrentParams) {
