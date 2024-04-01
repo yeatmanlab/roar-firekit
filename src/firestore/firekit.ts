@@ -1547,7 +1547,7 @@ export class RoarFirekit {
     return await cloudSaveSurveyResponses({ surveyResponses });
   }
 
-  async createLevanteGroup(groupData: IOrg) {
+  async createLevanteGroup(groupData: RoarOrg) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
