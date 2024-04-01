@@ -8,6 +8,12 @@ import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 
+interface DataFlags {
+  user?: boolean;
+  task?: boolean;
+  run?: boolean;
+}
+
 interface AppkitInput {
   firebaseProject?: FirebaseProject;
   firebaseConfig?: FirebaseConfig;
@@ -17,6 +23,8 @@ interface AppkitInput {
   readOrgs?: OrgLists;
   assignmentId?: string;
   runId?: string;
+  testData?: DataFlags;
+  demoData?: DataFlags;
 }
 
 /**
@@ -30,6 +38,8 @@ export class RoarAppkit {
   run?: RoarRun;
   task?: RoarTaskVariant;
   user?: RoarAppUser;
+  testData: DataFlags;
+  demoData: DataFlags;
   private _userInfo: UserInfo;
   private _taskInfo: TaskVariantInfo;
   private _assigningOrgs?: OrgLists;
@@ -49,6 +59,8 @@ export class RoarAppkit {
    * @param {OrgLists} input.readOrgs - The IDs of the orgs that can read this run
    * @param {string} input.assignmentId - The ID of the assignment this run belongs to
    * @param {string} input.runId - The ID of the run. If undefined, a new run will be created.
+   * @param {DataFlags} input.testData - Boolean flags indicating whether the user, task, or run are test data
+   * @param {DataFlags} input.demoData - Boolean flags indicating whether the user, task, or run are demo data
    */
   constructor({
     firebaseProject,
@@ -59,6 +71,8 @@ export class RoarAppkit {
     readOrgs,
     assignmentId,
     runId,
+    testData,
+    demoData,
   }: AppkitInput) {
     if (!firebaseProject && !firebaseConfig) {
       throw new Error('You must provide either a firebaseProjectKit or firebaseConfig');
@@ -78,6 +92,9 @@ export class RoarAppkit {
     this._assignmentId = assignmentId;
     this._runId = runId;
 
+    this.testData = testData ?? { user: false, task: false, run: false };
+    this.demoData = demoData ?? { user: false, task: false, run: false };
+
     this._authenticated = false;
     this._initialized = false;
     this._started = false;
@@ -95,10 +112,14 @@ export class RoarAppkit {
     this.user = new RoarAppUser({
       ...this._userInfo,
       db: this.firebaseProject!.db,
+      testData: this.testData.user,
+      demoData: this.demoData.user,
     });
     this.task = new RoarTaskVariant({
       ...this._taskInfo,
       db: this.firebaseProject!.db,
+      testData: this.testData.task,
+      demoData: this.demoData.task,
     });
     this.run = new RoarRun({
       user: this.user,
@@ -107,6 +128,8 @@ export class RoarAppkit {
       readOrgs: this._readOrgs,
       assignmentId: this._assignmentId,
       runId: this._runId,
+      testData: this.testData.run,
+      demoData: this.demoData.run,
     });
     await this.user.init();
     this._initialized = true;
