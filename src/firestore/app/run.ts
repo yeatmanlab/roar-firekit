@@ -202,17 +202,21 @@ export class RoarRun {
     ]);
 
     // Grab the testData and demoData flags from the user document.
-    const { testData, demoData } = userDocSnap.data();
+    const { testData: isTestUser, demoData: isDemoUser } = userDocSnap.data();
+    const isTestTask = this.task.testData;
+    const isDemoTask = this.task.demoData;
 
-    // Update testData and demoData for this instance.
+    // Update testData and demoData for this instance based on the test/demo
+    // flags for the user and task.
     // Explanation: The constructor input flags could be passed in for a normal
     // (non-test) user who is just taking a test assessment. But if the entire user
     // is a test or demo user, then we want those flags to propagate to ALL
     // of their runs, regardless of what the constructor input flags were.
+    // Likewise for the test and demo flags for the task.
     // We also want to update the internal state because we will use it later in
     // the `writeTrial` method.
-    if (testData) this.testData = true;
-    if (demoData) this.demoData = true;
+    if (isTestUser || isTestTask) this.testData = true;
+    if (isDemoUser || isDemoTask) this.demoData = true;
 
     const runData = {
       ...additionalRunMetadata,
