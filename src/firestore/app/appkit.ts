@@ -112,14 +112,20 @@ export class RoarAppkit {
     this.user = new RoarAppUser({
       ...this._userInfo,
       db: this.firebaseProject!.db,
-      testData: this.testData.user,
-      demoData: this.demoData.user,
+      // Use conditional spreading here to prevent overwriting testData or
+      // demoData from this._taskInfo. Only if the below values are true do we
+      // want to overwrite.
+      ...(this.testData.user && { testData: true }),
+      ...(this.demoData.user && { demoData: true }),
     });
     this.task = new RoarTaskVariant({
       ...this._taskInfo,
       db: this.firebaseProject!.db,
-      testData: this.testData.task,
-      demoData: this.demoData.task,
+      // Use conditional spreading here to prevent overwriting testData or
+      // demoData from this._taskInfo. Only if the below values are true do we
+      // want to overwrite.
+      ...(this.testData.task && { testData: true }),
+      ...(this.demoData.task && { demoData: true }),
     });
     this.run = new RoarRun({
       user: this.user,

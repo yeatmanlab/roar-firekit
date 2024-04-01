@@ -48,7 +48,6 @@ import {
   Administration,
   Assessment,
   AssignedAssessment,
-  Assignment,
   ExternalUserData,
   FirebaseProject,
   Name,
@@ -276,7 +275,7 @@ export class RoarFirekit {
     return this;
   }
 
-  private verboseLog(...logStatement: any[]) {
+  private verboseLog(...logStatement: unknown[]) {
     if (this._verboseLogging) {
       console.log('[RoarFirekit] ', ...logStatement);
     } else return;
@@ -837,6 +836,8 @@ export class RoarFirekit {
         families: emptyOrg(),
         groups: emptyOrg(),
         archived: false,
+        testData: false,
+        demoData: false,
       };
     }
   }
@@ -869,29 +870,10 @@ export class RoarFirekit {
         assessmentUid: this.app!.user!.uid,
         assessmentPid: assessmentPid,
         userType: this.userData.userType,
+        ...(this.userData.testData && { testData: true }),
+        ...(this.userData.demoData && { demoData: true }),
       };
     }
-  }
-
-  /* Return a list of all UIDs for users that this user has access to */
-  async listUsers() {
-    throw new Error('Method not currently implemented.');
-    // this._verifyAuthentication();
-    //
-    // const userCollectionRef = collection(this.admin.db, 'users');
-    // const userQuery = query(
-    //   userCollectionRef,
-    //   or(
-    //     where('districts', 'array-contains', this.roarUid!),
-    //     where('schools', 'array-contains', this.roarUid!),
-    //     where('classes', 'array-contains', this.roarUid!),
-    //     where('groups', 'array-contains', this.roarUid!),
-    //     where('families', 'array-contains', this.roarUid!),
-    //   ),
-    // );
-    // // TODO: Query all users within this user's admin orgs
-    // // TODO: Append the current user's uid to the list of UIDs
-    // return null;
   }
 
   async getLegalDoc(docName: string) {
@@ -924,41 +906,8 @@ export class RoarFirekit {
     });
   }
 
-  /* Return a list of Promises for user objects for each of the UIDs given in the input array */
-  getUsers(uidArray: string[]): Promise<UserDataInAdminDb | undefined>[] {
-    this._verifyAuthentication();
-    return uidArray.map((uid) => this._getUser(uid));
-  }
-
   public get roarUid() {
     return this.admin?.user?.uid;
-  }
-
-  private async _getAssignment(administrationId: string): Promise<Assignment | undefined> {
-    this._verifyAuthentication();
-    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const docData = docSnap.data() as Assignment;
-      const assessments = _get(docData, 'assessments', []);
-      // Loop through these assessments and append their task data to docData
-      const extendedAssessmentData = await Promise.all(
-        assessments.map(async (assessment) => {
-          const taskDocRef = doc(this.dbRefs!.app.tasks, assessment.taskId);
-          const taskDocSnap = await getDoc(taskDocRef);
-          if (taskDocSnap.exists()) {
-            return {
-              ...assessment,
-              taskData: taskDocSnap.data(),
-            };
-          }
-        }),
-      );
-      return {
-        ...docData,
-        assessments: extendedAssessmentData,
-      } as Assignment;
-    }
   }
 
   async startAssignment(administrationId: string, transaction?: Transaction) {
@@ -1068,6 +1017,11 @@ export class RoarFirekit {
           const variantName = taskAndVariant.variant.name;
           const variantDescription = taskAndVariant.variant.description;
 
+          const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
+          const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
+          const isTaskTest = taskAndVariant.task.testData || taskAndVariant.variant.testData;
+          const isTaskDemo = taskAndVariant.task.demoData || taskAndVariant.variant.demoData;
+
           const taskInfo = {
             db: this.app!.db,
             taskId,
@@ -1076,6 +1030,8 @@ export class RoarFirekit {
             variantName,
             variantDescription,
             variantParams: assessmentParams,
+            testData: isTaskTest,
+            demoData: isTaskDemo,
           };
 
           return new RoarAppkit({
@@ -1085,6 +1041,16 @@ export class RoarFirekit {
             readOrgs,
             assignmentId: administrationId,
             taskInfo,
+            testData: {
+              user: isUserTest,
+              task: isTaskTest,
+              run: isAssignmentTest,
+            },
+            demoData: {
+              user: isUserDemo,
+              task: isTaskDemo,
+              run: isAssignmentDemo,
+            },
           });
         } else {
           throw new Error(
