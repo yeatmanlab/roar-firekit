@@ -191,6 +191,8 @@ export class RoarFirekit {
     return {
       ...ProviderId,
       CLEVER: 'oidc.clever',
+      CLASSLINK: 'oidc.classlink',
+      CLASSLINK_PARTNER_INITIATED: 'oidc.classlink-partner-initiated',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
     };
   }
@@ -430,7 +432,7 @@ export class RoarFirekit {
     return appResult;
   }
 
-  private async _syncCleverUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
+  private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     this.verboseLog('Entry point for syncCleverUser');
     if (authProvider === AuthProviderType.CLEVER) {
       if (oAuthAccessToken === undefined) {
@@ -451,6 +453,9 @@ export class RoarFirekit {
         this.verboseLog('There was an error with the cloud function syncCleverUser cloud function', adminResult.data);
         throw new Error('Failed to sync Clever and ROAR data.');
       }
+    } else if (authProvider === AuthProviderType.CLASSLINK) {
+      this.verboseLog('Classlink user rostering is not yet supported');
+      // TODO: Add cloud function call to sync classlink user.
     }
   }
 
@@ -553,7 +558,7 @@ export class RoarFirekit {
 
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
     let authProvider;
     if (provider === AuthProviderType.GOOGLE) {
@@ -561,6 +566,9 @@ export class RoarFirekit {
     } else if (provider === AuthProviderType.CLEVER) {
       const roarProviderIds = this._getProviderIds();
       authProvider = new OAuthProvider(roarProviderIds.CLEVER);
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -582,10 +590,9 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if (provider === AuthProviderType.CLEVER) {
+        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever Access Token. You can use it to access Clever APIs.
-          // TODO: Find a way to put this in the onAuthStateChanged handler
+          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
           oAuthAccessToken = credential?.accessToken;
 
           const roarProviderIds = this._getProviderIds();
@@ -611,7 +618,7 @@ export class RoarFirekit {
       })
       .then((setClaimsResult) => {
         if (setClaimsResult) {
-          this._syncCleverUser(oAuthAccessToken, provider);
+          this._syncEduSSOUser(oAuthAccessToken, provider);
         }
       });
   }
@@ -619,7 +626,7 @@ export class RoarFirekit {
   async initiateRedirect(provider: AuthProviderType) {
     this.verboseLog('Entry point for initiateRedirect');
     this._verifyInit();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER];
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
     let authProvider;
     this.verboseLog('Attempting sign in with AuthProvider', provider);
@@ -631,8 +638,13 @@ export class RoarFirekit {
       this.verboseLog('Clever roarProviderIds', roarProviderIds);
       authProvider = new OAuthProvider(roarProviderIds.CLEVER);
       this.verboseLog('Clever AuthProvider object:', authProvider);
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      const roarProviderIds = this._getProviderIds();
+      this.verboseLog('Classlink roarProviderIds', roarProviderIds);
+      // Use the partner-initiated flow for Classlink
+      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK_PARTNER_INITIATED);
+      this.verboseLog('Classlink AuthProvider object:', authProvider);
     } else {
-      this.verboseLog('Provider must be GOOGLE or CLEVER');
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
 
@@ -677,12 +689,21 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if (providerId === roarProviderIds.CLEVER) {
+          } else if (
+            [roarProviderIds.CLEVER, roarProviderIds.CLASSLINK, roarProviderIds.CLASSLINK_PARTNER_INITIATED].includes(
+              providerId ?? 'NULL',
+            )
+          ) {
             this.verboseLog('ProviderId is clever, calling credentialFromResult with', adminUserCredential);
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-            // This gives you a Clever Access Token. You can use it to access Clever APIs.
-            // TODO: Find a way to put this in the onAuthStateChanged handler
-            authProvider = AuthProviderType.CLEVER;
+            // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+            if (providerId === roarProviderIds.CLEVER) {
+              authProvider = AuthProviderType.CLEVER;
+            } else if (
+              [roarProviderIds.CLASSLINK, roarProviderIds.CLASSLINK_PARTNER_INITIATED].includes(providerId ?? 'NULL')
+            ) {
+              authProvider = AuthProviderType.CLASSLINK;
+            }
             oAuthAccessToken = credential?.accessToken;
             this.verboseLog('authProvider is', authProvider);
             this.verboseLog('oAuthAccesToken is', oAuthAccessToken);
@@ -722,7 +743,7 @@ export class RoarFirekit {
         this.verboseLog('Claim result is', setClaimsResult);
         if (setClaimsResult) {
           this.verboseLog('Calling syncCleverUser with oAuthAccessToken', oAuthAccessToken);
-          this._syncCleverUser(oAuthAccessToken, authProvider);
+          this._syncEduSSOUser(oAuthAccessToken, authProvider);
           return { status: 'ok' };
         }
         return null;
