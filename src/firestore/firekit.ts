@@ -925,17 +925,16 @@ export class RoarFirekit {
 
   async updateVideoMetadata(administrationId: string, taskId: string, status: string) {
     this._verifyAuthentication();
-      // Update this assignment's `videoWatched` timestamp
-      if(status === "started") {
-        await runTransaction(this.admin!.db, async (transaction) => {
-          await this._updateAssignedAssessment(administrationId, taskId, { videoStartedOn: new Date() }, transaction);
-        });
-      }
-      else if(status === "completed") {
-        await runTransaction(this.admin!.db, async (transaction) => {
-          await this._updateAssignedAssessment(administrationId, taskId, { videoCompletedOn: new Date() }, transaction);
-        });
-      }
+    // Update this assignment's `videoWatched` timestamp
+    if (status === 'started') {
+      await runTransaction(this.admin!.db, async (transaction) => {
+        await this._updateAssignedAssessment(administrationId, taskId, { videoStartedOn: new Date() }, transaction);
+      });
+    } else if (status === 'completed') {
+      await runTransaction(this.admin!.db, async (transaction) => {
+        await this._updateAssignedAssessment(administrationId, taskId, { videoCompletedOn: new Date() }, transaction);
+      });
+    }
   }
 
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
