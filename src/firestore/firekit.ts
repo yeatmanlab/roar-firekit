@@ -1051,13 +1051,13 @@ export class RoarFirekit {
               user: isUserTest,
               task: isTaskTest,
               variant: isVariantTest,
-              run: isAssignmentTest,
+              run: isAssignmentTest || isUserTest || isTaskTest || isVariantTest,
             },
             demoData: {
               user: isUserDemo,
               task: isTaskDemo,
               variant: isVariantDemo,
-              run: isAssignmentDemo,
+              run: isAssignmentDemo || isUserDemo || isTaskDemo || isVariantDemo,
             },
           });
         } else {
