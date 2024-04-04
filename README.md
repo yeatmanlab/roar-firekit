@@ -19,14 +19,14 @@ Roar-firekit is agnostic about where your data comes from, but I anticipate most
 
 The main entrypoint to roar-firekit's API is the [[`RoarAppkit`]] class.  Its
 constructor expects an object with keys `userInfo`, `taskInfo`, and `config`, where
-`userInfo` is a [[`IUserData`]] object, `taskInfo` is a
-[[`ITaskVariantInput`]] object, and `config` is a [[`AssessmentConfigData`]] object.
+`userInfo` is a [[`UserDataInAdminDb`]] object, `taskInfo` is a
+[[`TaskVariantInput`]] object, and `config` is a [[`AssessmentConfigData`]] object.
 
 ### Constructor inputs
 
 #### `userInfo`
 
-User information is encapsulated in a [[`IUserData`]] object. Its only required
+User information is encapsulated in a [[`UserDataInAdminDb`]] object. Its only required
 key is `id`, which should be the current user's ROAR UID, which is also sometimes called the ROAR PID:
 
 ```javascript
@@ -50,7 +50,7 @@ const fullUserInfo = {
 
 #### `taskInfo`
 
-Information about the current task is encapsulated in a [[`ITaskVariantInput`]] object. Here is the task information for a fictitious "Not Hotdog" task:
+Information about the current task is encapsulated in a [[`TaskVariantInput`]] object. Here is the task information for a fictitious "Not Hotdog" task:
 
 ```javascript
 const taskInfo = {

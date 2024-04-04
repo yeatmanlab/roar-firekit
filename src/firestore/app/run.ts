@@ -17,7 +17,7 @@ import _set from 'lodash/set';
 import dot from 'dot-object';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
-import { IOrgLists } from '../interfaces';
+import { OrgLists } from '../interfaces';
 import { removeUndefined } from '../util';
 import { FirebaseError } from '@firebase/util';
 
@@ -49,7 +49,7 @@ export const convertTrialToFirestore = (trialData: object): object => {
 
 const requiredTrialFields = ['assessment_stage', 'correct'];
 
-interface ISummaryScores {
+interface SummaryScores {
   thetaEstimate: number | null;
   thetaSE: number | null;
   numAttempted: number;
@@ -57,32 +57,34 @@ interface ISummaryScores {
   numIncorrect: number;
 }
 
-export interface IRawScores {
+export interface RawScores {
   [key: string]: {
-    practice: ISummaryScores;
-    test: ISummaryScores;
+    practice: SummaryScores;
+    test: SummaryScores;
   };
 }
 
-export interface IComputedScores {
+export interface ComputedScores {
   [key: string]: unknown;
 }
 
-export interface IRunScores {
-  raw: IRawScores;
-  computed: IComputedScores;
+interface RunScores {
+  raw: RawScores;
+  computed: ComputedScores;
 }
 
-export interface IRunInput {
+export interface RunInput {
   user: RoarAppUser;
   task: RoarTaskVariant;
-  assigningOrgs?: IOrgLists;
-  readOrgs?: IOrgLists;
+  assigningOrgs?: OrgLists;
+  readOrgs?: OrgLists;
   assignmentId?: string;
   runId?: string;
+  testData?: boolean;
+  demoData?: boolean;
 }
 
-interface IScoreUpdate {
+interface ScoreUpdate {
   [key: string]: number | FieldValue | null | undefined;
 }
 
@@ -104,27 +106,43 @@ export class RoarRun {
   user: RoarAppUser;
   task: RoarTaskVariant;
   runRef: DocumentReference;
-  assigningOrgs?: IOrgLists;
-  readOrgs?: IOrgLists;
+  assigningOrgs?: OrgLists;
+  readOrgs?: OrgLists;
   assignmentId?: string;
   started: boolean;
   completed: boolean;
   aborted: boolean;
-  scores: IRunScores;
+  testData: boolean;
+  demoData: boolean;
+  scores: RunScores;
   /** Create a ROAR run
-   * @param {IRunInput} input
+   * @param {RunInput} input
    * @param {RoarAppUser} input.user - The user running the task
    * @param {RoarTaskVariant} input.task - The task variant being run
-   * @param {IOrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
-   * @param {IOrgLists} input.readOrgs - The IDs of the orgs which can read this run
+   * @param {OrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
+   * @param {OrgLists} input.readOrgs - The IDs of the orgs which can read this run
+   * @param {string} input.assignmentId = The ID of the assignment
    * @param {string} input.runId = The ID of the run. If undefined, a new run will be created.
+   * @param {string} input.testData = Boolean flag indicating test data
+   * @param {string} input.demoData = Boolean flag indicating demo data
    */
-  constructor({ user, task, assigningOrgs, readOrgs, assignmentId, runId }: IRunInput) {
+  constructor({
+    user,
+    task,
+    assigningOrgs,
+    readOrgs,
+    assignmentId,
+    runId,
+    testData = false,
+    demoData = false,
+  }: RunInput) {
     this.user = user;
     this.task = task;
     this.assigningOrgs = assigningOrgs;
     this.readOrgs = readOrgs ?? assigningOrgs;
     this.assignmentId = assignmentId;
+    this.testData = testData;
+    this.demoData = demoData;
 
     if (runId) {
       this.runRef = doc(this.user.userRef, 'runs', runId);
@@ -183,6 +201,25 @@ export class RoarRun {
       'schoolLevel',
     ]);
 
+    // Grab the testData and demoData flags from the user document.
+    const { testData: isTestUser, demoData: isDemoUser } = userDocSnap.data();
+    const isTestTask = this.task.testData.task;
+    const isDemoTask = this.task.demoData.task;
+    const isTestVariant = this.task.testData.variant;
+    const isDemoVariant = this.task.demoData.variant;
+
+    // Update testData and demoData for this instance based on the test/demo
+    // flags for the user and task.
+    // Explanation: The constructor input flags could be passed in for a normal
+    // (non-test) user who is just taking a test assessment. But if the entire user
+    // is a test or demo user, then we want those flags to propagate to ALL
+    // of their runs, regardless of what the constructor input flags were.
+    // Likewise for the test and demo flags for the task.
+    // We also want to update the internal state because we will use it later in
+    // the `writeTrial` method.
+    if (isTestUser || isTestTask || isTestVariant) this.testData = true;
+    if (isDemoUser || isDemoTask || isDemoVariant) this.demoData = true;
+
     const runData = {
       ...additionalRunMetadata,
       id: this.runRef.id,
@@ -196,6 +233,14 @@ export class RoarRun {
       timeFinished: null,
       reliable: false,
       userData: userDocData,
+      // Use conditional spreading to add the testData flag only if it exists on
+      // the userDoc and is true.
+      // Explaination: We use the && operator to return the object only when
+      // condition is true. If the object is returned then it will be spread
+      // into runData.
+      ...(this.testData && { testData: true }),
+      // Same for demoData
+      ...(this.demoData && { demoData: true }),
     };
 
     await setDoc(this.runRef, removeUndefined(runData))
@@ -291,7 +336,7 @@ export class RoarRun {
    */
   async writeTrial(
     trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: IRawScores) => Promise<IComputedScores>,
+    computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
   ) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
@@ -312,6 +357,8 @@ export class RoarRun {
 
       return setDoc(trialRef, {
         ...convertTrialToFirestore(trialData),
+        ...(this.testData && { testData: true }),
+        ...(this.demoData && { demoData: true }),
         serverTimestamp: serverTimestamp(),
       })
         .then(async () => {
@@ -326,7 +373,7 @@ export class RoarRun {
 
             const stage = trialData.assessment_stage.split('_')[0] as 'test' | 'practice';
 
-            let scoreUpdate: IScoreUpdate = {};
+            let scoreUpdate: ScoreUpdate = {};
             if (subtask in this.scores.raw) {
               // Then this subtask has already been added to this run.
               // Simply update the block's scores.

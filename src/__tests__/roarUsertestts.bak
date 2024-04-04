@@ -4,11 +4,11 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { faker } from '@faker-js/faker';
 import { RoarAppUser } from '../firestore/app/user';
-import { IFirekit } from '../firestore/interfaces';
+import { FirebaseProject } from '../firestore/interfaces';
 import { roarConfig } from './__utils__/firebaseConfig';
 
 describe('RoarAppUser', () => {
-  let app: IFirekit;
+  let app: FirebaseProject;
   let email: string;
   let password: string;
 
