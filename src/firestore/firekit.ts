@@ -923,6 +923,14 @@ export class RoarFirekit {
     });
   }
 
+  async updateVideoCompletion(administrationId: string, taskId: string) {
+    this._verifyAuthentication();
+      // Update this assignment's `videoWatched` timestamp
+    await runTransaction(this.admin!.db, async (transaction) => {
+      await this._updateAssignedAssessment(administrationId, taskId, { videoWatchedOn: new Date() }, transaction);
+    });
+  }
+
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
   getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
     this._verifyAuthentication();
