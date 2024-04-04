@@ -1,12 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
-import { EmulatorConfigData } from '../../firestore/util';
+import { EmulatorFirebaseConfig } from '../../firestore/util';
 
 import * as assessmentFirebaseConfig from '../../../firebase/assessment/firebase.json';
 import * as adminFirebaseConfig from '../../../firebase/admin/firebase.json';
 
-const appConfig: EmulatorConfigData = {
+const appConfig: EmulatorFirebaseConfig = {
   projectId: 'demo-gse-roar-assessment',
   apiKey: 'any-string-value',
   emulatorPorts: {
@@ -16,7 +16,7 @@ const appConfig: EmulatorConfigData = {
   },
 };
 
-const adminConfig: EmulatorConfigData = {
+const adminConfig: EmulatorFirebaseConfig = {
   projectId: 'demo-gse-roar-admin',
   apiKey: 'any-string-value',
   emulatorPorts: {

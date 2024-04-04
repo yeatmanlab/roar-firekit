@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { mergeGameParams, removeUndefined, replaceValues } from '../util';
 
-export interface ITaskVariantInfo {
+export interface TaskVariantInfo {
   taskId: string;
   taskName?: string;
   taskDescription?: string;
@@ -25,13 +25,15 @@ export interface ITaskVariantInfo {
   variantName?: string;
   variantDescription?: string;
   variantParams: { [key: string]: unknown };
+  testData?: TaskVariantDataFlags;
+  demoData?: TaskVariantDataFlags;
 }
 
-export interface ITaskVariantInput extends ITaskVariantInfo {
+export interface TaskVariantInput extends TaskVariantInfo {
   db: Firestore;
 }
 
-export interface IFirestoreTaskData {
+export interface FirestoreTaskData {
   name?: string;
   description?: string | null;
   image?: string;
@@ -39,19 +41,28 @@ export interface IFirestoreTaskData {
   external?: boolean;
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
+  testData?: boolean;
+  demoData?: boolean;
 }
 
-export interface ITaskData extends IFirestoreTaskData {
+export interface TaskData extends FirestoreTaskData {
   id: string;
 }
 
-export interface IFirestoreVariantData {
+export interface FirestoreVariantData {
   name?: string;
   description?: string | null;
   taskURL?: string;
   external?: boolean;
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
+  testData?: boolean;
+  demoData?: boolean;
+}
+
+interface TaskVariantDataFlags {
+  task?: boolean;
+  variant?: boolean;
 }
 
 /**
@@ -72,8 +83,10 @@ export class RoarTaskVariant {
   variantParams: { [key: string]: unknown };
   variantRef: DocumentReference | undefined;
   variantsCollectionRef: CollectionReference;
+  testData: TaskVariantDataFlags;
+  demoData: TaskVariantDataFlags;
   /** Create a ROAR task
-   * @param {ITaskVariantInput} input
+   * @param {TaskVariantInput} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this task'data will be written
    * @param {string} input.taskId - The ID of the parent task. Should be a short initialism, e.g. "swr" or "sre"
    * @param {string} input.taskName - The name of the parent task
@@ -81,6 +94,8 @@ export class RoarTaskVariant {
    * @param {string} input.variantName - The name of the task variant
    * @param {string} input.variantDescription - The description of the variant
    * @param {object} input.variantParams - The parameters of the task variant
+   * @param {TaskVariantDataFlags} input.testData = Boolean flags indicating test data
+   * @param {TaskVariantDataFlags} input.demoData = Boolean flags indicating demo data
    */
   constructor({
     db,
@@ -93,7 +108,9 @@ export class RoarTaskVariant {
     variantName,
     variantDescription,
     variantParams = {},
-  }: ITaskVariantInput) {
+    testData = { task: false, variant: false },
+    demoData = { task: false, variant: false },
+  }: TaskVariantInput) {
     this.db = db;
     this.taskId = taskId;
     this.taskName = taskName;
@@ -104,6 +121,8 @@ export class RoarTaskVariant {
     this.variantName = variantName;
     this.variantDescription = variantDescription;
     this.variantParams = variantParams;
+    this.testData = testData;
+    this.demoData = demoData;
 
     this.taskRef = doc(this.db, 'tasks', this.taskId);
     this.variantsCollectionRef = collection(this.taskRef, 'variants');
@@ -118,13 +137,21 @@ export class RoarTaskVariant {
    */
   async toFirestore() {
     // Push/update the task using the user provided task ID
-    const taskData: IFirestoreTaskData = {
+    const taskData: FirestoreTaskData = {
       name: this.taskName,
       description: this.taskDescription,
       image: this.taskImage,
       taskURL: this.taskURL,
       external: this.external,
       lastUpdated: serverTimestamp(),
+      // Use conditional spreading to add the testData flag only if it exists on
+      // the userDoc and is true.
+      // Explaination: We use the && operator to return the object only when
+      // condition is true. If the object is returned then it will be spread
+      // into runData.
+      ...(this.testData.task && { testData: true }),
+      // Same for demoData
+      ...(this.demoData.task && { demoData: true }),
     };
 
     await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
@@ -156,13 +183,16 @@ export class RoarTaskVariant {
       );
     });
 
-    const variantData: IFirestoreVariantData = {
+    const variantData: FirestoreVariantData = {
       name: this.variantName,
       description: this.variantDescription,
       taskURL: this.taskURL,
       external: this.external,
       params: this.variantParams,
       lastUpdated: serverTimestamp(),
+      // See comments about conditional spreading above
+      ...(this.testData.variant && { testData: true }),
+      ...(this.demoData.variant && { demoData: true }),
     };
 
     if (!foundVariantWithCurrentParams) {

@@ -4,14 +4,14 @@ import { DocumentData, Firestore, Timestamp } from 'firebase/firestore';
 import { Functions } from 'firebase/functions';
 import { FirebaseStorage } from 'firebase/storage';
 import { FirebasePerformance } from 'firebase/performance';
-import { FirebaseConfigData } from './util';
+import { FirebaseConfig } from './util';
 
-export interface IRoarConfigData {
-  app: FirebaseConfigData;
-  admin: FirebaseConfigData;
+export interface RoarConfig {
+  app: FirebaseConfig;
+  admin: FirebaseConfig;
 }
 
-export interface IFirekit {
+export interface FirebaseProject {
   firebaseApp: FirebaseApp;
   db: Firestore;
   auth: Auth;
@@ -33,11 +33,11 @@ export enum UserType {
   researcher = 'researcher',
 }
 
-export interface IExtraMetadata extends DocumentData {
+export interface ExtraMetadata extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IStudentData extends IExtraMetadata {
+export interface StudentData extends ExtraMetadata {
   ell_status?: string;
   frl_status?: string;
   iep_status?: string;
@@ -46,68 +46,96 @@ export interface IStudentData extends IExtraMetadata {
   grade: Grade;
 }
 
-export interface IAdminData extends DocumentData {
+export interface AdministratorData extends DocumentData {
   administrationsCreated: string[];
   permissions: string[];
 }
 
-export interface IExternalUserData extends DocumentData {
+export interface ExternalUserData extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IAssignmentDateMap {
+export interface AssignmentDateMap {
   [x: string]: Date;
 }
 
-export interface IOrgDateMap {
+export interface RoarOrgDateMap {
   [x: string]: { from: Date; to?: Date };
 }
 
-export interface IOrgs {
+export interface Orgs {
   current: string[];
   all: string[];
-  dates: IOrgDateMap;
+  dates: RoarOrgDateMap;
 }
 
-export interface IName {
+export interface Name {
   first: string;
   middle?: string;
   last: string;
 }
 
-export interface IUserData extends DocumentData {
+export interface UserDataInAdminDb extends DocumentData {
   id?: string;
   userType: UserType;
-  name?: IName;
+  name?: Name;
   assessmentPid?: string;
   assessmentUid?: string;
   assessmentsCompleted?: string[];
   assessmentsAssigned?: string[];
-  assignmentsAssigned?: IAssignmentDateMap;
-  assignmentsStarted?: IAssignmentDateMap;
-  assignmentsCompleted?: IAssignmentDateMap;
-  classes: IOrgs;
-  schools: IOrgs;
-  districts: IOrgs;
-  groups: IOrgs;
-  families: IOrgs;
+  assignmentsAssigned?: AssignmentDateMap;
+  assignmentsStarted?: AssignmentDateMap;
+  assignmentsCompleted?: AssignmentDateMap;
+  classes: Orgs;
+  schools: Orgs;
+  districts: Orgs;
+  groups: Orgs;
+  families: Orgs;
   archived: boolean;
-  studentData?: IStudentData;
-  educatorData?: IExtraMetadata;
-  caregiverData?: IExtraMetadata;
-  adminData?: IAdminData;
+  studentData?: StudentData;
+  educatorData?: ExtraMetadata;
+  caregiverData?: ExtraMetadata;
+  adminData?: AdministratorData;
   // Allow for data from external resources like clever or state-wide tests
   externalData?: {
-    [x: string]: IExternalUserData;
+    [x: string]: ExternalUserData;
   };
 }
 
-export interface IAssessmentData extends DocumentData {
-  taskId: string;
-  params: { [x: string]: unknown };
+enum Operator {
+  LESS_THAN = 'LESS_THAN',
+  GREATER_THAN = 'GREATER_THAN',
+  LESS_THAN_OR_EQUAL = 'LESS_THAN_OR_EQUAL',
+  GREATER_THAN_OR_EQUAL = 'GREATER_THAN_OR_EQUAL',
+  EQUAL = 'EQUAL',
+  NOT_EQUAL = 'NOT_EQUAL',
 }
 
-export interface IOrgLists extends DocumentData {
+interface FieldCondition {
+  field: string;
+  op: Operator;
+  value: boolean | number | string | Date;
+}
+
+interface CompositeCondition {
+  op: 'AND' | 'OR';
+  conditions: Condition[];
+}
+
+type SelectAllCondition = true;
+
+export type Condition = FieldCondition | CompositeCondition | SelectAllCondition;
+
+export interface Assessment extends DocumentData {
+  taskId: string;
+  params: { [x: string]: unknown };
+  conditions?: {
+    optional?: Condition;
+    assigned?: Condition;
+  };
+}
+
+export interface OrgLists extends DocumentData {
   districts: string[];
   schools: string[];
   classes: string[];
@@ -117,7 +145,7 @@ export interface IOrgLists extends DocumentData {
 
 export type OrgListKey = 'districts' | 'schools' | 'classes' | 'groups' | 'families';
 
-export interface IAdministrationData extends IOrgLists {
+export interface Administration extends OrgLists {
   id?: string;
   name: string;
   createdBy: string;
@@ -125,12 +153,12 @@ export interface IAdministrationData extends IOrgLists {
   dateOpened: Date | Timestamp;
   dateClosed: Date | Timestamp;
   sequential: boolean;
-  assessments: IAssessmentData[];
+  assessments: Assessment[];
   tags?: string[];
-  readOrgs?: IOrgLists;
+  readOrgs?: OrgLists;
 }
 
-export interface IAssignedAssessmentData extends DocumentData {
+export interface AssignedAssessment extends DocumentData {
   taskId: string;
   runId?: string;
   allRunIds?: string[];
@@ -138,27 +166,28 @@ export interface IAssignedAssessmentData extends DocumentData {
   startedOn?: Date;
   rewardShown: boolean;
   [x: string]: unknown;
+  optional?: boolean;
 }
 
-export interface IAssignmentData extends DocumentData {
+export interface Assignment extends DocumentData {
   assignmentId?: string;
   completed: boolean;
   started: boolean;
   dateAssigned: Date;
   dateOpened: Date;
   dateClosed: Date;
-  assigningOrgs: IOrgLists;
-  readOrgs: IOrgLists;
-  assessments: IAssignedAssessmentData[];
+  assigningOrgs: OrgLists;
+  readOrgs: OrgLists;
+  assessments: AssignedAssessment[];
 }
 
-export interface IDistrict extends DocumentData {
+export interface District extends DocumentData {
   name: string;
   schools: string[];
   [x: string]: unknown;
 }
 
-export interface ISchool extends DocumentData {
+export interface School extends DocumentData {
   name: string;
   abbreviation: string;
   districtId: string;
@@ -166,7 +195,7 @@ export interface ISchool extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IClass extends DocumentData {
+export interface Class extends DocumentData {
   name: string;
   schoolId: string;
   districtId: string;
@@ -174,17 +203,17 @@ export interface IClass extends DocumentData {
   [x: string]: unknown;
 }
 
-export interface IFamily extends DocumentData {
+export interface Family extends DocumentData {
   name: string;
   [x: string]: unknown;
 }
 
-export interface IGroup extends DocumentData {
+export interface Group extends DocumentData {
   name: string;
   [x: string]: unknown;
 }
 
-export type IOrg = IDistrict | ISchool | IClass | IFamily | IGroup;
+export type RoarOrg = District | School | Class | Family | Group;
 
 export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
 export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
