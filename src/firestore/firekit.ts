@@ -923,10 +923,19 @@ export class RoarFirekit {
     });
   }
 
+<<<<<<< Updated upstream
   /* Return a list of Promises for user objects for each of the UIDs given in the input array */
   getUsers(uidArray: string[]): Promise<IUserData | undefined>[] {
     this._verifyAuthentication();
     return uidArray.map((uid) => this._getUser(uid));
+=======
+  async updateVideoCompletion(administrationId: string, taskId: string) {
+    this._verifyAuthentication();
+    // Update this assignment's `videoWatched` timestamp
+    await runTransaction(this.admin!.db, async (transaction) => {
+      await this._updateAssignedAssessment(administrationId, taskId, { videoWatched: new Date() }, transaction);
+    });
+>>>>>>> Stashed changes
   }
 
   public get roarUid() {
