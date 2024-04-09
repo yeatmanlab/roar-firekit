@@ -37,7 +37,6 @@ import {
   getDocs,
   onSnapshot,
   runTransaction,
-  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -1143,6 +1142,7 @@ export class RoarFirekit {
    */
   async createAdministration({
     name,
+    publicName,
     assessments,
     dateOpen,
     dateClose,
@@ -1153,6 +1153,7 @@ export class RoarFirekit {
     isTestData = false,
   }: {
     name: string;
+    publicName?: string;
     assessments: Assessment[];
     dateOpen: Date;
     dateClose: Date;
@@ -1178,6 +1179,7 @@ export class RoarFirekit {
     // First add the administration to the database
     const administrationData: Administration = {
       name,
+      publicName: publicName ?? name,
       createdBy: this.roarUid!,
       groups: orgs.groups ?? [],
       families: orgs.families ?? [],
