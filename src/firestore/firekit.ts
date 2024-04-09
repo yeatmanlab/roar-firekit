@@ -37,7 +37,6 @@ import {
   getDocs,
   onSnapshot,
   runTransaction,
-  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -1154,7 +1153,7 @@ export class RoarFirekit {
     isTestData = false,
   }: {
     name: string;
-    publicName: string;
+    publicName?: string;
     assessments: Assessment[];
     dateOpen: Date;
     dateClose: Date;
@@ -1167,7 +1166,7 @@ export class RoarFirekit {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    if ([name, publicName,dateOpen, dateClose, assessments].some((param) => param === undefined || param === null)) {
+    if ([name, dateOpen, dateClose, assessments].some((param) => param === undefined || param === null)) {
       throw new Error('The parameters name, dateOpen, dateClose, and assessments are required');
     }
 
@@ -1180,7 +1179,7 @@ export class RoarFirekit {
     // First add the administration to the database
     const administrationData: Administration = {
       name,
-      publicName: publicName ?? "",
+      publicName: publicName ?? name,
       createdBy: this.roarUid!,
       groups: orgs.groups ?? [],
       families: orgs.families ?? [],
