@@ -1513,27 +1513,27 @@ export class RoarFirekit {
       throw new Error('You must specify a schoolId when creating a class.');
     }
 
-    // If org is a class, retrieve the districtId from the parent school
-    if (orgsCollection === 'classes') {
-      const schoolDocRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
-      const districtId = await getDoc(schoolDocRef).then((snapshot) => {
-        if (snapshot.exists()) {
-          return snapshot.data().districtId;
-        } else {
-          throw new Error(`Could not find a school with ID ${orgData.schoolId} in the ROAR database.`);
-        }
-      });
-      orgData = {
-        ...orgData,
-        districtId,
-      };
-    }
+    return runTransaction(this.admin!.db, async (transaction) => {
+      // If org is a class, retrieve the districtId from the parent school
+      if (orgsCollection === 'classes') {
+        const schoolDocRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
+        const districtId = await transaction.get(schoolDocRef).then((snapshot) => {
+          if (snapshot.exists()) {
+            return snapshot.data().districtId;
+          } else {
+            throw new Error(`Could not find a school with ID ${orgData.schoolId} in the ROAR database.`);
+          }
+        });
+        orgData = {
+          ...orgData,
+          districtId,
+        };
+      }
 
-    if (isTestData) orgData.testData = true;
-    if (isDemoData) orgData.demoData = true;
+      if (isTestData) orgData.testData = true;
+      if (isDemoData) orgData.demoData = true;
 
-    if (organizationId === undefined) {
-      return runTransaction(this.admin!.db, async (transaction) => {
+      if (organizationId === undefined) {
         // If organizationId is undefined, we create a new org
         const newOrgRef = doc(collection(this.admin!.db, orgsCollection));
         const orgId = newOrgRef.id;
@@ -1550,10 +1550,8 @@ export class RoarFirekit {
         }
 
         return orgId;
-      });
-    } else {
-      // If organizationId is defined, we update an existing org
-      return runTransaction(this.admin!.db, async (transaction) => {
+      } else {
+        // If organizationId is defined, we update an existing org
         const orgDocRef = doc(this.admin!.db, orgsCollection, organizationId);
 
         // Get the old parent org IDs, remove this org from their children
@@ -1580,8 +1578,8 @@ export class RoarFirekit {
         } else {
           throw new Error(`Could not find an organization with ID ${organizationId} in the ROAR database.`);
         }
-      });
-    }
+      }
+    });
   }
 
   /**
