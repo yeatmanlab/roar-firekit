@@ -1610,14 +1610,15 @@ export class RoarFirekit {
         // later. Why are we doing this here? Because all transaction reads
         // have to take place before any writes, updates, or deletions.  We
         // are potentially reading school docs to get all of the classes.
-        const { schools = [], classes = [] } = orgData;
+        const { schools = [], classes = [], groups: subGroups = [] } = orgData;
         if (recursive) {
           for (const school of schools) {
             const schoolRef = doc(this.admin!.db, 'schools', school);
             const schoolDocSnap = await transaction.get(schoolRef);
             if (schoolDocSnap.exists()) {
               const schoolData = schoolDocSnap.data();
-              classes.push(...schoolData.classes);
+              classes.push(...(schoolData.classes ?? []));
+              subGroups.push(...(schoolData.subGroups ?? []));
             }
           }
         }
