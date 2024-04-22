@@ -112,7 +112,7 @@ export class RoarTaskVariant {
     demoData = { task: false, variant: false },
   }: TaskVariantInput) {
     this.db = db;
-    this.taskId = taskId;
+    this.taskId = taskId.toLowerCase();
     this.taskName = taskName;
     this.taskDescription = taskDescription;
     this.taskImage = taskImage;
