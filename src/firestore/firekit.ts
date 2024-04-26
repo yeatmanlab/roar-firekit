@@ -192,7 +192,6 @@ export class RoarFirekit {
       ...ProviderId,
       CLEVER: 'oidc.clever',
       CLASSLINK: 'oidc.classlink',
-      CLASSLINK_PARTNER_INITIATED: 'oidc.classlink-partner-initiated',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
     };
   }
@@ -433,14 +432,14 @@ export class RoarFirekit {
   }
 
   private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
-    this.verboseLog('Entry point for syncCleverUser');
+    this.verboseLog('Entry point for syncEduSSOUser');
     if (authProvider === AuthProviderType.CLEVER) {
       if (oAuthAccessToken === undefined) {
         this.verboseLog('Not OAuth token provided.');
         throw new Error('No OAuth access token provided.');
       }
       this._verifyAuthentication();
-      this.verboseLog('Calling syncCleverUser cloud function');
+      this.verboseLog('Calling syncEduSSOUser cloud function');
       const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
       const adminResult = await syncCleverUser({
         assessmentUid: this.app!.user!.uid,
@@ -642,7 +641,7 @@ export class RoarFirekit {
       const roarProviderIds = this._getProviderIds();
       this.verboseLog('Classlink roarProviderIds', roarProviderIds);
       // Use the partner-initiated flow for Classlink
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK_PARTNER_INITIATED);
+      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
       this.verboseLog('Classlink AuthProvider object:', authProvider);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
@@ -689,19 +688,13 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if (
-            [roarProviderIds.CLEVER, roarProviderIds.CLASSLINK, roarProviderIds.CLASSLINK_PARTNER_INITIATED].includes(
-              providerId ?? 'NULL',
-            )
-          ) {
+          } else if ([roarProviderIds.CLEVER, roarProviderIds.CLASSLINK].includes(providerId ?? 'NULL')) {
             this.verboseLog('ProviderId is clever, calling credentialFromResult with', adminUserCredential);
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
             if (providerId === roarProviderIds.CLEVER) {
               authProvider = AuthProviderType.CLEVER;
-            } else if (
-              [roarProviderIds.CLASSLINK, roarProviderIds.CLASSLINK_PARTNER_INITIATED].includes(providerId ?? 'NULL')
-            ) {
+            } else if (providerId === roarProviderIds.CLASSLINK) {
               authProvider = AuthProviderType.CLASSLINK;
             }
             oAuthAccessToken = credential?.accessToken;
@@ -742,7 +735,7 @@ export class RoarFirekit {
       .then((setClaimsResult) => {
         this.verboseLog('Claim result is', setClaimsResult);
         if (setClaimsResult) {
-          this.verboseLog('Calling syncCleverUser with oAuthAccessToken', oAuthAccessToken);
+          this.verboseLog('Calling syncEduSSOUser with oAuthAccessToken', oAuthAccessToken);
           this._syncEduSSOUser(oAuthAccessToken, authProvider);
           return { status: 'ok' };
         }
