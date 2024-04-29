@@ -16,6 +16,7 @@ import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
 import _get from 'lodash/get';
+import _invert from 'lodash/invert';
 import _isEmpty from 'lodash/isEmpty';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
@@ -453,4 +454,35 @@ export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: OrgLists; chunk
 
     return orgChunk;
   });
+};
+
+const plurals = {
+  group: 'groups',
+  district: 'districts',
+  school: 'schools',
+  class: 'classes',
+  family: 'families',
+  administration: 'administrations',
+  user: 'users',
+  assignment: 'assignments',
+  run: 'runs',
+  trial: 'trials',
+};
+
+export const pluralizeFirestoreCollection = (singular: string) => {
+  if (Object.values(plurals).includes(singular)) return singular;
+
+  const plural = plurals[singular as keyof typeof plurals];
+  if (plural) return plural;
+
+  throw new Error(`There is no plural Firestore collection for the ${singular}`);
+};
+
+export const singularizeFirestoreCollection = (plural: string) => {
+  if (Object.values(_invert(plurals)).includes(plural)) return plural;
+
+  const singular = _invert(plurals)[plural];
+  if (singular) return singular;
+
+  throw new Error(`There is no Firestore collection ${plural}`);
 };

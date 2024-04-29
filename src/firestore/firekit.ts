@@ -43,7 +43,15 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
-import { AuthPersistence, MarkRawConfig, crc32String, emptyOrg, emptyOrgList, initializeFirebaseProject } from './util';
+import {
+  AuthPersistence,
+  MarkRawConfig,
+  crc32String,
+  emptyOrg,
+  emptyOrgList,
+  initializeFirebaseProject,
+  pluralizeFirestoreCollection,
+} from './util';
 import {
   Administration,
   Assessment,
@@ -1549,6 +1557,21 @@ export class RoarFirekit {
           transaction.update(adminSchoolRef, { classes: arrayUnion(orgId) });
         }
 
+        if (orgsCollection === 'groups') {
+          if (orgData.parentOrgId && orgData.parentOrgType) {
+            const parentOrgRef = doc(
+              this.admin!.db,
+              pluralizeFirestoreCollection(orgData.parentOrgType as string),
+              orgData.parentOrgId as string,
+            );
+            transaction.update(parentOrgRef, { subGroups: arrayUnion(orgId) });
+          }
+          if (orgData.familyId) {
+            const familyRef = doc(this.admin!.db, 'families', orgData.familyId as string);
+            transaction.update(familyRef, { subGroups: arrayUnion(orgId) });
+          }
+        }
+
         return orgId;
       } else {
         // If organizationId is defined, we update an existing org
@@ -1558,18 +1581,54 @@ export class RoarFirekit {
         // fields on Firestore.
         const docSnap = await transaction.get(orgDocRef);
         if (docSnap.exists()) {
-          const orgData = docSnap.data();
-          const { schoolId, districtId } = orgData;
-          if (schoolId !== undefined && schoolId !== orgData.schoolId) {
+          const oldOrgData = docSnap.data();
+          const {
+            schoolId = orgData.schoolId,
+            districtId = orgData.districtId,
+            familyId = orgData.familyId,
+            parentOrgType = orgData.parentOrgType,
+            parentOrgId = orgData.parentOrgId,
+          } = oldOrgData;
+          if (orgsCollection === 'classes' && orgData.schoolId && schoolId !== orgData.schoolId) {
             const oldSchoolRef = doc(this.admin!.db, 'schools', schoolId);
-            const newSchoolRef = doc(this.admin!.db, 'schools', orgData.schoolId);
+            const newSchoolRef = doc(this.admin!.db, 'schools', orgData.schoolId as string);
             transaction.update(oldSchoolRef, { classes: arrayRemove(organizationId) });
             transaction.update(newSchoolRef, { classes: arrayUnion(organizationId) });
-          } else if (districtId !== undefined && districtId !== orgData.districtId) {
+          }
+
+          if (orgsCollection === 'schools' && orgData.districtId && districtId !== orgData.districtId) {
             const oldDistrictRef = doc(this.admin!.db, 'districts', districtId);
-            const newDistrictRef = doc(this.admin!.db, 'districts', orgData.districtId);
+            const newDistrictRef = doc(this.admin!.db, 'districts', orgData.districtId as string);
             transaction.update(oldDistrictRef, { schools: arrayRemove(organizationId) });
             transaction.update(newDistrictRef, { schools: arrayUnion(organizationId) });
+          }
+
+          if (orgsCollection === 'groups') {
+            if (orgData.familyId && familyId !== orgData.familyId) {
+              const oldFamilyRef = doc(this.admin!.db, 'families', familyId);
+              const newFamilyRef = doc(this.admin!.db, 'families', orgData.familyId as string);
+              transaction.update(oldFamilyRef, { subGroups: arrayRemove(organizationId) });
+              transaction.update(newFamilyRef, { subGroups: arrayUnion(organizationId) });
+            }
+
+            if (
+              orgData.parentOrgType &&
+              orgData.parentOrgId &&
+              (parentOrgType !== orgData.parentOrgType || parentOrgId !== orgData.parentOrgId)
+            ) {
+              const oldParentOrgRef = doc(
+                this.admin!.db,
+                pluralizeFirestoreCollection(parentOrgType as string),
+                parentOrgId,
+              );
+              const newParentOrgRef = doc(
+                this.admin!.db,
+                pluralizeFirestoreCollection(orgData.parentOrgType as string),
+                orgData.parentOrgId as string,
+              );
+              transaction.update(oldParentOrgRef, { subGroups: arrayRemove(organizationId) });
+              transaction.update(newParentOrgRef, { subGroups: arrayUnion(organizationId) });
+            }
           }
 
           transaction.update(orgDocRef, orgData as DocumentData);
