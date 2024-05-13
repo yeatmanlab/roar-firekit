@@ -26,10 +26,8 @@ import {
 import {
   DocumentData,
   DocumentReference,
-  Timestamp,
   Transaction,
   Unsubscribe,
-  addDoc,
   arrayRemove,
   arrayUnion,
   collection,
