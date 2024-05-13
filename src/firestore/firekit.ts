@@ -26,10 +26,8 @@ import {
 import {
   DocumentData,
   DocumentReference,
-  Timestamp,
   Transaction,
   Unsubscribe,
-  addDoc,
   arrayRemove,
   arrayUnion,
   collection,
@@ -1213,13 +1211,7 @@ export class RoarFirekit {
 
         // Get the existing administration to make sure update is allowed.
         const docSnap = await transaction.get(administrationDocRef);
-        if (docSnap.exists()) {
-          const docData = docSnap.data() as Administration;
-          const now = new Date();
-          if ((docData.dateOpened as Timestamp).toDate() < now) {
-            throw new Error('Cannot edit an administration that has already started.');
-          }
-        } else {
+        if (!docSnap.exists()) {
           throw new Error(`Could not find administration with id ${administrationId}`);
         }
       } else {
