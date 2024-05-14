@@ -21,6 +21,7 @@ export interface TaskVariantInfo {
   taskDescription?: string;
   taskImage?: string;
   taskURL?: string;
+  taskVersion?: string;
   external?: boolean;
   variantName?: string;
   variantDescription?: string;
@@ -75,6 +76,7 @@ export class RoarTaskVariant {
   taskDescription?: string;
   taskImage?: string;
   taskURL?: string;
+  taskVersion?: string;
   external?: boolean;
   taskRef: DocumentReference;
   variantId?: string;
@@ -104,6 +106,7 @@ export class RoarTaskVariant {
     taskDescription,
     taskImage,
     taskURL,
+    taskVersion = undefined,
     external,
     variantName,
     variantDescription,
@@ -117,6 +120,7 @@ export class RoarTaskVariant {
     this.taskDescription = taskDescription;
     this.taskImage = taskImage;
     this.taskURL = taskURL;
+    this.taskVersion = taskVersion;
     this.external = external;
     this.variantName = variantName;
     this.variantDescription = variantDescription;
