@@ -1047,6 +1047,7 @@ export class RoarFirekit {
             taskId,
             taskName,
             taskDescription,
+            taskVersion,
             variantName,
             variantDescription,
             variantParams: assessmentParams,
