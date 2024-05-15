@@ -976,7 +976,7 @@ export class RoarFirekit {
     }
   }
 
-  async startAssessment(administrationId: string, taskId: string) {
+  async startAssessment(administrationId: string, taskId: string, taskVersion: string) {
     this._verifyAuthentication();
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
@@ -1047,6 +1047,7 @@ export class RoarFirekit {
             taskId,
             taskName,
             taskDescription,
+            taskVersion,
             variantName,
             variantDescription,
             variantParams: assessmentParams,

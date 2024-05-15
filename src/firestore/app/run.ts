@@ -227,6 +227,7 @@ export class RoarRun {
       assigningOrgs: this.assigningOrgs ?? null,
       readOrgs: this.readOrgs ?? null,
       taskId: this.task.taskId,
+      taskVersion: this.task.taskVersion,
       variantId: this.task.variantId,
       completed: false,
       timeStarted: serverTimestamp(),
