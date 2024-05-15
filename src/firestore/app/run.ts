@@ -201,7 +201,7 @@ export class RoarRun {
       'schoolLevel',
     ]);
 
-    // Grab the testData and demoData flags from the user docuhttps://github.com/yeatmanlab/roar-dashboard/pull/570ment.
+    // Grab the testData and demoData flags from the user document.
     const { testData: isTestUser, demoData: isDemoUser } = userDocSnap.data();
     const isTestTask = this.task.testData.task;
     const isDemoTask = this.task.demoData.task;
