@@ -439,7 +439,7 @@ export class RoarFirekit {
         throw new Error('No OAuth access token provided.');
       }
       this._verifyAuthentication();
-      this.verboseLog('Calling syncEduSSOUser cloud function');
+      this.verboseLog('Calling syncEduSSOUser cloud function [Clever]');
       const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
       const adminResult = await syncCleverUser({
         assessmentUid: this.app!.user!.uid,
@@ -453,8 +453,28 @@ export class RoarFirekit {
         throw new Error('Failed to sync Clever and ROAR data.');
       }
     } else if (authProvider === AuthProviderType.CLASSLINK) {
-      this.verboseLog('Classlink user rostering is not yet supported');
-      // TODO: Add cloud function call to sync classlink user.
+      this.verboseLog('Calling syncEduSSOUser cloud function [ClassLink]');
+      if (oAuthAccessToken === undefined) {
+        this.verboseLog('Not OAuth token provided.');
+        throw new Error('No OAuth access token provided.');
+      }
+      this._verifyAuthentication();
+      this.verboseLog('Calling syncClassLinkUser cloud function');
+      const syncClassLinkUser = httpsCallable(this.admin!.functions, 'syncClassLinkUser');
+      const adminResult = await syncClassLinkUser({
+        assessmentUid: this.app!.user!.uid,
+        accessToken: oAuthAccessToken,
+      });
+      this.verboseLog('syncClassLinkUser cloud function returned with result', adminResult);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (_get(adminResult.data as any, 'status') !== 'ok') {
+        this.verboseLog(
+          'There was an error with the cloud function syncClassLinkUser cloud function',
+          adminResult.data,
+        );
+        throw new Error('Failed to sync ClassLink and ROAR data.');
+      }
     }
   }
 
