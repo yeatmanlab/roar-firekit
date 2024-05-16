@@ -102,11 +102,11 @@ export interface UserDataInAdminDb extends DocumentData {
   };
 }
 
-export interface Legal{
-  consent: [],
-  assent: [],
-  amount: string,
-  expectedTime: string,
+export interface Legal {
+  consent: [];
+  assent: [];
+  amount: string;
+  expectedTime: string;
 }
 
 enum Operator {
@@ -155,7 +155,7 @@ export type OrgListKey = 'districts' | 'schools' | 'classes' | 'groups' | 'famil
 export interface Administration extends OrgLists {
   id?: string;
   name: string;
-  publicName?: string,
+  publicName?: string;
   createdBy: string;
   dateCreated: Date | Timestamp;
   dateOpened: Date | Timestamp;

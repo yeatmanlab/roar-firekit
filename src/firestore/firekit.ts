@@ -910,11 +910,11 @@ export class RoarFirekit {
   async updateConsentStatus(docName: string, consentVersion: string, params: {}) {
     if (!_isEmpty(params)) {
       updateDoc(this.dbRefs!.admin.user, {
-        [`legal.${docName}.${consentVersion}`]: [params]
+        [`legal.${docName}.${consentVersion}`]: [params],
       });
     } else {
       updateDoc(this.dbRefs!.admin.user, {
-        [`legal.${docName}.${consentVersion}`]: [{dateSigned: new Date()}]
+        [`legal.${docName}.${consentVersion}`]: [{ dateSigned: new Date() }],
       });
     }
   }
@@ -1178,7 +1178,7 @@ export class RoarFirekit {
     tags: string[];
     administrationId?: string;
     isTestData: boolean;
-    legal: Legal,
+    legal: Legal;
   }) {
     this._verifyAuthentication();
     this._verifyAdmin();
