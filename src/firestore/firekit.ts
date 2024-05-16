@@ -907,7 +907,7 @@ export class RoarFirekit {
     }
   }
 
-  async updateConsentStatus(docName: string, consentVersion: string, params: Object) {
+  async updateConsentStatus(docName: string, consentVersion: string, params = {}) {
     if (!_isEmpty(params)) {
       updateDoc(this.dbRefs!.admin.user, {
         [`legal.${docName}.${consentVersion}`]: [params],
