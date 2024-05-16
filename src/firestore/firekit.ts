@@ -64,6 +64,7 @@ import {
   UserDataInAdminDb,
   OrgCollectionName,
   UserType,
+  Legal,
 } from './interfaces';
 import { UserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
@@ -906,10 +907,16 @@ export class RoarFirekit {
     }
   }
 
-  async updateConsentStatus(docName: string, consentVersion: string) {
-    updateDoc(this.dbRefs!.admin.user, {
-      [`legal.${docName}.${consentVersion}`]: new Date(),
-    });
+  async updateConsentStatus(docName: string, consentVersion: string, params: {}) {
+    if (!_isEmpty(params)) {
+      updateDoc(this.dbRefs!.admin.user, {
+        [`legal.${docName}.${consentVersion}`]: [params]
+      });
+    } else {
+      updateDoc(this.dbRefs!.admin.user, {
+        [`legal.${docName}.${consentVersion}`]: [{dateSigned: new Date()}]
+      });
+    }
   }
 
   async updateVideoMetadata(administrationId: string, taskId: string, status: string) {
@@ -1159,6 +1166,7 @@ export class RoarFirekit {
     tags = [],
     administrationId,
     isTestData = false,
+    legal,
   }: {
     name: string;
     publicName?: string;
@@ -1170,6 +1178,7 @@ export class RoarFirekit {
     tags: string[];
     administrationId?: string;
     isTestData: boolean;
+    legal: Legal,
   }) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1200,6 +1209,7 @@ export class RoarFirekit {
       assessments: assessments,
       sequential: sequential,
       tags: tags,
+      legal: legal,
     };
 
     if (isTestData) administrationData.testData = true;
