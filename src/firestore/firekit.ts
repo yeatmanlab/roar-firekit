@@ -910,11 +910,11 @@ export class RoarFirekit {
   async updateConsentStatus(docName: string, consentVersion: string, params = {}) {
     if (!_isEmpty(params) && _get(params, 'dateSigned')) {
       updateDoc(this.dbRefs!.admin.user, {
-        [`legal.${docName}.${consentVersion}`]: [params],
+        [`legal.${docName}.${consentVersion}`]: arrayUnion(params),
       });
     } else {
       updateDoc(this.dbRefs!.admin.user, {
-        [`legal.${docName}.${consentVersion}`]: [{ dateSigned: new Date() }],
+        [`legal.${docName}.${consentVersion}`]: arrayUnion({ dateSigned: new Date() }),
       });
     }
   }
