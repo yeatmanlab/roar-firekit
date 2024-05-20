@@ -67,7 +67,6 @@ import {
 } from './interfaces';
 import { UserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
-import { getTaskAndVariant } from './query-assessment';
 import { TaskVariantInfo, RoarTaskVariant } from './app/task';
 
 enum AuthProviderType {
@@ -984,11 +983,11 @@ export class RoarFirekit {
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
       const administrationDocSnap = await transaction.get(administrationDocRef);
       if (administrationDocSnap.exists()) {
-        let assessmentParams: { [x: string]: unknown } = {};
+        let variantId: string;
         const assessments: Assessment[] = administrationDocSnap.data().assessments;
         const thisAssessment = assessments.find((a) => a.taskId === taskId);
         if (thisAssessment) {
-          assessmentParams = thisAssessment.params;
+          variantId = thisAssessment.variantId;
         } else {
           throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
         }
@@ -1017,40 +1016,36 @@ export class RoarFirekit {
 
           const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
           const readOrgs = assignmentDocSnap.data().readOrgs;
-          const taskAndVariant = await getTaskAndVariant({
-            db: this.app!.db,
-            taskId,
-            variantParams: assessmentParams,
+
+          const taskDoc = doc(this.admin!.db, 'tasks', taskId);
+          const variantDoc = doc(taskDoc, 'variants', variantId);
+
+          const taskData = await getDoc(taskDoc).then((taskDocSnap) => {
+            if (!taskDocSnap.exists()) {
+              throw new Error(`Could not find task ${taskId}`);
+            }
+
+            return taskDocSnap.data();
           });
-          if (taskAndVariant.task === undefined) {
-            throw new Error(`Could not find task ${taskId}`);
-          }
 
-          if (taskAndVariant.variant === undefined) {
-            throw new Error(
-              `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
-            );
-          }
-
-          const taskName = taskAndVariant.task.name;
-          const taskDescription = taskAndVariant.task.description;
-          const variantName = taskAndVariant.variant.name;
-          const variantDescription = taskAndVariant.variant.description;
+          const variantData = await getDoc(variantDoc).then((variantDocSnap) => {
+            if (!variantDocSnap.exists()) {
+              throw new Error(`Could not find variant ${variantId} of task ${taskId}`);
+            }
+            
+            return variantDocSnap.data();
+          });
 
           const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
           const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
-          const { testData: isTaskTest, demoData: isTaskDemo } = taskAndVariant.task;
-          const { testData: isVariantTest, demoData: isVariantDemo } = taskAndVariant.variant;
+          const { testData: isTaskTest, demoData: isTaskDemo } = taskData;
+          const { testData: isVariantTest, demoData: isVariantDemo } = variantData;
 
           const taskInfo = {
             db: this.app!.db,
             taskId,
-            taskName,
-            taskDescription,
             taskVersion,
-            variantName,
-            variantDescription,
-            variantParams: assessmentParams,
+            variantId,
             testData: {
               task: isTaskTest ?? false,
               variant: isVariantTest ?? false,
@@ -1059,6 +1054,7 @@ export class RoarFirekit {
               task: isTaskDemo ?? false,
               variant: isVariantDemo ?? false,
             },
+            isStandalone: false,
           };
 
           return new RoarAppkit({
@@ -1732,6 +1728,7 @@ export class RoarFirekit {
       variantParams,
       testData,
       demoData,
+      isStandalone: true,
     });
 
     await task.toFirestore();
