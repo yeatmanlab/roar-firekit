@@ -22,6 +22,7 @@ export interface TaskVariantInfo {
   taskImage?: string;
   taskURL?: string;
   taskVersion?: string;
+  gameConfig?: object;
   external?: boolean;
   variantName?: string;
   variantDescription?: string;
@@ -39,6 +40,7 @@ export interface FirestoreTaskData {
   description?: string | null;
   image?: string;
   taskURL?: string;
+  gameConfig?: object;
   external?: boolean;
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
@@ -77,6 +79,7 @@ export class RoarTaskVariant {
   taskImage?: string;
   taskURL?: string;
   taskVersion?: string;
+  gameConfig?: object;
   external?: boolean;
   taskRef: DocumentReference;
   variantId?: string;
@@ -106,6 +109,7 @@ export class RoarTaskVariant {
     taskDescription,
     taskImage,
     taskURL,
+    gameConfig,
     taskVersion = undefined,
     external,
     variantName,
@@ -121,6 +125,7 @@ export class RoarTaskVariant {
     this.taskImage = taskImage;
     this.taskURL = taskURL;
     this.taskVersion = taskVersion;
+    this.gameConfig = gameConfig;
     this.external = external;
     this.variantName = variantName;
     this.variantDescription = variantDescription;
@@ -146,6 +151,7 @@ export class RoarTaskVariant {
       description: this.taskDescription,
       image: this.taskImage,
       taskURL: this.taskURL,
+      gameConfig: this.gameConfig,
       external: this.external,
       lastUpdated: serverTimestamp(),
       // Use conditional spreading to add the testData flag only if it exists on
