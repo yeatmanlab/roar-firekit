@@ -1715,6 +1715,7 @@ export class RoarFirekit {
     variantName,
     variantDescription,
     variantParams = {},
+    registered,
     testData = { task: false, variant: false },
     demoData = { task: false, variant: false },
   }: TaskVariantInfo) {
@@ -1732,6 +1733,7 @@ export class RoarFirekit {
       variantName,
       variantDescription,
       variantParams,
+      registered,
       testData,
       demoData,
     });
