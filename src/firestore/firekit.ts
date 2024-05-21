@@ -809,7 +809,7 @@ export class RoarFirekit {
     return this._idTokens;
   }
 
-  public get restConfig() {
+  public restConfig() {
     return {
       admin: {
         headers: { Authorization: `Bearer ${this._idTokens.admin}` },
