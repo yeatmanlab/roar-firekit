@@ -378,6 +378,13 @@ export class RoarFirekit {
     }
   }
 
+  async forceIdTokenRefresh() {
+    this.verboseLog('Entry point for forceIdTokenRefresh');
+    this._verifyAuthentication();
+    await getIdToken(this.admin!.user!, true);
+    await getIdToken(this.app!.user!, true);
+  }
+
   private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin' | 'app') {
     this.verboseLog('Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
@@ -845,7 +852,9 @@ export class RoarFirekit {
   }
 
   private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
+    this.verboseLog('Entry point for _getUser');
     this._verifyAuthentication();
+    this.verboseLog('User is authenticated in _getUser', uid, this._idTokens);
     const userDocRef = doc(this.admin!.db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
 
@@ -883,12 +892,15 @@ export class RoarFirekit {
   }
 
   async getMyData() {
+    this.verboseLog('Entry point for getMyData');
     this._verifyInit();
     if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
+    this.verboseLog('User is authenticated and has a uid', this.roarUid);
 
     this.userData = await this._getUser(this.roarUid!);
+    this.verboseLog('Got user data', this.userData);
 
     if (this.userData) {
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
