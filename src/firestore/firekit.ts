@@ -441,6 +441,8 @@ export class RoarFirekit {
       throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
     }
 
+    await this.forceIdTokenRefresh();
+
     this.verboseLog('Returning appResult from setUidCustomClaims', appResult);
     return appResult;
   }
