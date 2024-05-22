@@ -895,7 +895,6 @@ export class RoarFirekit {
     if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
-    this.verboseLog('User is authenticated and has a uid', this.roarUid);
 
     this.userData = await this._getUser(this.roarUid!);
     this.verboseLog('Got user data', this.userData);
