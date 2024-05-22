@@ -1,7 +1,7 @@
 /lib
 
 /roarconfig.json
-
+.idea
 # Logs
 logs
 *.log
