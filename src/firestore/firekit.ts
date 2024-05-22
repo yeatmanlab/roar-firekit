@@ -897,7 +897,6 @@ export class RoarFirekit {
     }
 
     this.userData = await this._getUser(this.roarUid!);
-    this.verboseLog('Got user data', this.userData);
 
     if (this.userData) {
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
