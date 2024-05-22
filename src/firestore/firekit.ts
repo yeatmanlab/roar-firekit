@@ -378,6 +378,13 @@ export class RoarFirekit {
     }
   }
 
+  async forceIdTokenRefresh() {
+    this.verboseLog('Entry point for forceIdTokenRefresh');
+    this._verifyAuthentication();
+    await getIdToken(this.admin!.user!, true);
+    await getIdToken(this.app!.user!, true);
+  }
+
   private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin' | 'app') {
     this.verboseLog('Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
@@ -433,6 +440,8 @@ export class RoarFirekit {
       this.verboseLog('Error in calling setAppUidClaims cloud function', appResult.data);
       throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
     }
+
+    await this.forceIdTokenRefresh();
 
     this.verboseLog('Returning appResult from setUidCustomClaims', appResult);
     return appResult;
@@ -883,6 +892,7 @@ export class RoarFirekit {
   }
 
   async getMyData() {
+    this.verboseLog('Entry point for getMyData');
     this._verifyInit();
     if (!this._isAuthenticated() || !this.roarUid) {
       return;
