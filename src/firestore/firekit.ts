@@ -853,7 +853,6 @@ export class RoarFirekit {
 
   private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
     this._verifyAuthentication();
-    this.verboseLog('User is authenticated in _getUser', uid, this._idTokens);
     const userDocRef = doc(this.admin!.db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
 
