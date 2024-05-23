@@ -37,6 +37,7 @@ import {
   onSnapshot,
   runTransaction,
   updateDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
@@ -68,7 +69,7 @@ import {
 import { UserInput } from './app/user';
 import { RoarAppkit } from './app/appkit';
 import { getTaskAndVariant } from './query-assessment';
-import { TaskVariantInfo, RoarTaskVariant } from './app/task';
+import { TaskVariantInfo, RoarTaskVariant, FirestoreVariantData, FirestoreTaskData } from './app/task';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -142,6 +143,13 @@ interface LevanteUserData {
 
 interface LevanteSurveyResponses {
   [key: string]: string;
+}
+
+interface UpdateTaskVariantData {
+  taskId: string;
+  taskData: FirestoreTaskData;
+  variantId?: string;
+  variantData?: FirestoreVariantData;
 }
 
 export class RoarFirekit {
@@ -1741,6 +1749,42 @@ export class RoarFirekit {
     await task.toFirestore();
 
     return task;
+  }
+
+  async updateTaskOrVariant(updateData: UpdateTaskVariantData) {
+    try {
+      this._verifyAuthentication();
+    } catch (error) {
+      console.log('auth error: ', error);
+    }
+
+    try {
+      this._verifyAdmin();
+    } catch (error) {
+      console.log('admin error: ', error);
+    }
+
+    let docRef;
+    let data;
+    let dataType: string;
+
+    if (updateData.variantId && updateData.variantData) {
+      docRef = doc(this.app!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
+      data = updateData.variantData;
+      dataType = 'variant';
+    } else {
+      docRef = doc(this.app!.db, 'tasks', updateData.taskId);
+      data = updateData.taskData;
+      dataType = 'task';
+    }
+
+    try {
+      await setDoc(docRef, { ...data }).then(() => {
+        console.log(`Successfully updated ${dataType} data.`);
+      });
+    } catch (error) {
+      console.log('error: ', error);
+    }
   }
 
   // LEVANTE
