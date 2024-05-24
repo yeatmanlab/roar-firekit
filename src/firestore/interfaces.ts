@@ -102,6 +102,13 @@ export interface UserDataInAdminDb extends DocumentData {
   };
 }
 
+export interface Legal {
+  consent: [];
+  assent: [];
+  amount: string;
+  expectedTime: string;
+}
+
 enum Operator {
   LESS_THAN = 'LESS_THAN',
   GREATER_THAN = 'GREATER_THAN',
@@ -148,6 +155,7 @@ export type OrgListKey = 'districts' | 'schools' | 'classes' | 'groups' | 'famil
 export interface Administration extends OrgLists {
   id?: string;
   name: string;
+  publicName?: string;
   createdBy: string;
   dateCreated: Date | Timestamp;
   dateOpened: Date | Timestamp;
@@ -156,6 +164,7 @@ export interface Administration extends OrgLists {
   assessments: Assessment[];
   tags?: string[];
   readOrgs?: OrgLists;
+  legal?: Legal;
 }
 
 export interface AssignedAssessment extends DocumentData {
