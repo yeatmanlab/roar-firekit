@@ -147,9 +147,8 @@ interface LevanteSurveyResponses {
 
 interface UpdateTaskVariantData {
   taskId: string;
-  taskData: FirestoreTaskData;
+  data: FirestoreTaskData | FirestoreVariantData;
   variantId?: string;
-  variantData?: FirestoreVariantData;
 }
 
 export class RoarFirekit {
@@ -1752,39 +1751,23 @@ export class RoarFirekit {
   }
 
   async updateTaskOrVariant(updateData: UpdateTaskVariantData) {
-    try {
-      this._verifyAuthentication();
-    } catch (error) {
-      console.log('auth error: ', error);
-    }
-
-    try {
-      this._verifyAdmin();
-    } catch (error) {
-      console.log('admin error: ', error);
-    }
+    this._verifyAdmin();
 
     let docRef;
-    let data;
     let dataType: string;
+    const { data } = updateData;
 
-    if (updateData.variantId && updateData.variantData) {
+    if (updateData.variantId) {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
-      data = updateData.variantData;
       dataType = 'variant';
     } else {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId);
-      data = updateData.taskData;
       dataType = 'task';
     }
 
-    try {
-      await setDoc(docRef, { ...data }).then(() => {
-        console.log(`Successfully updated ${dataType} data.`);
-      });
-    } catch (error) {
-      console.log('error: ', error);
-    }
+    await setDoc(docRef, { ...data }).then(() => {
+      console.log(`Successfully updated ${dataType} data.`);
+    });
   }
 
   // LEVANTE
