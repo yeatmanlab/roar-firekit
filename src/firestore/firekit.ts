@@ -1289,6 +1289,14 @@ export class RoarFirekit {
       transaction.update(userDocRef, {
         'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
       });
+    })
+    .catch((error: any) => {
+      console.error('Error creating administration', error.message);
+      if (error?.message) {
+        throw error
+      } else {
+        throw new Error('Error creating administration');
+      }
     });
   }
 
@@ -1815,14 +1823,26 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
-    return await cloudCreateLevanteUsers({ userData });
+    try {
+      const result = await cloudCreateLevanteUsers({ userData });
+      return result;
+    } catch (error: any) {
+      console.error('Error creating Levante users in firekit', error);
+      throw error;
+    }
   }
 
   async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
     this._verifyAuthentication();
 
     const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
-    return await cloudSaveSurveyResponses({ surveyResponses });
+    try {
+      const result = await cloudSaveSurveyResponses({ surveyResponses });
+      return result;
+    } catch (error) {
+      console.error('Error saving survey responses in firekit', error);
+      throw error;
+    }
   }
 
   async createLevanteGroup(groupData: RoarOrg) {
@@ -1830,6 +1850,12 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const cloudCreateLevanteGroup = httpsCallable(this.admin!.functions, 'createLevanteGroup');
-    return await cloudCreateLevanteGroup({ groupData });
+    try {
+      const result = await cloudCreateLevanteGroup({ groupData });
+      return result;
+    } catch (error: any) {
+      console.error('Error creating Levante group in firekit', error);
+      throw error;
+    }
   }
 }
