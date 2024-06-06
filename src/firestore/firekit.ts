@@ -1290,11 +1290,10 @@ export class RoarFirekit {
       transaction.update(userDocRef, {
         'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
       });
-    })
-    .catch((error: any) => {
+    }).catch((error: any) => {
       console.error('Error creating administration', error.message);
       if (error?.message) {
-        throw error
+        throw error;
       } else {
         throw new Error('Error creating administration');
       }
