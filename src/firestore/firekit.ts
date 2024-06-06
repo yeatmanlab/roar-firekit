@@ -113,6 +113,7 @@ interface CreateParentInput {
 }
 
 export interface ChildData {
+  activationCode: string;
   email: string;
   password: string;
   userData: CreateUserInput;
@@ -1475,6 +1476,7 @@ export class RoarFirekit {
 
       // Move attributes into the studentData object.
       _set(returnChild, 'userData.username', child.email.split('@')[0]);
+      if (_get(child, 'userData.activationCode')) _set(returnChild, 'userData.activationCode', child.activationCode);
       if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
       if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
       if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
