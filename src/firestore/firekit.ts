@@ -1427,6 +1427,35 @@ export class RoarFirekit {
         throw new Error('No id supplied to updateUserData.');
       }
     });
+
+    // Pull out fields appropriate for the assessment database.
+    const appUserData = {};
+
+    if (userData?.studentData?.grade) {
+      _set(appUserData, 'grade', userData.studentData.grade);
+    }
+
+    if (userData?.studentData?.dob) {
+      _set(appUserData, 'birthMonth', new Date(userData.studentData.dob).getMonth());
+      _set(appUserData, 'birthYear', new Date(userData.studentData.dob).getFullYear());
+    }
+
+    if (!_isEmpty(appUserData)) {
+      await runTransaction(this.app!.db, async (transaction) => {
+        if (id !== undefined) {
+          const userDocRef = doc(this.app!.db, 'users', id);
+          const docSnap = await transaction.get(userDocRef);
+          if (!docSnap.exists()) {
+            throw new Error(`Could not find user with id ${id}`);
+          } else {
+            transaction.set(userDocRef, appUserData, { merge: true });
+          }
+        } else {
+          throw new Error('No id supplied to updateUserData.');
+        }
+      });
+    }
+
     return {
       status: 'ok',
     };
