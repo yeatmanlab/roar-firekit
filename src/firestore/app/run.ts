@@ -96,6 +96,17 @@ const castToTheta = (value: ThetaValue) => {
   return value as number;
 };
 
+interface DBToJson {
+  app: any,
+  databaseId: {
+    database: string,
+    projectId: string
+  },
+  settings: {
+    [key: string]: any
+  }
+}
+
 /**
  * Class representing a ROAR run.
  *
@@ -301,17 +312,36 @@ export class RoarRun {
    * Mark this run as complete on Firestore
    * @method
    * @async
+   * @param {Object} [finishingMetaData={}] - Optional metadata to include when marking the run as complete.
+   * @param {boolean} finishingMetaData.someFlag - An example boolean flag.
+   * @returns {Promise<boolean | undefined>} - Resolves when the run has been marked as complete.
+   * @throws {Error} - Throws an error if the run has not been started yet.
    */
-  async finishRun() {
+  async finishRun(finishingMetaData: {[key: string]: unknown} = {}): Promise<boolean | undefined> {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
 
     if (!this.aborted) {
-      return updateDoc(this.runRef, {
+
+      const dbToJson = this.task.db.toJSON() as DBToJson;
+      const projectId = dbToJson.databaseId.projectId;
+
+      let finishingData = {
         completed: true,
         timeFinished: serverTimestamp(),
-      })
+      }
+
+      if (projectId.includes('levante')) {
+        finishingData = {
+          completed: true,
+          timeFinished: serverTimestamp(),
+          ...finishingMetaData,
+        }
+      }
+
+
+      return updateDoc(this.runRef, finishingData)
         .then(() => this.user.updateFirestoreTimestamp())
         .then(() => (this.completed = true));
     }

@@ -250,7 +250,7 @@ export class RoarAppkit {
    * @method
    * @async
    */
-  async finishRun() {
+  async finishRun(metadata: {[key: string]: unknown} = {}) {
     if (this._started) {
       return this.run!.finishRun();
     } else {
