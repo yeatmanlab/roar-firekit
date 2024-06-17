@@ -96,17 +96,6 @@ const castToTheta = (value: ThetaValue) => {
   return value as number;
 };
 
-interface DBToJson {
-  app: any;
-  databaseId: {
-    database: string;
-    projectId: string;
-  };
-  settings: {
-    [key: string]: any;
-  };
-}
-
 /**
  * Class representing a ROAR run.
  *

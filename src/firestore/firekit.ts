@@ -1290,6 +1290,7 @@ export class RoarFirekit {
       transaction.update(userDocRef, {
         'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }).catch((error: any) => {
       console.error('Error creating administration', error.message);
       if (error?.message) {
@@ -1828,6 +1829,7 @@ export class RoarFirekit {
     try {
       const result = await cloudCreateLevanteUsers({ userData });
       return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error creating Levante users in firekit', error);
       throw error;
@@ -1855,6 +1857,7 @@ export class RoarFirekit {
     try {
       const result = await cloudCreateLevanteGroup({ groupData });
       return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error creating Levante group in firekit', error);
       throw error;
