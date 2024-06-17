@@ -249,10 +249,13 @@ export class RoarAppkit {
    * ```
    * @method
    * @async
+   * @param {Object} [finishingMetaData={}] - Optional metadata to include when marking the run as complete.
+   * @returns {Promise<boolean | undefined>} - Resolves when the run has been marked as complete.
+   * @throws {Error} - Throws an error if the run has not been started yet.
    */
-  async finishRun(metadata: {[key: string]: unknown} = {}) {
+  async finishRun(finishingMetaData: { [key: string]: unknown } = {}) {
     if (this._started) {
-      return this.run!.finishRun();
+      return this.run!.finishRun(finishingMetaData);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
