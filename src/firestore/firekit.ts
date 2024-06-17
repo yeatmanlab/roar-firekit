@@ -1392,16 +1392,16 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     // Validate data
-    // 1. check that date is not in the future
+    // Check that date is not in the future
     if (userData?.studentData?.dob) {
       const dob = new Date(userData.studentData.dob);
       if (dob.getTime() > Date.now()) {
-        throw new Error('Date of birth cannot be in the future.');
+        throw new Error('Date of Birth cannot be in the future.');
       }
     } else if (userData.userType === UserType.student) {
-      throw new Error('Date of birth cannot be empty.');
+      throw new Error('Date of Birth cannot be empty.');
     }
-    // 2. check that grade is valid (a number, between 1 - 13, or k/prek/tk)
+    // Check that grade is valid (a number, between 1 - 13, or k/prek/tk)
     if (userData?.studentData?.grade) {
       const grade = userData.studentData.grade as string;
       if (
