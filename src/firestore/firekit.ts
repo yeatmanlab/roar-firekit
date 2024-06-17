@@ -169,6 +169,7 @@ export class RoarFirekit {
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
+  private _admin?: boolean;
   private _verboseLogging?: boolean;
   private _adminTokenListener?: Unsubscribe;
   private _appTokenListener?: Unsubscribe;
@@ -318,6 +319,11 @@ export class RoarFirekit {
   isAdmin() {
     if (this.superAdmin) return true;
     if (this._adminOrgs === undefined) return false;
+
+    if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
+      return this._admin
+    }
+
     if (_isEmpty(_union(...Object.values(this._adminOrgs)))) return false;
     return true;
   }
@@ -352,6 +358,11 @@ export class RoarFirekit {
             const data = doc.data();
             this._adminOrgs = data?.claims?.adminOrgs;
             this._superAdmin = data?.claims?.super_admin;
+
+            if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
+              this._admin = data?.claims?.admin || false
+            }
+
             this.verboseLog('data, adminOrgs, superAdmin are retrieved from doc.data()');
             this.verboseLog('about to check for existance of data.lastUpdated');
             if (data?.lastUpdated) {
