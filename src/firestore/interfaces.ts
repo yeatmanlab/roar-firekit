@@ -102,6 +102,16 @@ export interface UserDataInAdminDb extends DocumentData {
   };
 }
 
+export interface UserRecord {
+  email?: string;
+  phoneNumber?: string;
+  emailVerified?: string;
+  password?: string;
+  displayName?: string;
+  photoURL?: string;
+  disabled?: boolean;
+}
+
 export interface Legal {
   consent: [];
   assent: [];

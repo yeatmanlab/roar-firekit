@@ -63,6 +63,7 @@ import {
   RoarConfig,
   StudentData,
   UserDataInAdminDb,
+  UserRecord,
   OrgCollectionName,
   UserType,
   Legal,
@@ -321,7 +322,7 @@ export class RoarFirekit {
     if (this._adminOrgs === undefined) return false;
 
     if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
-      return this._admin
+      return this._admin;
     }
 
     if (_isEmpty(_union(...Object.values(this._adminOrgs)))) return false;
@@ -359,8 +360,11 @@ export class RoarFirekit {
             this._adminOrgs = data?.claims?.adminOrgs;
             this._superAdmin = data?.claims?.super_admin;
 
-            if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
-              this._admin = data?.claims?.admin || false
+            if (
+              this.roarConfig.admin.projectId.includes('levante') ||
+              this.roarConfig.app.projectId.includes('levante')
+            ) {
+              this._admin = data?.claims?.admin || false;
             }
 
             this.verboseLog('data, adminOrgs, superAdmin are retrieved from doc.data()');
@@ -1549,6 +1553,34 @@ export class RoarFirekit {
     if (_get(adminResponse.data as any, 'status') !== 'ok') {
       throw new Error('Failed to create administrator user account.');
     }
+  }
+
+  async updateUserRecord(uid: string, userRecord: UserRecord) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    // Filter out any fields that are null or undefined.
+    let record = Object.fromEntries(
+      Object.entries(userRecord).filter(([_, v]) => {
+        return v && v !== null && v !== undefined;
+      }),
+    );
+
+    // Validate fields
+    if (record.password) {
+      if (record.password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+    }
+
+    console.log('Updating user record for user', uid, 'with', record);
+
+    // const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
+    // const updateResponse = await cloudUpdateUserRecord({ uid, userRecord });
+    // // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // if (_get(updateResponse.data as any, 'status') !== 'ok') {
+    //   throw new Error('Failed to update user record.');
+    // }
   }
 
   /**
