@@ -1396,6 +1396,83 @@ export class RoarFirekit {
     // }
   }
 
+  async updateUserData(
+    id: string,
+    userData: { name: Name; studentData: StudentData; userType: UserType; [x: string]: any },
+  ) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    // Validate data
+    // Check that date is not in the future
+    if (userData?.studentData?.dob) {
+      const dob = new Date(userData.studentData.dob);
+      if (dob.getTime() > Date.now()) {
+        throw new Error('Date of Birth cannot be in the future.');
+      }
+    } else if (userData.userType === UserType.student) {
+      throw new Error('Date of Birth cannot be empty.');
+    }
+    // Check that grade is valid (a number, between 1 - 13, or k/prek/tk)
+    if (userData?.studentData?.grade) {
+      const grade = userData.studentData.grade as string;
+      if (
+        !['k', 'pk', 'tk', 'kindergarten'].includes(grade.toLowerCase()) &&
+        (parseInt(grade) < 1 || parseInt(grade) > 13)
+      ) {
+        throw new Error('Grade must be a number between 1 and 13, or PK/TK/K.');
+      }
+    } else if (userData.userType === UserType.student) {
+      throw new Error('Grade cannot be empty.');
+    }
+
+    await runTransaction(this.admin!.db, async (transaction) => {
+      if (id !== undefined) {
+        const userDocRef = doc(this.admin!.db, 'users', id);
+        const docSnap = await transaction.get(userDocRef);
+        if (!docSnap.exists()) {
+          throw new Error(`Could not find user with id ${id}`);
+        } else {
+          transaction.set(userDocRef, userData, { merge: true });
+        }
+      } else {
+        throw new Error('No id supplied to updateUserData.');
+      }
+    });
+
+    // Pull out fields appropriate for the assessment database.
+    const appUserData = {};
+
+    if (userData?.studentData?.grade) {
+      _set(appUserData, 'grade', userData.studentData.grade);
+    }
+
+    if (userData?.studentData?.dob) {
+      _set(appUserData, 'birthMonth', new Date(userData.studentData.dob).getMonth());
+      _set(appUserData, 'birthYear', new Date(userData.studentData.dob).getFullYear());
+    }
+
+    if (!_isEmpty(appUserData)) {
+      await runTransaction(this.app!.db, async (transaction) => {
+        if (id !== undefined) {
+          const userDocRef = doc(this.app!.db, 'users', id);
+          const docSnap = await transaction.get(userDocRef);
+          if (!docSnap.exists()) {
+            throw new Error(`Could not find user with id ${id}`);
+          } else {
+            transaction.set(userDocRef, appUserData, { merge: true });
+          }
+        } else {
+          throw new Error('No id supplied to updateUserData.');
+        }
+      });
+    }
+
+    return {
+      status: 'ok',
+    };
+  }
+
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
