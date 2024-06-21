@@ -321,7 +321,7 @@ export class RoarFirekit {
     if (this._adminOrgs === undefined) return false;
 
     if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
-      return this._admin
+      return this._admin;
     }
 
     if (_isEmpty(_union(...Object.values(this._adminOrgs)))) return false;
@@ -359,8 +359,11 @@ export class RoarFirekit {
             this._adminOrgs = data?.claims?.adminOrgs;
             this._superAdmin = data?.claims?.super_admin;
 
-            if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
-              this._admin = data?.claims?.admin || false
+            if (
+              this.roarConfig.admin.projectId.includes('levante') ||
+              this.roarConfig.app.projectId.includes('levante')
+            ) {
+              this._admin = data?.claims?.admin || false;
             }
 
             this.verboseLog('data, adminOrgs, superAdmin are retrieved from doc.data()');
