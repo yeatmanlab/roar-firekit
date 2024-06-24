@@ -1487,7 +1487,7 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     // Filter out any fields that are null or undefined.
-    let record = Object.fromEntries(
+    const record = Object.fromEntries(
       Object.entries(userRecord).filter(([_, v]) => {
         return v && v !== null && v !== undefined;
       }),
