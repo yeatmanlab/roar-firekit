@@ -63,6 +63,7 @@ import {
   RoarConfig,
   StudentData,
   UserDataInAdminDb,
+  UserRecord,
   OrgCollectionName,
   UserType,
   Legal,
@@ -1471,9 +1472,42 @@ export class RoarFirekit {
       });
     }
 
+    // If password is supplied, update the user's password.
+    if (userData?.password) {
+      await this.updateUserRecord(id, { password: userData.password });
+    }
+
     return {
       status: 'ok',
     };
+  }
+
+  async updateUserRecord(uid: string, userRecord: UserRecord) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    // Filter out any fields that are null or undefined.
+    const record = Object.fromEntries(
+      Object.entries(userRecord).filter(([_, v]) => {
+        return v && v !== null && v !== undefined;
+      }),
+    );
+
+    // Validate fields
+    if (record.password) {
+      if (record.password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+    }
+
+    console.log('Updating user record for user', uid, 'with', record);
+
+    const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
+    const updateResponse = await cloudUpdateUserRecord({ uid, userRecord });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (_get(updateResponse.data as any, 'status') !== 'ok') {
+      throw new Error('Failed to update user record.');
+    }
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
