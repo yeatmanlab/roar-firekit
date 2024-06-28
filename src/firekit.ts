@@ -16,6 +16,7 @@ import {
   isSignInWithEmailLink,
   linkWithCredential,
   linkWithPopup,
+  linkWithRedirect,
   onAuthStateChanged,
   onIdTokenChanged,
   sendSignInLinkToEmail,
@@ -727,16 +728,19 @@ export class RoarFirekit {
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password)
-      .then(() => {
-        return signInWithEmailAndPassword(this.app!.auth, email, password)
-          .then(this._setUidCustomClaims.bind(this))
-          .catch((error: AuthError) => {
-            console.error('(Inside) Error signing in', error);
-            throw error;
-          });
+      .then(async (adminUserCredential) => {
+        const roarProviderIds = this._getProviderIds();
+        const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
+        const roarAdminIdToken = await getIdToken(adminUserCredential.user);
+        const roarAdminCredential = roarAdminProvider.credential({
+          idToken: roarAdminIdToken,
+        });
+
+        return signInWithCredential(this.app!.auth, roarAdminCredential);
       })
+      .then(this._setUidCustomClaims.bind(this))
       .catch((error: AuthError) => {
-        console.error('(Outside) Error signing in', error);
+        console.error('Error signing in', error);
         throw error;
       });
   }
@@ -756,6 +760,25 @@ export class RoarFirekit {
   async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
     const email = roarEmail(username);
     return this.logInWithEmailAndPassword({ email, password });
+  }
+
+  /**
+   * Link the current user with email and password credentials.
+   *
+   * This method creates a credential using the provided email and password, and then links the user's account with the current user in both the admin and app Firebase projects.
+   *
+   * @param {string} email - The email of the user to link.
+   * @param {string} password - The password of the user to link.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
+   */
+  async linkEmailPasswordWithAuthProvider(email: string, password: string) {
+    this._verifyAuthentication();
+
+    const emailCredential = EmailAuthProvider.credential(email, password);
+    return linkWithCredential(this.admin!.auth!.currentUser!, emailCredential).then(() => {
+      return linkWithCredential(this.app!.auth!.currentUser!, emailCredential);
+    });
   }
 
   /**
@@ -919,20 +942,112 @@ export class RoarFirekit {
   }
 
   /**
+   * Link the current user with the specified authentication provider using a popup window.
+   *
+   * This method opens a popup window to allow the user to sign in with the specified authentication provider.
+   * It then links the user's account with the current user in both the admin and app Firebase projects.
+   *
+   * @param {AuthProviderType} provider - The authentication provider to link with. It can be one of the following:
+   * - AuthProviderType.GOOGLE
+   * - AuthProviderType.CLEVER
+   * - AuthProviderType.CLASSLINK
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
+   *
+   * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
+   */
+  async linkAuthProviderWithPopup(provider: AuthProviderType) {
+    this._verifyAuthentication();
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+
+    let authProvider;
+    if (provider === AuthProviderType.GOOGLE) {
+      authProvider = new GoogleAuthProvider();
+    } else if (provider === AuthProviderType.CLEVER) {
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
+    } else {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
+    const swallowAllowedErrors = (error: AuthError) => {
+      if (!allowedErrors.includes(error.code)) {
+        throw error;
+      }
+    };
+
+    let oAuthAccessToken: string | undefined;
+
+    return linkWithPopup(this.admin!.auth!.currentUser!, authProvider)
+      .then(async (adminUserCredential) => {
+        if (provider === AuthProviderType.GOOGLE) {
+          const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
+          // This gives you a Google Access Token. You can use it to access Google APIs.
+          // TODO: Find a way to put this in the onAuthStateChanged handler
+          oAuthAccessToken = credential?.accessToken;
+          return credential;
+        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
+          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          oAuthAccessToken = credential?.accessToken;
+
+          const roarProviderIds = this._getProviderIds();
+          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
+          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
+          const roarAdminCredential = roarAdminProvider.credential({
+            idToken: roarAdminIdToken,
+          });
+
+          return roarAdminCredential;
+        }
+      })
+      .catch(swallowAllowedErrors)
+      .then((credential) => {
+        if (credential) {
+          return linkWithCredential(this.app!.auth!.currentUser!, credential).catch(swallowAllowedErrors);
+        }
+      })
+      .then((credential) => {
+        if (credential) {
+          return this._setUidCustomClaims();
+        }
+      })
+      .then((setClaimsResult) => {
+        if (setClaimsResult) {
+          this._syncEduSSOUser(oAuthAccessToken, provider);
+        }
+      });
+  }
+
+  /**
    * Initiates a redirect sign-in flow with the specified authentication provider.
    *
    * This method triggers a redirect to the authentication provider's sign-in page.
    * After the user successfully signs in, they will be redirected back to the application.
    *
+   * If the linkToAuthenticatedUser parameter is set to true, an existing user
+   * must already be authenticated and the user's account will be linked with
+   * the new provider.
+   *
    * @param {AuthProviderType} provider - The authentication provider to initiate the sign-in flow with.
    * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * @param {boolean} linkToAuthenticatedUser - Whether to link an authenticated user's account with the new provider.
    *
    * @returns {Promise<void>} - A promise that resolves when the redirect sign-in flow is initiated.
    * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
    */
-  async initiateRedirect(provider: AuthProviderType) {
+  async initiateRedirect(provider: AuthProviderType, linkToAuthenticatedUser = false) {
     this.verboseLog('Entry point for initiateRedirect');
     this._verifyInit();
+
+    if (linkToAuthenticatedUser) {
+      this._verifyAuthentication();
+    }
+
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
     let authProvider;
@@ -956,6 +1071,9 @@ export class RoarFirekit {
     }
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
+    if (linkToAuthenticatedUser) {
+      return linkWithRedirect(this.admin!.auth!.currentUser!, authProvider);
+    }
     return signInWithRedirect(this.admin!.auth, authProvider);
   }
 
@@ -1078,107 +1196,6 @@ export class RoarFirekit {
         }
         return null;
       });
-  }
-
-  /**
-   * Link the current user with the specified authentication provider using a popup window.
-   *
-   * This method opens a popup window to allow the user to sign in with the specified authentication provider.
-   * It then links the user's account with the current user in both the admin and app Firebase projects.
-   *
-   * @param {AuthProviderType} provider - The authentication provider to link with. It can be one of the following:
-   * - AuthProviderType.GOOGLE
-   * - AuthProviderType.CLEVER
-   * - AuthProviderType.CLASSLINK
-   *
-   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
-   *
-   * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
-   */
-  async linkAuthProviderWithPopup(provider: AuthProviderType) {
-    this._verifyAuthentication();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-
-    let authProvider;
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
-
-    const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
-    const swallowAllowedErrors = (error: AuthError) => {
-      if (!allowedErrors.includes(error.code)) {
-        throw error;
-      }
-    };
-
-    let oAuthAccessToken: string | undefined;
-
-    return linkWithPopup(this.admin!.auth!.currentUser!, authProvider)
-      .then(async (adminUserCredential) => {
-        if (provider === AuthProviderType.GOOGLE) {
-          const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Google Access Token. You can use it to access Google APIs.
-          // TODO: Find a way to put this in the onAuthStateChanged handler
-          oAuthAccessToken = credential?.accessToken;
-          return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
-          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
-          oAuthAccessToken = credential?.accessToken;
-
-          const roarProviderIds = this._getProviderIds();
-          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
-          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
-          const roarAdminCredential = roarAdminProvider.credential({
-            idToken: roarAdminIdToken,
-          });
-
-          return roarAdminCredential;
-        }
-      })
-      .catch(swallowAllowedErrors)
-      .then((credential) => {
-        if (credential) {
-          return linkWithCredential(this.app!.auth!.currentUser!, credential).catch(swallowAllowedErrors);
-        }
-      })
-      .then((credential) => {
-        if (credential) {
-          return this._setUidCustomClaims();
-        }
-      })
-      .then((setClaimsResult) => {
-        if (setClaimsResult) {
-          this._syncEduSSOUser(oAuthAccessToken, provider);
-        }
-      });
-  }
-
-  /**
-   * Link the current user with email and password credentials.
-   *
-   * This method creates a credential using the provided email and password, and then links the user's account with the current user in both the admin and app Firebase projects.
-   *
-   * @param {string} email - The email of the user to link.
-   * @param {string} password - The password of the user to link.
-   *
-   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
-   */
-  async linkEmailPasswordWithAuthProvider(email: string, password: string) {
-    this._verifyAuthentication();
-
-    const emailCredential = EmailAuthProvider.credential(email, password);
-    return linkWithCredential(this.admin!.auth!.currentUser!, emailCredential).then(() => {
-      return linkWithCredential(this.app!.auth!.currentUser!, emailCredential);
-    });
   }
 
   /**
