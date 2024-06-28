@@ -19,6 +19,7 @@ import {
   linkWithRedirect,
   onAuthStateChanged,
   onIdTokenChanged,
+  sendPasswordResetEmail,
   sendSignInLinkToEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -1924,6 +1925,12 @@ export class RoarFirekit {
     if (_get(updateResponse.data as any, 'status') !== 'ok') {
       throw new Error('Failed to update user record.');
     }
+  }
+
+  async sendPasswordResetEmail(email: string) {
+    return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
+      this.verboseLog('Password reset email sent to', email);
+    });
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
