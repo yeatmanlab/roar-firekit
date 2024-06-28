@@ -5,7 +5,7 @@ import { ref, getDownloadURL } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
-import { FirebaseProject, OrgLists } from '../interfaces';
+import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 
 interface DataFlags {

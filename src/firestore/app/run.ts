@@ -17,7 +17,7 @@ import _set from 'lodash/set';
 import dot from 'dot-object';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
-import { OrgLists } from '../interfaces';
+import { OrgLists } from '../../interfaces';
 import { removeUndefined } from '../util';
 import { FirebaseError } from '@firebase/util';
 

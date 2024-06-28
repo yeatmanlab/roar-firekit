@@ -4,7 +4,7 @@ import { DocumentData, Firestore, Timestamp } from 'firebase/firestore';
 import { Functions } from 'firebase/functions';
 import { FirebaseStorage } from 'firebase/storage';
 import { FirebasePerformance } from 'firebase/performance';
-import { FirebaseConfig } from './util';
+import { FirebaseConfig } from './firestore/util';
 
 export interface RoarConfig {
   app: FirebaseConfig;
