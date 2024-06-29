@@ -1960,6 +1960,16 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Send a password reset email to the specified user's email address.
+   *
+   * This will reset the password in the admin Firebase project. The assessment
+   * Firebase project remains unchanged because we use the admin project's
+   * credentials to authenticate into the assessment project.
+   *
+   * @param {string} email - The email address of the user to send the password reset email to.
+   * @returns A promise that resolves when the password reset email is sent.
+   */
   async sendPasswordResetEmail(email: string) {
     return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
       this.verboseLog('Password reset email sent to', email);
