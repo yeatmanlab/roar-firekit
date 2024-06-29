@@ -26,6 +26,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   signOut,
+  unlink,
 } from 'firebase/auth';
 import {
   DocumentData,
@@ -1196,6 +1197,38 @@ export class RoarFirekit {
         }
         return null;
       });
+  }
+
+  /**
+   * Unlinks the specified authentication provider from the current user.
+   *
+   * This method only unlinks the specified provider from the user in the admin Firebase project.
+   * The roarProciderIds.ROAR_ADMIN_PROJECT provider is maintained in the assessment Firebase project.
+   *
+   * @param {AuthProviderType} provider - The authentication provider to unlink.
+   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * @returns {Promise<void>} - A promise that resolves when the provider is unlinked.
+   * @throws {Error} - If the provided provider is not one of the allowed providers.
+   */
+  async unlinkAuthProvider(provider: AuthProviderType) {
+    this._verifyAuthentication();
+
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const roarProviderIds = this._getProviderIds();
+
+    let providerId: string;
+    if (provider === AuthProviderType.GOOGLE) {
+      providerId = roarProviderIds.GOOGLE;
+    } else if (provider === AuthProviderType.CLEVER) {
+      const roarProviderIds = this._getProviderIds();
+      providerId = roarProviderIds.CLEVER;
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      providerId = roarProviderIds.CLASSLINK;
+    } else {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    return unlink(this.admin!.auth!.currentUser!, providerId);
   }
 
   /**
