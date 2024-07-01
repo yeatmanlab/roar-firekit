@@ -524,7 +524,7 @@ export class RoarFirekit {
    * Sets the UID custom claims for the admin and assessment UIDs in the Firebase projects.
    *
    * This method is responsible for associating the admin and assessment UIDs in the Firebase projects.
-   * It calls the setUidClaims cloud function in both the admin and assessment Firebase projects.
+   * It calls the setUidClaims cloud function in the admin Firebase project.
    * If the cloud function execution is successful, it refreshes the ID tokens for both projects.
    *
    * @returns {Promise<any>} - A promise that resolves with the result of the setUidClaims cloud function execution.
@@ -534,32 +534,21 @@ export class RoarFirekit {
     this.verboseLog('Entry point to setUidCustomClaims');
     this._verifyAuthentication();
 
-    this.verboseLog('Calling cloud function for setAdminUidClaims');
-    const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
-    const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
-    this.verboseLog('setAdminUidClaims returned with result', adminResult);
+    this.verboseLog('Calling cloud function for setUidClaims');
+    const setUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
+    const result = await setUidClaims({ assessmentUid: this.app!.user!.uid });
+    this.verboseLog('setUidClaims returned with result', result);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(adminResult.data as any, 'status') !== 'ok') {
-      this.verboseLog('Error in calling setAdminUidClaims cloud function', adminResult.data);
-      throw new Error('Failed to associate admin and assessment UIDs in the admin Firebase project.');
-    }
-
-    this.verboseLog('Calling cloud function for setAppUidClaims');
-    const setAppUidClaims = httpsCallable(this.app!.functions, 'setUidClaims');
-    const appResult = await setAppUidClaims({ adminUid: this.admin!.user!.uid, roarUid: this.roarUid! });
-    this.verboseLog('setAppUidCustomClaims returned with results', appResult);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(appResult.data as any, 'status') !== 'ok') {
-      this.verboseLog('Error in calling setAppUidClaims cloud function', appResult.data);
-      throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
+    if (_get(result.data as any, 'status') !== 'ok') {
+      this.verboseLog('Error in calling setUidClaims cloud function', result.data);
+      throw new Error('Failed to set UIDs in the admin and assessment Firebase projects.');
     }
 
     await this.forceIdTokenRefresh();
 
-    this.verboseLog('Returning appResult from setUidCustomClaims', appResult);
-    return appResult;
+    this.verboseLog('Returning result from setUidCustomClaims', result);
+    return result;
   }
 
   /**
