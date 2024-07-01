@@ -524,18 +524,18 @@ export class RoarFirekit {
    * Sets the UID custom claims for the admin and assessment UIDs in the Firebase projects.
    *
    * This method is responsible for associating the admin and assessment UIDs in the Firebase projects.
-   * It calls the setuidclaims cloud function in both the admin and assessment Firebase projects.
+   * It calls the setUidClaims cloud function in both the admin and assessment Firebase projects.
    * If the cloud function execution is successful, it refreshes the ID tokens for both projects.
    *
-   * @returns {Promise<any>} - A promise that resolves with the result of the setuidclaims cloud function execution.
-   * @throws {Error} - If the setuidclaims cloud function execution fails, an Error is thrown.
+   * @returns {Promise<any>} - A promise that resolves with the result of the setUidClaims cloud function execution.
+   * @throws {Error} - If the setUidClaims cloud function execution fails, an Error is thrown.
    */
   private async _setUidCustomClaims() {
     this.verboseLog('Entry point to setUidCustomClaims');
     this._verifyAuthentication();
 
     this.verboseLog('Calling cloud function for setAdminUidClaims');
-    const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setuidclaims');
+    const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
     const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
     this.verboseLog('setAdminUidClaims returned with result', adminResult);
 
@@ -546,7 +546,7 @@ export class RoarFirekit {
     }
 
     this.verboseLog('Calling cloud function for setAppUidClaims');
-    const setAppUidClaims = httpsCallable(this.app!.functions, 'setuidclaims');
+    const setAppUidClaims = httpsCallable(this.app!.functions, 'setUidClaims');
     const appResult = await setAppUidClaims({ adminUid: this.admin!.user!.uid, roarUid: this.roarUid! });
     this.verboseLog('setAppUidCustomClaims returned with results', appResult);
 
@@ -2042,7 +2042,7 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
+    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createStudentAccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
   }
 
@@ -2089,7 +2089,7 @@ export class RoarFirekit {
     });
 
     // Call cloud function
-    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
+    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createNewFamily');
     await cloudCreateFamily({
       caretakerEmail,
       caretakerPassword,
