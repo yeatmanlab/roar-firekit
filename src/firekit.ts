@@ -6,6 +6,7 @@ import _nth from 'lodash/nth';
 import _union from 'lodash/union';
 import {
   AuthError,
+  EmailAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
   ProviderId,
@@ -13,8 +14,12 @@ import {
   getIdToken,
   getRedirectResult,
   isSignInWithEmailLink,
+  linkWithCredential,
+  linkWithPopup,
+  linkWithRedirect,
   onAuthStateChanged,
   onIdTokenChanged,
+  sendPasswordResetEmail,
   sendSignInLinkToEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -22,6 +27,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   signOut,
+  unlink,
 } from 'firebase/auth';
 import {
   DocumentData,
@@ -41,7 +47,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from '../auth';
+import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from './auth';
 import {
   AuthPersistence,
   MarkRawConfig,
@@ -50,7 +56,7 @@ import {
   emptyOrgList,
   initializeFirebaseProject,
   pluralizeFirestoreCollection,
-} from './util';
+} from './firestore/util';
 import {
   Administration,
   Assessment,
@@ -68,10 +74,10 @@ import {
   UserType,
   Legal,
 } from './interfaces';
-import { UserInput } from './app/user';
-import { RoarAppkit } from './app/appkit';
-import { getTaskAndVariant } from './query-assessment';
-import { TaskVariantInfo, RoarTaskVariant, FirestoreVariantData, FirestoreTaskData } from './app/task';
+import { UserInput } from './firestore/app/user';
+import { RoarAppkit } from './firestore/app/appkit';
+import { getTaskAndVariant } from './firestore/query-assessment';
+import { TaskVariantInfo, RoarTaskVariant, FirestoreVariantData, FirestoreTaskData } from './firestore/app/task';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -298,25 +304,58 @@ export class RoarFirekit {
       console.log('[RoarFirekit] ', ...logStatement);
     } else return;
   }
-  //           +--------------------------------+
-  // ----------|  Begin Authentication Methods  |----------
-  //           +--------------------------------+
 
   public get initialized() {
     return this._initialized;
   }
 
+  /**
+   * Verifies if the RoarFirekit instance has been initialized.
+   *
+   * This method checks if the RoarFirekit instance has been initialized by checking the `_initialized` property.
+   * If the instance has not been initialized, it throws an error with a descriptive message.
+   *
+   * @throws {Error} - If the RoarFirekit instance has not been initialized.
+   */
   private _verifyInit() {
     if (!this._initialized) {
       throw new Error('RoarFirekit has not been initialized. Use the `init` method.');
     }
   }
 
+  //           +--------------------------------+
+  // ----------|  Begin Authentication Methods  |----------
+  //           +--------------------------------+
+
+  /**
+   * Verifies if the user is authenticated in both the admin and app Firebase projects.
+   *
+   * This method checks if the user is authenticated in both the admin and app Firebase projects.
+   * It returns a boolean value indicating whether the user is authenticated or not.
+   *
+   * @returns {boolean} - A boolean value indicating whether the user is authenticated or not.
+   * @throws {Error} - If the Firebase projects are not initialized.
+   */
   private _isAuthenticated() {
     this._verifyInit();
     return !(this.admin!.user === undefined || this.app!.user === undefined);
   }
 
+  /**
+   * Checks if the current user is an administrator.
+   *
+   * This method checks if the current user has administrative privileges in the application.
+   * It returns a boolean value indicating whether the user is an administrator or not.
+   *
+   * @returns {boolean} - A boolean value indicating whether the user is an administrator or not.
+   *
+   * @remarks
+   * - If the user is a super administrator, the method returns `true`.
+   * - If the user has no adminOrgs, the method returns `false`.
+   * - If the application is using the Levante platform, the method checks if the user is an administrator specifically for the Levante platform.
+   * - If the adminOrgs are empty, the method returns `false`.
+   * - If none of the above conditions are met, the method returns `true`.
+   */
   isAdmin() {
     if (this.superAdmin) return true;
     if (this._adminOrgs === undefined) return false;
@@ -336,6 +375,15 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Verifies if the user is authenticated in the application.
+   *
+   * This method checks if the user is authenticated in both the admin and assessment Firebase projects.
+   * If the user is authenticated in both projects, the method returns without throwing an error.
+   * If the user is not authenticated in either project, the method throws an error with the message 'User is not authenticated.'
+   *
+   * @throws {Error} - Throws an error if the user is not authenticated.
+   */
   private _verifyAdmin() {
     this._verifyAuthentication();
     if (!this.isAdmin()) {
@@ -343,6 +391,18 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Listens for changes in the user's custom claims and updates the internal state accordingly.
+   *
+   * This method sets up a snapshot listener on the user's custom claims document in the admin Firebase project.
+   * When the listener detects changes in the claims, it updates the internal state of the `RoarAuth` instance.
+   * It also refreshes the user's ID token if the claims have been updated.
+   *
+   * @param {FirebaseFirestore.Firestore} firekit.db - The Firestore database instance for the admin Firebase project.
+   * @param {FirebaseAuth.User} firekit.user - The user object for the admin Firebase project.
+   * @returns {FirebaseFirestore.Unsubscribe} - The unsubscribe function to stop listening for changes in the user's custom claims.
+   * @throws {FirebaseError} - If there is an error setting up the snapshot listener.
+   */
   private _listenToClaims(firekit: FirebaseProject) {
     this.verboseLog('entry point to listenToClaims');
     this._verifyInit();
@@ -402,6 +462,15 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Forces a refresh of the ID token for the admin and app Firebase users.
+   *
+   * This method retrieves the ID tokens for the admin and app Firebase users
+   * and refreshes them. It ensures that the tokens are up-to-date and valid.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the ID tokens are refreshed successfully.
+   * @throws {FirebaseError} - If an error occurs while refreshing the ID tokens.
+   */
   async forceIdTokenRefresh() {
     this.verboseLog('Entry point for forceIdTokenRefresh');
     this._verifyAuthentication();
@@ -409,6 +478,18 @@ export class RoarFirekit {
     await getIdToken(this.app!.user!, true);
   }
 
+  /**
+   * Listens for changes in the ID token of the specified Firebase project and updates the corresponding token.
+   *
+   * This method sets up a listener to track changes in the ID token of the specified Firebase project (either admin or app).
+   * When the ID token changes, it retrieves the new ID token and updates the corresponding token in the `_idTokens` object.
+   * It also calls the `listenerUpdateCallback` function to notify any listeners of the token update.
+   *
+   * @param {FirebaseProject} firekit - The Firebase project to listen for token changes.
+   * @param {'admin' | 'app'} _type - The type of Firebase project ('admin' or 'app').
+   * @returns {firebase.Unsubscribe} - A function to unsubscribe from the listener.
+   * @private
+   */
   private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin' | 'app') {
     this.verboseLog('Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
@@ -439,38 +520,51 @@ export class RoarFirekit {
     return this._appTokenListener;
   }
 
+  /**
+   * Sets the UID custom claims for the admin and assessment UIDs in the Firebase projects.
+   *
+   * This method is responsible for associating the admin and assessment UIDs in the Firebase projects.
+   * It calls the setUidClaims cloud function in the admin Firebase project.
+   * If the cloud function execution is successful, it refreshes the ID tokens for both projects.
+   *
+   * @returns {Promise<any>} - A promise that resolves with the result of the setUidClaims cloud function execution.
+   * @throws {Error} - If the setUidClaims cloud function execution fails, an Error is thrown.
+   */
   private async _setUidCustomClaims() {
     this.verboseLog('Entry point to setUidCustomClaims');
     this._verifyAuthentication();
 
-    this.verboseLog('Calling cloud function for setAdminUidClaims');
-    const setAdminUidClaims = httpsCallable(this.admin!.functions, 'setuidclaims');
-    const adminResult = await setAdminUidClaims({ assessmentUid: this.app!.user!.uid });
-    this.verboseLog('setAdminUidClaims returned with result', adminResult);
+    this.verboseLog('Calling cloud function for setUidClaims');
+    const setUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
+    const result = await setUidClaims({ assessmentUid: this.app!.user!.uid });
+    this.verboseLog('setUidClaims returned with result', result);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(adminResult.data as any, 'status') !== 'ok') {
-      this.verboseLog('Error in calling setAdminUidClaims cloud function', adminResult.data);
-      throw new Error('Failed to associate admin and assessment UIDs in the admin Firebase project.');
-    }
-
-    this.verboseLog('Calling cloud function for setAppUidClaims');
-    const setAppUidClaims = httpsCallable(this.app!.functions, 'setuidclaims');
-    const appResult = await setAppUidClaims({ adminUid: this.admin!.user!.uid, roarUid: this.roarUid! });
-    this.verboseLog('setAppUidCustomClaims returned with results', appResult);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(appResult.data as any, 'status') !== 'ok') {
-      this.verboseLog('Error in calling setAppUidClaims cloud function', appResult.data);
-      throw new Error('Failed to associate admin and assessment UIDs in the app Firebase project.');
+    if (_get(result.data as any, 'status') !== 'ok') {
+      this.verboseLog('Error in calling setUidClaims cloud function', result.data);
+      throw new Error('Failed to set UIDs in the admin and assessment Firebase projects.');
     }
 
     await this.forceIdTokenRefresh();
 
-    this.verboseLog('Returning appResult from setUidCustomClaims', appResult);
-    return appResult;
+    this.verboseLog('Returning result from setUidCustomClaims', result);
+    return result;
   }
 
+  /**
+   * Synchronizes Education Single Sign-On (SSO) user data.
+   *
+   * This method is responsible for synchronizing user data between the
+   * Education SSO platform (Clever or ClassLink) and the ROAR (Readiness
+   * Outcomes Assessment Reporting) system. It uses the provided OAuth
+   * access token to authenticate with the Education SSO platform and
+   * calls the appropriate cloud function to sync the user data.
+   *
+   * @param {string} oAuthAccessToken - The OAuth access token obtained from the Education SSO platform.
+   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (Clever or ClassLink).
+   * @throws {Error} - If the required parameters are missing or invalid.
+   * @returns {Promise<void>} - A promise that resolves when the synchronization is complete.
+   */
   private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     this.verboseLog('Entry point for syncEduSSOUser');
     if (authProvider === AuthProviderType.CLEVER) {
@@ -518,26 +612,81 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Checks if the given username is available for a new user registration.
+   *
+   * This method verifies if the given username is not already associated with
+   * a user in the admin Firebase project. It returns a promise that resolves with
+   * a boolean value indicating whether the username is available or not.
+   *
+   * @param {string} username - The username to check.
+   * @returns {Promise<boolean>} - A promise that resolves with a boolean value indicating whether the username is available or not.
+   * @throws {FirebaseError} - If an error occurs while checking the username availability.
+   */
   async isUsernameAvailable(username: string): Promise<boolean> {
     this._verifyInit();
     return isUsernameAvailable(this.admin!.auth, username);
   }
 
+  /**
+   * Checks if the given email address is available for a new user registration.
+   *
+   * This method verifies if the given email address is not already associated with
+   * a user in the admin Firebase project. It returns a promise that resolves with
+   * a boolean value indicating whether the email address is available or not.
+   *
+   * @param {string} email - The email address to check.
+   * @returns {Promise<boolean>} - A promise that resolves with a boolean value indicating whether the email address is available or not.
+   * @throws {FirebaseError} - If an error occurs while checking the email availability.
+   */
   async isEmailAvailable(email: string): Promise<boolean> {
     this._verifyInit();
     return isEmailAvailable(this.admin!.auth, email);
   }
 
+  /**
+   * Fetches the list of providers associated with the given user's email address.
+   *
+   * This method retrieves the list of providers associated with the given user's email address
+   * from the admin Firebase project. The list of providers includes the authentication methods
+   * that the user has used to sign in with their email address.
+   *
+   * @param {string} email - The email address of the user.
+   * @returns {Promise<string[]>} - A promise that resolves with an array of provider IDs.
+   * @throws {FirebaseError} - If an error occurs while fetching the email authentication methods.
+   */
   async fetchEmailAuthMethods(email: string) {
     this._verifyInit();
     return fetchEmailAuthMethods(this.admin!.auth, email);
   }
 
+  /**
+   * Checks if the given email address belongs to a user in the ROAR authentication system.
+   *
+   * This method checks if the given email address is associated with a user in the admin Firebase project.
+   * It returns a boolean value indicating whether the email address belongs to a ROAR user or not.
+   *
+   * @param {string} email - The email address to check.
+   * @returns {boolean} - A boolean value indicating whether the email address belongs to a ROAR user or not.
+   */
   isRoarAuthEmail(email: string) {
     this._verifyInit();
     return isRoarAuthEmail(email);
   }
 
+  /**
+   * Registers a new user with the provided email and password.
+   *
+   * This method creates a new user in both the admin and assessment Firebase projects.
+   * It first creates the user in the admin project and then in the assessment project.
+   * After successful user creation, it sets the UID custom claims by calling the `_setUidCustomClaims` method.
+   *
+   * @param {object} params - The parameters for registering a new user.
+   * @param {string} params.email - The email address of the new user.
+   * @param {string} params.password - The password of the new user.
+   * @returns {Promise<void>} - A promise that resolves when the user registration is complete.
+   * @throws {AuthError} - If the user registration fails, the promise will be rejected with an AuthError.
+   */
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
@@ -554,28 +703,87 @@ export class RoarFirekit {
       });
   }
 
+  /**
+   * Initiates a login process using an email and password.
+   *
+   * This method signs in the user with the provided email and password in both the admin and assessment Firebase projects.
+   * It first signs in the user in the admin project and then in the assessment project. After successful sign-in, it sets
+   * the UID custom claims by calling the `_setUidCustomClaims` method.
+   *
+   * @param {object} params - The parameters for initiating the login process.
+   * @param {string} params.email - The email address of the user.
+   * @param {string} params.password - The password of the user.
+   * @returns {Promise<void>} - A promise that resolves when the login process is complete.
+   * @throws {AuthError} - If the login process fails, the promise will be rejected with an AuthError.
+   */
   async logInWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password)
-      .then(() => {
-        return signInWithEmailAndPassword(this.app!.auth, email, password)
-          .then(this._setUidCustomClaims.bind(this))
-          .catch((error: AuthError) => {
-            console.error('(Inside) Error signing in', error);
-            throw error;
-          });
+      .then(async (adminUserCredential) => {
+        const roarProviderIds = this._getProviderIds();
+        const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
+        const roarAdminIdToken = await getIdToken(adminUserCredential.user);
+        const roarAdminCredential = roarAdminProvider.credential({
+          idToken: roarAdminIdToken,
+        });
+
+        return signInWithCredential(this.app!.auth, roarAdminCredential);
       })
+      .then(this._setUidCustomClaims.bind(this))
       .catch((error: AuthError) => {
-        console.error('(Outside) Error signing in', error);
+        console.error('Error signing in', error);
         throw error;
       });
   }
 
+  /**
+   * Initiates a login process using a username and password.
+   *
+   * This method constructs an email address from the provided username using the
+   * roarEmail() function and then calls the logInWithEmailAndPassword() method with
+   * the constructed email address and the provided password.
+   *
+   * @param {object} params - The parameters for initiating the login process.
+   * @param {string} params.username - The username to use for the login process.
+   * @param {string} params.password - The password to use for the login process.
+   * @returns {Promise<void>} - A promise that resolves when the login process is complete.
+   */
   async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
     const email = roarEmail(username);
     return this.logInWithEmailAndPassword({ email, password });
   }
 
+  /**
+   * Link the current user with email and password credentials.
+   *
+   * This method creates a credential using the provided email and password, and then links the user's account with the current user in both the admin and app Firebase projects.
+   *
+   * @param {string} email - The email of the user to link.
+   * @param {string} password - The password of the user to link.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
+   */
+  async linkEmailPasswordWithAuthProvider(email: string, password: string) {
+    this._verifyAuthentication();
+
+    const emailCredential = EmailAuthProvider.credential(email, password);
+    return linkWithCredential(this.admin!.auth!.currentUser!, emailCredential).then(() => {
+      return linkWithCredential(this.app!.auth!.currentUser!, emailCredential);
+    });
+  }
+
+  /**
+   * Initiates the login process with an email link.
+   *
+   * This method sends a sign-in link to the specified email address. The user
+   * can click on the link to sign in to their account. The sign-in process is
+   * handled in a separate browser window or tab.
+   *
+   * @param {object} params - The parameters for initiating the login process.
+   * @param {string} params.email - The email address to send the sign-in link to.
+   * @param {string} params.redirectUrl - The URL to redirect the user to after they click on the sign-in link.
+   * @returns {Promise<void>} - A promise that resolves when the sign-in link is sent successfully.
+   */
   async initiateLoginWithEmailLink({ email, redirectUrl }: { email: string; redirectUrl: string }) {
     this._verifyInit();
     const actionCodeSettings = {
@@ -585,6 +793,16 @@ export class RoarFirekit {
     return sendSignInLinkToEmail(this.admin!.auth, email, actionCodeSettings);
   }
 
+  /**
+   * Check if the given email link is a sign-in with email link.
+   *
+   * This method checks if the given email link is a valid sign-in with email link
+   * for the admin Firebase project. It returns a promise that resolves with a boolean
+   * value indicating whether the email link is valid or not.
+   *
+   * @param {string} emailLink - The email link to check.
+   * @returns {Promise<boolean>} - A promise that resolves with a boolean value indicating whether the email link is valid or not.
+   */
   async isSignInWithEmailLink(emailLink: string) {
     this._verifyInit();
     return isSignInWithEmailLink(this.admin!.auth, emailLink);
@@ -615,6 +833,38 @@ export class RoarFirekit {
       });
   }
 
+  /**
+   * Handle the sign-in process in a popup window.
+   *
+   * This method handles the sign-in process in a popup window from from an
+   * external identity provider.  It retrieves the user's credentials from the
+   * popup result and authenticates the user to the admin Firebase project
+   * using these credentials.
+   *
+   * The identity provider token is generally mean to be one-time use only.
+   * Because of this, the external identity provider's credential cannot be
+   * reused in the assessment project. To authenticate into the assessment
+   * project, we ask the admin Firebase project itself to mint a new credential
+   * for the assessment project. Thus, the external identity providers are used
+   * only in the admin Firebase project. And the admin Firebase project acts as
+   * an "external" identity provider for the assessment project.
+   *
+   * Therefore, the workflow for this method is as follows:
+   * 1. Authenticate into the external provider using a popup window.
+   * 2. Retrieve the external identity provider's credential from the popup result.
+   * 3. Authenticate into the admin Firebase project with this credential.
+   * 4. Generate a new "external" credential from the admin Firebase project.
+   * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
+   * 6. Set UID custom claims by calling setUidCustomClaims().
+   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   *
+   * @param {AuthProviderType} provider - The authentication provider to use. It can be one of the following:
+   * - AuthProviderType.GOOGLE
+   * - AuthProviderType.CLEVER
+   * - AuthProviderType.CLASSLINK
+   *
+   * @returns {Promise<UserCredential | null>} - A promise that resolves with the user's credential or null.
+   */
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
@@ -682,9 +932,113 @@ export class RoarFirekit {
       });
   }
 
-  async initiateRedirect(provider: AuthProviderType) {
+  /**
+   * Link the current user with the specified authentication provider using a popup window.
+   *
+   * This method opens a popup window to allow the user to sign in with the specified authentication provider.
+   * It then links the user's account with the current user in both the admin and app Firebase projects.
+   *
+   * @param {AuthProviderType} provider - The authentication provider to link with. It can be one of the following:
+   * - AuthProviderType.GOOGLE
+   * - AuthProviderType.CLEVER
+   * - AuthProviderType.CLASSLINK
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
+   *
+   * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
+   */
+  async linkAuthProviderWithPopup(provider: AuthProviderType) {
+    this._verifyAuthentication();
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+
+    let authProvider;
+    if (provider === AuthProviderType.GOOGLE) {
+      authProvider = new GoogleAuthProvider();
+    } else if (provider === AuthProviderType.CLEVER) {
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      const roarProviderIds = this._getProviderIds();
+      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
+    } else {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
+    const swallowAllowedErrors = (error: AuthError) => {
+      if (!allowedErrors.includes(error.code)) {
+        throw error;
+      }
+    };
+
+    let oAuthAccessToken: string | undefined;
+
+    return linkWithPopup(this.admin!.auth!.currentUser!, authProvider)
+      .then(async (adminUserCredential) => {
+        if (provider === AuthProviderType.GOOGLE) {
+          const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
+          // This gives you a Google Access Token. You can use it to access Google APIs.
+          // TODO: Find a way to put this in the onAuthStateChanged handler
+          oAuthAccessToken = credential?.accessToken;
+          return credential;
+        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
+          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          oAuthAccessToken = credential?.accessToken;
+
+          const roarProviderIds = this._getProviderIds();
+          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
+          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
+          const roarAdminCredential = roarAdminProvider.credential({
+            idToken: roarAdminIdToken,
+          });
+
+          return roarAdminCredential;
+        }
+      })
+      .catch(swallowAllowedErrors)
+      .then((credential) => {
+        if (credential) {
+          return linkWithCredential(this.app!.auth!.currentUser!, credential).catch(swallowAllowedErrors);
+        }
+      })
+      .then((credential) => {
+        if (credential) {
+          return this._setUidCustomClaims();
+        }
+      })
+      .then((setClaimsResult) => {
+        if (setClaimsResult) {
+          this._syncEduSSOUser(oAuthAccessToken, provider);
+        }
+      });
+  }
+
+  /**
+   * Initiates a redirect sign-in flow with the specified authentication provider.
+   *
+   * This method triggers a redirect to the authentication provider's sign-in page.
+   * After the user successfully signs in, they will be redirected back to the application.
+   *
+   * If the linkToAuthenticatedUser parameter is set to true, an existing user
+   * must already be authenticated and the user's account will be linked with
+   * the new provider.
+   *
+   * @param {AuthProviderType} provider - The authentication provider to initiate the sign-in flow with.
+   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * @param {boolean} linkToAuthenticatedUser - Whether to link an authenticated user's account with the new provider.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the redirect sign-in flow is initiated.
+   * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
+   */
+  async initiateRedirect(provider: AuthProviderType, linkToAuthenticatedUser = false) {
     this.verboseLog('Entry point for initiateRedirect');
     this._verifyInit();
+
+    if (linkToAuthenticatedUser) {
+      this._verifyAuthentication();
+    }
+
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
     let authProvider;
@@ -708,9 +1062,41 @@ export class RoarFirekit {
     }
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
+    if (linkToAuthenticatedUser) {
+      return linkWithRedirect(this.admin!.auth!.currentUser!, authProvider);
+    }
     return signInWithRedirect(this.admin!.auth, authProvider);
   }
 
+  /**
+   * Handle the sign-in process from a redirect result.
+   *
+   * This method handles the sign-in process after a user has been redirected
+   * from an external identity provider.  It retrieves the user's credentials
+   * from the redirect result and authenticates the user to the admin Firebase
+   * project using the credentials.
+   *
+   * The identity provider token is generally mean to be one-time use only.
+   * Because of this, the external identity provider's credential cannot be
+   * reused in the assessment project. To authenticate into the assessment
+   * project, we ask the admin Firebase project itself to mint a new credential
+   * for the assessment project. Thus, the external identity providers are used
+   * only in the admin Firebase project. And the admin Firebase project acts as
+   * an "external" identity provider for the assessment project.
+   *
+   * Therefore, the workflow for this method is as follows:
+   * 1. Get the redirect result from the admin Firebase project.
+   * 2. Retrieve the external identity provider's credential from the redirect result.
+   * 3. Authenticate into the admin Firebase project with this credential.
+   * 4. Generate a new "external" credential from the admin Firebase project.
+   * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
+   * 6. Set UID custom claims by calling setUidCustomClaims().
+   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   *
+   * @param {() => void} enableCookiesCallback - A callback function to be invoked when the enable cookies error occurs.
+   * @returns {Promise<{ status: 'ok' } | null>} - A promise that resolves with an object containing the status 'ok' if the sign-in is successful,
+   * or resolves with null if the sign-in is not successful.
+   */
   async signInFromRedirectResult(enableCookiesCallback: () => void) {
     this._verifyInit();
     this.verboseLog('Entry point for signInFromRedirectResult');
@@ -803,18 +1189,70 @@ export class RoarFirekit {
       });
   }
 
+  /**
+   * Unlinks the specified authentication provider from the current user.
+   *
+   * This method only unlinks the specified provider from the user in the admin Firebase project.
+   * The roarProciderIds.ROAR_ADMIN_PROJECT provider is maintained in the assessment Firebase project.
+   *
+   * @param {AuthProviderType} provider - The authentication provider to unlink.
+   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * @returns {Promise<void>} - A promise that resolves when the provider is unlinked.
+   * @throws {Error} - If the provided provider is not one of the allowed providers.
+   */
+  async unlinkAuthProvider(provider: AuthProviderType) {
+    this._verifyAuthentication();
+
+    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const roarProviderIds = this._getProviderIds();
+
+    let providerId: string;
+    if (provider === AuthProviderType.GOOGLE) {
+      providerId = roarProviderIds.GOOGLE;
+    } else if (provider === AuthProviderType.CLEVER) {
+      const roarProviderIds = this._getProviderIds();
+      providerId = roarProviderIds.CLEVER;
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      providerId = roarProviderIds.CLASSLINK;
+    } else {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    return unlink(this.admin!.auth!.currentUser!, providerId);
+  }
+
+  /**
+   * Sign out the current user from the assessment (aka app) Firebase project.
+   *
+   * This method clears the authentication properties and signs out the user from the app (aka assessment) Firebase projects.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully signed out.
+   */
   private async _signOutApp() {
     this._scrubAuthProperties();
     await signOut(this.app!.auth);
   }
 
+  /**
+   * Sign out the current user from the admin Firebase project.
+   *
+   * This method clears the authentication properties and signs out the user from the admin Firebase project.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully signed out.
+   */
   private async _signOutAdmin() {
     if (this._adminClaimsListener) this._adminClaimsListener();
     if (this._adminTokenListener) this._adminTokenListener();
     this._scrubAuthProperties();
     await signOut(this.admin!.auth);
   }
-
+  /**
+   * Sign out the current user from both the assessment (aka app) Firebase project and the admin Firebase project.
+   *
+   * This method clears the authentication properties and signs out the user from both the app (aka assessment) and admin Firebase projects.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the user is successfully signed out.
+   */
   async signOut() {
     this._verifyAuthentication();
     await this._signOutApp();
@@ -1402,7 +1840,7 @@ export class RoarFirekit {
 
   async updateUserData(
     id: string,
-    userData: { name: Name; studentData: StudentData; userType: UserType; [x: string]: any },
+    userData: { name: Name; studentData: StudentData; userType: UserType; [x: string]: unknown },
   ) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1474,7 +1912,7 @@ export class RoarFirekit {
 
     // If password is supplied, update the user's password.
     if (userData?.password) {
-      await this.updateUserRecord(id, { password: userData.password });
+      await this.updateUserRecord(id, { password: userData.password as string });
     }
 
     return {
@@ -1488,6 +1926,7 @@ export class RoarFirekit {
 
     // Filter out any fields that are null or undefined.
     const record = Object.fromEntries(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       Object.entries(userRecord).filter(([_, v]) => {
         return v && v !== null && v !== undefined;
       }),
@@ -1508,6 +1947,22 @@ export class RoarFirekit {
     if (_get(updateResponse.data as any, 'status') !== 'ok') {
       throw new Error('Failed to update user record.');
     }
+  }
+
+  /**
+   * Send a password reset email to the specified user's email address.
+   *
+   * This will reset the password in the admin Firebase project. The assessment
+   * Firebase project remains unchanged because we use the admin project's
+   * credentials to authenticate into the assessment project.
+   *
+   * @param {string} email - The email address of the user to send the password reset email to.
+   * @returns A promise that resolves when the password reset email is sent.
+   */
+  async sendPasswordResetEmail(email: string) {
+    return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
+      this.verboseLog('Password reset email sent to', email);
+    });
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
@@ -1576,7 +2031,7 @@ export class RoarFirekit {
     if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
     if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
 
-    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createstudentaccount');
+    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createStudentAccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
   }
 
@@ -1623,7 +2078,7 @@ export class RoarFirekit {
     });
 
     // Call cloud function
-    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createnewfamily');
+    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createNewFamily');
     await cloudCreateFamily({
       caretakerEmail,
       caretakerPassword,

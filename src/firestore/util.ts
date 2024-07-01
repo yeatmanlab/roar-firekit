@@ -24,7 +24,7 @@ import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
-import { OrgLists, OrgListKey } from './interfaces';
+import { OrgLists, OrgListKey } from '../interfaces';
 
 /** Remove null attributes from an object
  * @function

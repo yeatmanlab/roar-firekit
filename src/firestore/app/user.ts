@@ -10,7 +10,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import _extend from 'lodash/extend';
-import { UserType } from '../interfaces';
+import { UserType } from '../../interfaces';
 import { removeUndefined } from '../util';
 
 export interface UserInfo {
