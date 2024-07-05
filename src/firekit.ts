@@ -2443,4 +2443,12 @@ export class RoarFirekit {
       throw error;
     }
   }
+
+  async createAdobeSignAgreement(email: String, documentType: String) {
+    const createAdobeSignAgreement = httpsCallable(this.admin!.functions, 'createAdobeSignAgreement');
+    await createAdobeSignAgreement({
+      email,
+      documentType,
+    });
+  }
 }
