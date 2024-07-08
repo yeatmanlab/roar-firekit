@@ -2459,7 +2459,7 @@ export class RoarFirekit {
   }
 
   async getAdobeSignAgreementStatus(agreementId: string) {
-    const cloudgetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
+    const cloudGetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
     try {
       const result = await cloudGetAdobeSignAgreementStatus({
         agreementId,
