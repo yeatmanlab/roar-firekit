@@ -2472,7 +2472,7 @@ export class RoarFirekit {
   }
 
   async getAdobeSignSigningUrl(agreementId: string, email: string) {
-    const cloudgetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
+    const cloudGetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
     try {
       const result = await cloudGetAdobeSignSigningUrl({
         agreementId,
