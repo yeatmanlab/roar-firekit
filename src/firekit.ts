@@ -2447,11 +2447,10 @@ export class RoarFirekit {
   async createAdobeSignAgreement(email: string, documentType: string) {
     const cloudCreateAdobeSignAgreement = httpsCallable(this.admin!.functions, 'createAdobeSignAgreement');
     try {
-      const result = await cloudCreateAdobeSignAgreement({
+      return await cloudCreateAdobeSignAgreement({
         email,
         documentType,
-      });
-      return result;
+      }).then(({ data }) => data);
     } catch (error) {
       console.error('Error creating AdobeSign agreement');
       throw error;
@@ -2461,10 +2460,9 @@ export class RoarFirekit {
   async getAdobeSignAgreementStatus(agreementId: string) {
     const cloudGetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
     try {
-      const result = await cloudGetAdobeSignAgreementStatus({
+      return await cloudGetAdobeSignAgreementStatus({
         agreementId,
-      });
-      return result;
+      }).then(({ data }) => data);
     } catch (error) {
       console.error('Error getting AdobeSign agreement status');
       throw error;
@@ -2474,11 +2472,10 @@ export class RoarFirekit {
   async getAdobeSignSigningUrl(agreementId: string, email: string) {
     const cloudGetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
     try {
-      const result = await cloudGetAdobeSignSigningUrl({
+      return await cloudGetAdobeSignSigningUrl({
         agreementId,
         email,
-      });
-      return result;
+      }).then(({ data }) => data);
     } catch (error) {
       console.error('Error getting AdobeSign url');
       throw error;
