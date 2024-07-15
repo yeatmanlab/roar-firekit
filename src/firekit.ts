@@ -118,6 +118,14 @@ interface CreateParentInput {
     first: string;
     last: string;
   };
+  legal: {
+    consentType: string;
+    consentVersion: string;
+    amount: string;
+    expectedTime: string;
+    isSignedWithAdobe: boolean;
+    dateSigned: string;
+  };
 }
 
 export interface ChildData {
