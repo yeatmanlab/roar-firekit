@@ -37,6 +37,15 @@ export const fetchEmailAuthMethods = async (auth: Auth, email: string) => {
       // User can sign in with email/link.
       methods.push('link');
     }
+    if (signInMethods.indexOf('google.com') != -1) {
+      methods.push('google');
+    }
+    if (signInMethods.indexOf('oidc.clever') != -1) {
+      methods.push('clever');
+    }
+    if (signInMethods.indexOf('oidc.classlink') != -1) {
+      methods.push('classlink');
+    }
     return methods;
   });
 };
