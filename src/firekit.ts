@@ -118,6 +118,14 @@ interface CreateParentInput {
     first: string;
     last: string;
   };
+  legal: {
+    consentType: string;
+    consentVersion: string;
+    amount: string;
+    expectedTime: string;
+    isSignedWithAdobe: boolean;
+    dateSigned: string;
+  };
 }
 
 export interface ChildData {
@@ -2440,6 +2448,76 @@ export class RoarFirekit {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error creating Levante group in firekit', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Creates an AdobeSign agreement for the given email address and document type.
+   *
+   * This method invokes a cloud function to create an AdobeSign agreement with the specified
+   * email address and document type. It returns a promise that resolves with the created agreement data.
+   *
+   * @param {string} email - The email address of the signer.
+   * @param {string} documentType - The type of document for the agreement.
+   * @returns {Promise<any>} - A promise that resolves with the created agreement data.
+   * @throws {Error} - If an error occurs while creating the AdobeSign agreement.
+   */
+  async createAdobeSignAgreement(email: string, documentType: string) {
+    const cloudCreateAdobeSignAgreement = httpsCallable(this.admin!.functions, 'createAdobeSignAgreement');
+    try {
+      return await cloudCreateAdobeSignAgreement({
+        email,
+        documentType,
+      }).then(({ data }) => data);
+    } catch (error) {
+      console.error('Error creating AdobeSign agreement');
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the status of an AdobeSign agreement by its ID.
+   *
+   * This method invokes a cloud function to get the status of an AdobeSign agreement using the specified
+   * agreement ID. It returns a promise that resolves with the agreement status data.
+   *
+   * @param {string} agreementId - The ID of the AdobeSign agreement.
+   * @returns {Promise<any>} - A promise that resolves with the agreement status data.
+   * @throws {Error} - If an error occurs while retrieving the AdobeSign agreement status.
+   */
+  async getAdobeSignAgreementStatus(agreementId: string) {
+    const cloudGetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
+    try {
+      return await cloudGetAdobeSignAgreementStatus({
+        agreementId,
+      }).then(({ data }) => data);
+    } catch (error) {
+      console.error('Error getting AdobeSign agreement status');
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the signing URL for an AdobeSign agreement by its ID and the signer's email address.
+   *
+   * This method invokes a cloud function to get the signing URL of an AdobeSign agreement using the specified
+   * agreement ID and email address. It returns a promise that resolves with the signing URL data.
+   *
+   * @param {string} agreementId - The ID of the AdobeSign agreement.
+   * @param {string} email - The email address of the signer.
+   * @returns {Promise<any>} - A promise that resolves with the signing URL data.
+   * @throws {Error} - If an error occurs while retrieving the AdobeSign signing URL.
+   */
+  async getAdobeSignSigningUrl(agreementId: string, email: string) {
+    const cloudGetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
+    try {
+      return await cloudGetAdobeSignSigningUrl({
+        agreementId,
+        email,
+      }).then(({ data }) => data);
+    } catch (error) {
+      console.error('Error getting AdobeSign URL');
       throw error;
     }
   }
