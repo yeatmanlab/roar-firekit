@@ -85,6 +85,7 @@ enum AuthProviderType {
   GOOGLE = 'google',
   EMAIL = 'email',
   USERNAME = 'username',
+  PASSWORD = 'password',
 }
 
 interface CreateUserInput {
@@ -1211,7 +1212,12 @@ export class RoarFirekit {
   async unlinkAuthProvider(provider: AuthProviderType) {
     this._verifyAuthentication();
 
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const allowedProviders = [
+      AuthProviderType.GOOGLE,
+      AuthProviderType.CLEVER,
+      AuthProviderType.CLASSLINK,
+      AuthProviderType.PASSWORD,
+    ];
     const roarProviderIds = this._getProviderIds();
 
     let providerId: string;
@@ -1222,6 +1228,8 @@ export class RoarFirekit {
       providerId = roarProviderIds.CLEVER;
     } else if (provider === AuthProviderType.CLASSLINK) {
       providerId = roarProviderIds.CLASSLINK;
+    } else if (provider === AuthProviderType.PASSWORD) {
+      providerId = AuthProviderType.PASSWORD;
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
