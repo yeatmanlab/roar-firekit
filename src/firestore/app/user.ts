@@ -21,6 +21,9 @@ export interface UserInfo {
   userMetadata?: { [key: string]: unknown };
   testData?: boolean;
   demoData?: boolean;
+  offlineEnabled?: boolean;
+  offlineTasks: string[];
+  offlineAdministrations: string[];
 }
 
 export interface UserInput extends UserInfo {
@@ -60,6 +63,9 @@ export class RoarAppUser {
   userMetadata: { [key: string]: unknown };
   testData: boolean;
   demoData: boolean;
+  offlineEnabled: boolean;
+  offlineTasks: string[];
+  offlineAdministrations: string[];
   /** Create a ROAR user
    * @param {object} input
    * @param {Firestore} input.db - The assessment Firestore instance to which this user's data will be written
@@ -70,6 +76,9 @@ export class RoarAppUser {
    * @param {object} input.userMetadata - An object containing additional user metadata
    * @param {string} input.testData = Boolean flag indicating test data
    * @param {string} input.demoData = Boolean flag indicating demo data
+   * @param {string} input.offlineEnabled = Boolean flag indicating whether user has enrolled in Offline ROAR
+   * @param {string[]} input.offlineTasks = Array of task IDs that user will need access to offline
+   * @param {string[]} input.offlineAdministrations = Array of administration IDs that user will need access to offline 
    */
   constructor({
     db,
@@ -80,6 +89,9 @@ export class RoarAppUser {
     userMetadata = {},
     testData = false,
     demoData = false,
+    offlineEnabled= false,
+    offlineTasks = [],
+    offlineAdministrations = [],
   }: UserInput) {
     const allowedUserCategories = Object.values(UserType);
     if (!allowedUserCategories.includes(userType)) {
@@ -106,6 +118,9 @@ export class RoarAppUser {
     this.userMetadata = userMetadata;
     this.testData = testData;
     this.demoData = demoData;
+    this.offlineEnabled = offlineEnabled;
+    this.offlineTasks = offlineTasks;
+    this.offlineAdministrations = offlineAdministrations;
 
     if (userType === UserType.guest) {
       this.userRef = doc(this.db, 'guests', this.assessmentUid);
