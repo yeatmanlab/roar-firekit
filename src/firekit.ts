@@ -2452,6 +2452,17 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Creates an AdobeSign agreement for the given email address and document type.
+   *
+   * This method invokes a cloud function to create an AdobeSign agreement with the specified
+   * email address and document type. It returns a promise that resolves with the created agreement data.
+   *
+   * @param {string} email - The email address of the signer.
+   * @param {string} documentType - The type of document for the agreement.
+   * @returns {Promise<any>} - A promise that resolves with the created agreement data.
+   * @throws {Error} - If an error occurs while creating the AdobeSign agreement.
+   */
   async createAdobeSignAgreement(email: string, documentType: string) {
     const cloudCreateAdobeSignAgreement = httpsCallable(this.admin!.functions, 'createAdobeSignAgreement');
     try {
@@ -2465,6 +2476,16 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Retrieves the status of an AdobeSign agreement by its ID.
+   *
+   * This method invokes a cloud function to get the status of an AdobeSign agreement using the specified
+   * agreement ID. It returns a promise that resolves with the agreement status data.
+   *
+   * @param {string} agreementId - The ID of the AdobeSign agreement.
+   * @returns {Promise<any>} - A promise that resolves with the agreement status data.
+   * @throws {Error} - If an error occurs while retrieving the AdobeSign agreement status.
+   */
   async getAdobeSignAgreementStatus(agreementId: string) {
     const cloudGetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
     try {
@@ -2477,6 +2498,17 @@ export class RoarFirekit {
     }
   }
 
+  /**
+   * Retrieves the signing URL for an AdobeSign agreement by its ID and the signer's email address.
+   *
+   * This method invokes a cloud function to get the signing URL of an AdobeSign agreement using the specified
+   * agreement ID and email address. It returns a promise that resolves with the signing URL data.
+   *
+   * @param {string} agreementId - The ID of the AdobeSign agreement.
+   * @param {string} email - The email address of the signer.
+   * @returns {Promise<any>} - A promise that resolves with the signing URL data.
+   * @throws {Error} - If an error occurs while retrieving the AdobeSign signing URL.
+   */
   async getAdobeSignSigningUrl(agreementId: string, email: string) {
     const cloudGetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
     try {
@@ -2485,7 +2517,7 @@ export class RoarFirekit {
         email,
       }).then(({ data }) => data);
     } catch (error) {
-      console.error('Error getting AdobeSign url');
+      console.error('Error getting AdobeSign URL');
       throw error;
     }
   }
