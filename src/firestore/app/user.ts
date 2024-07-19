@@ -78,7 +78,7 @@ export class RoarAppUser {
    * @param {string} input.demoData = Boolean flag indicating demo data
    * @param {string} input.offlineEnabled = Boolean flag indicating whether user has enrolled in Offline ROAR
    * @param {string[]} input.offlineTasks = Array of task IDs that user will need access to offline
-   * @param {string[]} input.offlineAdministrations = Array of administration IDs that user will need access to offline 
+   * @param {string[]} input.offlineAdministrations = Array of administration IDs that user will need access to offline
    */
   constructor({
     db,
@@ -89,7 +89,7 @@ export class RoarAppUser {
     userMetadata = {},
     testData = false,
     demoData = false,
-    offlineEnabled= false,
+    offlineEnabled = false,
     offlineTasks = [],
     offlineAdministrations = [],
   }: UserInput) {
