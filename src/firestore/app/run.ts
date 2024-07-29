@@ -364,6 +364,7 @@ export class RoarRun {
 
       return setDoc(trialRef, {
         ...convertTrialToFirestore(trialData),
+        taskId: this.task.taskId,
         ...(this.testData && { testData: true }),
         ...(this.demoData && { demoData: true }),
         serverTimestamp: serverTimestamp(),
