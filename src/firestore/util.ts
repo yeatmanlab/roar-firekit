@@ -8,7 +8,15 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
+import {
+  CACHE_SIZE_UNLIMITED,
+  connectFirestoreEmulator,
+  Firestore,
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getPerformance, FirebasePerformance } from 'firebase/performance';
@@ -161,6 +169,7 @@ export const initializeFirebaseProject = async (
       storage,
     };
   } else {
+    console.log("initializing app: ", name)
     const app = safeInitializeApp(config as LiveFirebaseConfig, name);
     let performance: FirebasePerformance | undefined = undefined;
     try {
@@ -171,15 +180,23 @@ export const initializeFirebaseProject = async (
         throw error;
       }
     }
+    console.log("initialize firekit w offline settings")
     const kit = {
       firebaseApp: app,
       auth: optionallyMarkRaw('auth', getAuth(app)),
-      db: optionallyMarkRaw('db', getFirestore(app)),
+      // db: optionallyMarkRaw('db', getFirestore(app)),
+      db: optionallyMarkRaw(
+        'db',
+        initializeFirestore(app, {
+          localCache: persistentLocalCache(
+            /*settings*/ { tabManager: persistentMultipleTabManager(), cacheSizeBytes: CACHE_SIZE_UNLIMITED },
+          ),
+        }),
+      ),
       functions: optionallyMarkRaw('functions', getFunctions(app)),
       storage: optionallyMarkRaw('storage', getStorage(app)),
       perf: performance,
     };
-
     // Auth state persistence is set with ``setPersistence`` and specifies how a
     // user session is persisted on a device. We choose in session persistence by
     // default because many students will access the ROAR on shared devices in the
