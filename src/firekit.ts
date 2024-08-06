@@ -1857,7 +1857,7 @@ export class RoarFirekit {
   async updateUserData(
     requesterUid: string,
     id: string,
-    userData: { name: Name; email: String; studentData: StudentData; userType: UserType; [x: string]: unknown },
+    userData: { name: Name; email: string; studentData: StudentData; userType: UserType; [x: string]: unknown },
   ) {
     this._verifyAuthentication();
     this._verifyAdmin();
@@ -1935,7 +1935,7 @@ export class RoarFirekit {
     }
 
     // If a new email or password are supplied, update the user record with the appropriate data.
-    const userRecordUpdates: { password: String; email: String } | {} = {};
+    const userRecordUpdates: { password: string; email: string } | {} = {};
     if (password) {
       _set(userRecordUpdates, 'password', password as string);
     }
