@@ -1855,13 +1855,17 @@ export class RoarFirekit {
   }
 
   async updateUserData(
+    requesterUid: string,
     id: string,
-    userData: { name: Name; studentData: StudentData; userType: UserType; [x: string]: unknown },
+    userData: { name: Name; email: String; studentData: StudentData; userType: UserType; [x: string]: unknown },
   ) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    // Validate data
+    // +---------------------+
+    // | Validate input data |
+    // +---------------------+
+
     // Check that date is not in the future
     if (userData?.studentData?.dob) {
       const dob = new Date(userData.studentData.dob);
@@ -1884,6 +1888,66 @@ export class RoarFirekit {
       throw new Error('Grade cannot be empty.');
     }
 
+    // +------------------------------------------------------------------+
+    // | Split out org updates, user record updates, and user doc updates |
+    // +------------------------------------------------------------------+
+    const { addOrgs, removeOrgs, password, ...sendUserData } = userData;
+    const email = _get(sendUserData, 'email', null);
+
+    // If orgs are supplied, update user's admin orgs.
+    if (!_isEmpty(addOrgs)) {
+      const sendAddOrgs = {
+        requesterUid,
+        targetUid: id,
+        ...(addOrgs as {
+          districts: string[];
+          schools: string[];
+          classes: string[];
+          groups: string[];
+          families: string[];
+        }),
+      };
+      const cloudAppendToAdminClaims = httpsCallable(this.admin!.functions, 'appendToAdminClaims');
+      const appendResponse = await cloudAppendToAdminClaims(sendAddOrgs);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (_get(appendResponse.data as any, 'status') !== 'ok') {
+        throw new Error('Failed to append to admin claims.');
+      }
+    }
+    if (!_isEmpty(removeOrgs)) {
+      const sendRemoveOrgs = {
+        requesterUid,
+        targetUid: id,
+        ...(removeOrgs as {
+          districts: string[];
+          schools: string[];
+          classes: string[];
+          groups: string[];
+          families: string[];
+        }),
+      };
+      const cloudRemoveFromAdminClaims = httpsCallable(this.admin!.functions, 'removeFromAdminClaims');
+      const appendResponse = await cloudRemoveFromAdminClaims(sendRemoveOrgs);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (_get(appendResponse.data as any, 'status') !== 'ok') {
+        throw new Error('Failed to append to admin orgs.');
+      }
+    }
+
+    // If a new email or password are supplied, update the user record with the appropriate data.
+    const userRecordUpdates: { password: String; email: String } | {} = {};
+    if (password) {
+      _set(userRecordUpdates, 'password', password as string);
+    }
+    if (email) {
+      _set(userRecordUpdates, 'email', email as string);
+    }
+    if (!_isEmpty(userRecordUpdates)) {
+      console.log('Calling updateUserRecord with the values:', userRecordUpdates);
+      await this.updateUserRecord(id, userRecordUpdates);
+    }
+
+    // Write the remainder of the data to the user's document in admin and assessment.
     await runTransaction(this.admin!.db, async (transaction) => {
       if (id !== undefined) {
         const userDocRef = doc(this.admin!.db, 'users', id);
@@ -1891,7 +1955,7 @@ export class RoarFirekit {
         if (!docSnap.exists()) {
           throw new Error(`Could not find user with id ${id}`);
         } else {
-          transaction.set(userDocRef, userData, { merge: true });
+          transaction.set(userDocRef, sendUserData, { merge: true });
         }
       } else {
         throw new Error('No id supplied to updateUserData.');
@@ -1924,11 +1988,6 @@ export class RoarFirekit {
           throw new Error('No id supplied to updateUserData.');
         }
       });
-    }
-
-    // If password is supplied, update the user's password.
-    if (userData?.password) {
-      await this.updateUserRecord(id, { password: userData.password as string });
     }
 
     return {
