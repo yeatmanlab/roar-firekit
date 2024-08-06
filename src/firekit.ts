@@ -243,14 +243,18 @@ export class RoarFirekit {
   }
 
   async init() {
-    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
-
     this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
       this._authPersistence,
       this._markRawConfig,
     );
+    console.log('admin initialize config', this.roarConfig.admin)
+
+    console.log('admin initialize', this.admin)
+    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
+    console.log('app initialize config', this.roarConfig.app)
+    console.log('app initialize', this.app)
 
     this._initialized = true;
 
@@ -258,6 +262,9 @@ export class RoarFirekit {
       this.verboseLog('onAuthStateChanged triggered for admin auth');
       if (this.admin) {
         if (user) {
+          const userSnapshot = this._getUser(user.uid)
+          // if(userSnapshot?.offlineEnabled === true)
+          this.verboseLog("lucasisgreat", userSnapshot)
           this.verboseLog('admin firebase instance and user are defined');
           this.admin.user = user;
           this._adminClaimsListener = this._listenToClaims(this.admin);
@@ -283,6 +290,7 @@ export class RoarFirekit {
       this.verboseLog('onAuthStateChanged triggered for assessment auth');
       if (this.app) {
         if (user) {
+          this.verboseLog('this is the user in assessmentDB', user)
           this.verboseLog('assessment firebase instance and user are defiend');
           this.app.user = user;
           this._appTokenListener = this._listenToTokenChange(this.app, 'app');
@@ -2530,3 +2538,4 @@ export class RoarFirekit {
     }
   }
 }
+
