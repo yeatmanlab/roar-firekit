@@ -199,7 +199,7 @@ export class RoarFirekit {
   constructor({
     roarConfig,
     verboseLogging = false,
-    authPersistence = AuthPersistence.local,
+    authPersistence = AuthPersistence.session,
     markRawConfig = {},
     listenerUpdateCallback,
   }: {
