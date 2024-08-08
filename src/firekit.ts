@@ -199,7 +199,7 @@ export class RoarFirekit {
   constructor({
     roarConfig,
     verboseLogging = false,
-    authPersistence = AuthPersistence.session,
+    authPersistence = AuthPersistence.local,
     markRawConfig = {},
     listenerUpdateCallback,
   }: {
@@ -1329,6 +1329,19 @@ export class RoarFirekit {
     } else {
       return undefined;
     }
+  }
+
+  public async getTasksDictionary() {
+    this._verifyAuthentication();
+    const taskDocs = await getDocs(this.dbRefs!.app.tasks);
+
+    // Create a map with document IDs as keys and document data as values
+    const taskMap = taskDocs.docs.reduce((acc, doc) => {
+      acc[doc.id] = doc.data();
+      return acc;
+    }, {} as Record<string, any>);
+
+    return taskMap;
   }
 
   private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
