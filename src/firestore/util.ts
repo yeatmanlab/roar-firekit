@@ -1,4 +1,4 @@
-import { initializeApp, getApp } from 'firebase/app';
+import { FirebaseApp, getApp, initializeApp } from 'firebase/app';
 import {
   Auth,
   browserLocalPersistence,
@@ -8,10 +8,11 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
-import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
-import { getPerformance, FirebasePerformance } from 'firebase/performance';
+import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
+import { FirebasePerformance, getPerformance } from 'firebase/performance';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
@@ -24,7 +25,7 @@ import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
-import { OrgLists, OrgListKey } from '../interfaces';
+import { OrgListKey, OrgLists } from '../interfaces';
 
 /** Remove null attributes from an object
  * @function
@@ -108,6 +109,27 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   }
 };
 
+export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, name: string) => {
+  const hostname = window.location.hostname;
+  const regex = /^https:\/\/roar-staging--pr.*-.*\.web\.app$/;
+
+    // Use the DEBUG reCAPTCHA key for local development and PR deployments
+    // This allows us to bypass the reCAPTCHA domain verification
+  // if (hostname === 'localhost' || regex.test(window.location.href)) {
+  //   console.log(`Using DEBUG reCAPTCHA key for Firebase app: ${name}`);
+  //   (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "D91CB063-B58B-4209-B607-776C43064D2E"
+  // }
+
+  const adminSiteKey = '6LeTgCEqAAAAAPVXEVtWoinVf_CLYF30PaETyyiT';
+  const assessmentSiteKey = '6Ldq2SEqAAAAAKXTxXs9GnykkEZLYeVijzAKzqfQ';
+  const siteKey = name === 'admin' ? adminSiteKey : assessmentSiteKey;
+
+  return initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+};
+
 export enum AuthPersistence {
   local = 'local',
   session = 'session',
@@ -138,6 +160,7 @@ export const initializeFirebaseProject = async (
 
   if ((config as EmulatorFirebaseConfig).emulatorPorts) {
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
+    const appCheck = initializeAppCheckWithRecaptcha(app, name);
     const ports = (config as EmulatorFirebaseConfig).emulatorPorts;
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
@@ -155,6 +178,7 @@ export const initializeFirebaseProject = async (
 
     return {
       firebaseApp: app,
+      appCheck,
       auth,
       db,
       functions,
@@ -162,6 +186,16 @@ export const initializeFirebaseProject = async (
     };
   } else {
     const app = safeInitializeApp(config as LiveFirebaseConfig, name);
+    const appCheck = markRaw(initializeAppCheckWithRecaptcha(app, name));
+
+    const tokenResult = await getToken(appCheck);
+console.log('App Check Token:', tokenResult.token);
+
+    const auth = optionallyMarkRaw('auth', getAuth(app));
+    const db = optionallyMarkRaw('db', getFirestore(app));
+    const functions = optionallyMarkRaw('functions', getFunctions(app));
+    const storage = optionallyMarkRaw('storage', getStorage(app));
+
     let performance: FirebasePerformance | undefined = undefined;
     try {
       performance = getPerformance(app);
@@ -173,10 +207,11 @@ export const initializeFirebaseProject = async (
     }
     const kit = {
       firebaseApp: app,
-      auth: optionallyMarkRaw('auth', getAuth(app)),
-      db: optionallyMarkRaw('db', getFirestore(app)),
-      functions: optionallyMarkRaw('functions', getFunctions(app)),
-      storage: optionallyMarkRaw('storage', getStorage(app)),
+      appCheck: appCheck,
+      auth: auth,
+      db: db,
+      functions: functions,
+      storage: storage,
       perf: performance,
     };
 
