@@ -1339,7 +1339,7 @@ export class RoarFirekit {
     const taskMap = taskDocs.docs.reduce((acc, doc) => {
       acc[doc.id] = doc.data();
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, object>);
 
     return taskMap;
   }
