@@ -8,7 +8,7 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider,  getToken } from 'firebase/app-check';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
@@ -189,7 +189,7 @@ export const initializeFirebaseProject = async (
     const appCheck = markRaw(initializeAppCheckWithRecaptcha(app, name));
 
     const tokenResult = await getToken(appCheck);
-console.log('App Check Token:', tokenResult.token);
+    console.log('App Check Token:', tokenResult.token);
 
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
