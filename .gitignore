@@ -171,9 +171,6 @@ node_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-src/.env
-
 # Ignore firebase emulator config for now
 .firebaserc
 firebase.json
