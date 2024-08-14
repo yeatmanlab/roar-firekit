@@ -73,7 +73,7 @@ typings/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
+src/.env
 .env.test
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -172,7 +172,7 @@ node_modules/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
+src/.env
 
 # Ignore firebase emulator config for now
 .firebaserc

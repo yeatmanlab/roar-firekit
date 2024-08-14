@@ -243,13 +243,22 @@ export class RoarFirekit {
   }
 
   async init() {
-    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
+    this.app = await initializeFirebaseProject(
+      this.roarConfig.app,
+      'app',
+      this._authPersistence,
+      this._markRawConfig,
+      this.roarConfig.app.siteKey,
+      this.roarConfig.app.debugToken,
+    );
 
     this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
       this._authPersistence,
       this._markRawConfig,
+      this.roarConfig.admin.siteKey,
+      this.roarConfig.admin.debugToken,
     );
 
     this._initialized = true;

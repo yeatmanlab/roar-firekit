@@ -8,7 +8,7 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider,  getToken } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
@@ -72,6 +72,8 @@ export const replaceValues = (
 export interface CommonFirebaseConfig {
   projectId: string;
   apiKey: string;
+  siteKey?: string;
+  debugToken?: string;
 }
 
 export interface EmulatorFirebaseConfig extends CommonFirebaseConfig {
@@ -109,25 +111,35 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   }
 };
 
-export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, name: string) => {
+export const initializeAppCheckWithRecaptcha = (
+  app: FirebaseApp,
+  name: string,
+  siteKey: string,
+  debugToken: string,
+) => {
   const hostname = window.location.hostname;
   const regex = /^https:\/\/roar-staging--pr.*-.*\.web\.app$/;
 
-    // Use the DEBUG reCAPTCHA key for local development and PR deployments
-    // This allows us to bypass the reCAPTCHA domain verification
-  // if (hostname === 'localhost' || regex.test(window.location.href)) {
-  //   console.log(`Using DEBUG reCAPTCHA key for Firebase app: ${name}`);
-  //   (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "D91CB063-B58B-4209-B607-776C43064D2E"
-  // }
+  // Use the DEBUG reCAPTCHA key for local development and PR deployments
+  // This allows us to bypass the reCAPTCHA domain verification
+  // Debug token is a private key passed in from a .env file and should not be exposed
+  if (hostname === 'localhost' || regex.test(window.location.href)) {
+    try {
+      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+    } catch (error) {
+      throw new Error(`Error setting App Check debug token: ${error}`);
+    }
+  }
 
-  const adminSiteKey = '6LeTgCEqAAAAAPVXEVtWoinVf_CLYF30PaETyyiT';
-  const assessmentSiteKey = '6Ldq2SEqAAAAAKXTxXs9GnykkEZLYeVijzAKzqfQ';
-  const siteKey = name === 'admin' ? adminSiteKey : assessmentSiteKey;
-
-  return initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(siteKey),
-    isTokenAutoRefreshEnabled: true,
-  });
+  try {
+    console.log(`Initializing App Check with reCAPTCHA provider for project "${name}" with site key ${siteKey}`);
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey as string),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    throw new Error(`Error initializing App Check with reCAPTCHA provider: ${error}`);
+  }
 };
 
 export enum AuthPersistence {
@@ -149,6 +161,9 @@ export const initializeFirebaseProject = async (
   name: string,
   authPersistence = AuthPersistence.session,
   markRawConfig: MarkRawConfig = {},
+  // App Check reCAPTCHA site keys and debug token
+  siteKey = '',
+  debugToken = '',
 ) => {
   const optionallyMarkRaw = <T extends FirebaseProduct>(productKey: string, productInstance: T): T => {
     if (_get(markRawConfig, productKey)) {
@@ -160,7 +175,6 @@ export const initializeFirebaseProject = async (
 
   if ((config as EmulatorFirebaseConfig).emulatorPorts) {
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
-    const appCheck = initializeAppCheckWithRecaptcha(app, name);
     const ports = (config as EmulatorFirebaseConfig).emulatorPorts;
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
@@ -178,7 +192,6 @@ export const initializeFirebaseProject = async (
 
     return {
       firebaseApp: app,
-      appCheck,
       auth,
       db,
       functions,
@@ -186,10 +199,11 @@ export const initializeFirebaseProject = async (
     };
   } else {
     const app = safeInitializeApp(config as LiveFirebaseConfig, name);
-    const appCheck = markRaw(initializeAppCheckWithRecaptcha(app, name));
 
-    const tokenResult = await getToken(appCheck);
-    console.log('App Check Token:', tokenResult.token);
+    // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
+    // Grab the App Check token for use in the ROAR Dashboard Axios Calls to Firebase
+    const appCheck = initializeAppCheckWithRecaptcha(app, name, siteKey, debugToken);
+    const appCheckToken = await getToken(appCheck);
 
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
@@ -207,7 +221,7 @@ export const initializeFirebaseProject = async (
     }
     const kit = {
       firebaseApp: app,
-      appCheck: appCheck,
+      appCheckToken: appCheckToken.token,
       auth: auth,
       db: db,
       functions: functions,
