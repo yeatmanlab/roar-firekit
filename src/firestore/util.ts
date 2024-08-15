@@ -1,4 +1,4 @@
-import { initializeApp, getApp } from 'firebase/app';
+import { FirebaseApp, getApp, initializeApp } from 'firebase/app';
 import {
   Auth,
   browserLocalPersistence,
@@ -8,10 +8,11 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
-import { Functions, connectFunctionsEmulator, getFunctions } from 'firebase/functions';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
-import { getPerformance, FirebasePerformance } from 'firebase/performance';
+import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
+import { FirebasePerformance, getPerformance } from 'firebase/performance';
 import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
 import _flatten from 'lodash/flatten';
@@ -24,7 +25,7 @@ import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
-import { OrgLists, OrgListKey } from '../interfaces';
+import { OrgListKey, OrgLists } from '../interfaces';
 
 /** Remove null attributes from an object
  * @function
@@ -71,6 +72,8 @@ export const replaceValues = (
 export interface CommonFirebaseConfig {
   projectId: string;
   apiKey: string;
+  siteKey?: string;
+  debugToken?: string;
 }
 
 export interface EmulatorFirebaseConfig extends CommonFirebaseConfig {
@@ -105,6 +108,36 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
     } else {
       throw error;
     }
+  }
+};
+
+export const initializeAppCheckWithRecaptcha = (
+  app: FirebaseApp,
+  name: string,
+  siteKey: string,
+  debugToken: string,
+) => {
+  const hostname = window.location.hostname;
+  const regex = /^https:\/\/roar-staging--pr.*-.*\.web\.app$/;
+
+  // Use the DEBUG reCAPTCHA key for local development and PR deployments
+  // This allows us to bypass the reCAPTCHA domain verification
+  // Debug token is a private key passed in from a .env file and should not be exposed
+  if (hostname === 'localhost' || regex.test(window.location.href)) {
+    try {
+      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+    } catch (error) {
+      throw new Error(`Error setting App Check debug token: ${error}`);
+    }
+  }
+
+  try {
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey as string),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    throw new Error(`Error initializing App Check with reCAPTCHA provider: ${error}`);
   }
 };
 
@@ -161,7 +194,18 @@ export const initializeFirebaseProject = async (
       storage,
     };
   } else {
-    const app = safeInitializeApp(config as LiveFirebaseConfig, name);
+    const { siteKey, debugToken, ...appConfig } = config as LiveFirebaseConfig;
+    const app = safeInitializeApp(appConfig as LiveFirebaseConfig, name);
+
+    // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
+    // Get the App Check token for use in Axios calls to Firebase from the client
+    let appCheckToken = null;
+    if (siteKey && debugToken) {
+      const appCheck = initializeAppCheckWithRecaptcha(app, name, siteKey, debugToken);
+      const appCheckTokenResult = await getToken(appCheck);
+      appCheckToken = appCheckTokenResult.token;
+    }
+
     let performance: FirebasePerformance | undefined = undefined;
     try {
       performance = getPerformance(app);
@@ -171,8 +215,10 @@ export const initializeFirebaseProject = async (
         throw error;
       }
     }
+
     const kit = {
       firebaseApp: app,
+      appCheckToken: appCheckToken,
       auth: optionallyMarkRaw('auth', getAuth(app)),
       db: optionallyMarkRaw('db', getFirestore(app)),
       functions: optionallyMarkRaw('functions', getFunctions(app)),

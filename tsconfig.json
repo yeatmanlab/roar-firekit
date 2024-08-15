@@ -7,10 +7,10 @@
         "strict": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
-        "moduleResolution": "Node"
+        "moduleResolution": "Node",
     },
     "include": [
-        "src"
+        "src",
     ],
     "exclude": [
         "node_modules",
