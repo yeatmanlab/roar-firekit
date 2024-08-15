@@ -160,9 +160,6 @@ export const initializeFirebaseProject = async (
   name: string,
   authPersistence = AuthPersistence.session,
   markRawConfig: MarkRawConfig = {},
-  // App Check reCAPTCHA site keys and debug token
-  siteKey = '',
-  debugToken = '',
 ) => {
   const optionallyMarkRaw = <T extends FirebaseProduct>(productKey: string, productInstance: T): T => {
     if (_get(markRawConfig, productKey)) {
@@ -197,17 +194,17 @@ export const initializeFirebaseProject = async (
       storage,
     };
   } else {
-    const app = safeInitializeApp(config as LiveFirebaseConfig, name);
+    const { siteKey, debugToken, ...appConfig } = config as LiveFirebaseConfig;
+    const app = safeInitializeApp(appConfig as LiveFirebaseConfig, name);
 
     // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
-    // Grab the App Check token for use in the ROAR Dashboard Axios Calls to Firebase
-    const appCheck = initializeAppCheckWithRecaptcha(app, name, siteKey, debugToken);
-    const appCheckToken = await getToken(appCheck);
-
-    const auth = optionallyMarkRaw('auth', getAuth(app));
-    const db = optionallyMarkRaw('db', getFirestore(app));
-    const functions = optionallyMarkRaw('functions', getFunctions(app));
-    const storage = optionallyMarkRaw('storage', getStorage(app));
+    // Get the App Check token for use in Axios calls to Firebase from the client
+    let appCheckToken = null;
+    if (siteKey && debugToken) {
+      const appCheck = initializeAppCheckWithRecaptcha(app, name, siteKey, debugToken);
+      const appCheckTokenResult = await getToken(appCheck);
+      appCheckToken = appCheckTokenResult.token;
+    }
 
     let performance: FirebasePerformance | undefined = undefined;
     try {
@@ -218,13 +215,14 @@ export const initializeFirebaseProject = async (
         throw error;
       }
     }
+
     const kit = {
       firebaseApp: app,
-      appCheckToken: appCheckToken.token,
-      auth: auth,
-      db: db,
-      functions: functions,
-      storage: storage,
+      appCheckToken: appCheckToken,
+      auth: optionallyMarkRaw('auth', getAuth(app)),
+      db: optionallyMarkRaw('db', getFirestore(app)),
+      functions: optionallyMarkRaw('functions', getFunctions(app)),
+      storage: optionallyMarkRaw('storage', getStorage(app)),
       perf: performance,
     };
 
