@@ -132,7 +132,6 @@ export const initializeAppCheckWithRecaptcha = (
   }
 
   try {
-    console.log(`Initializing App Check with reCAPTCHA provider for project "${name}" with site key ${siteKey}`);
     return initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(siteKey as string),
       isTokenAutoRefreshEnabled: true,
