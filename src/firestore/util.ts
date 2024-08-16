@@ -113,17 +113,16 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
 
 export const initializeAppCheckWithRecaptcha = (
   app: FirebaseApp,
-  name: string,
   siteKey: string,
   debugToken: string,
 ) => {
   const hostname = window.location.hostname;
-  const regex = /^https:\/\/roar-staging--pr.*-.*\.web\.app$/;
+  const regex = /^roar-staging--pr.*-.*\.web\.app$/;
 
   // Use the DEBUG reCAPTCHA key for local development and PR deployments
   // This allows us to bypass the reCAPTCHA domain verification
   // Debug token is a private key passed in from a .env file and should not be exposed
-  if (hostname === 'localhost' || regex.test(window.location.href)) {
+  if (hostname === 'localhost' || regex.test(hostname)) {
     try {
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
     } catch (error) {
@@ -201,7 +200,7 @@ export const initializeFirebaseProject = async (
     // Get the App Check token for use in Axios calls to Firebase from the client
     let appCheckToken = null;
     if (siteKey && debugToken) {
-      const appCheck = initializeAppCheckWithRecaptcha(app, name, siteKey, debugToken);
+      const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
       const appCheckTokenResult = await getToken(appCheck);
       appCheckToken = appCheckTokenResult.token;
     }
