@@ -125,6 +125,7 @@ export const initializeAppCheckWithRecaptcha = (
   // Debug token is a private key passed in from a .env file and should not be exposed
   if (hostname === 'localhost' || regex.test(window.location.href)) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
     } catch (error) {
       throw new Error(`Error setting App Check debug token: ${error}`);
