@@ -111,11 +111,7 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   }
 };
 
-export const initializeAppCheckWithRecaptcha = (
-  app: FirebaseApp,
-  siteKey: string,
-  debugToken: string,
-) => {
+export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string) => {
   const hostname = window.location.hostname;
   const regex = /^roar-staging--pr.*-.*\.web\.app$/;
 
