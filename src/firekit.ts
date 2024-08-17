@@ -178,18 +178,20 @@ export class RoarFirekit {
   roarConfig: RoarConfig;
   userData?: UserDataInAdminDb;
   listenerUpdateCallback: (...args: unknown[]) => void;
+  private _admin?: boolean;
+  private _adminClaimsListener?: Unsubscribe;
+  private _adminOrgs?: Record<string, string[]>;
+  private _adminTokenListener?: Unsubscribe;
+  private _appTokenListener?: Unsubscribe;
+  private _authPersistence: AuthPersistence;
+  private _identityProviderType?: AuthProviderType;
+  private _identityProviderId?: string;
   private _idTokenReceived?: boolean;
   private _idTokens: { admin?: string; app?: string };
-  private _adminOrgs?: Record<string, string[]>;
-  private _authPersistence: AuthPersistence;
   private _initialized: boolean;
   private _markRawConfig: MarkRawConfig;
   private _superAdmin?: boolean;
-  private _admin?: boolean;
   private _verboseLogging?: boolean;
-  private _adminTokenListener?: Unsubscribe;
-  private _appTokenListener?: Unsubscribe;
-  private _adminClaimsListener?: Unsubscribe;
   /**
    * Create a RoarFirekit. This expects an object with keys `roarConfig`,
    * where `roarConfig` is a [[RoarConfig]] object.
@@ -537,15 +539,28 @@ export class RoarFirekit {
    * If the cloud function execution is successful, it refreshes the ID tokens for both projects.
    *
    * @returns {Promise<any>} - A promise that resolves with the result of the setUidClaims cloud function execution.
+   * @param {object} input - An object containing the required parameters
+   * @param {string} input.identityProviderId - The identity provider ID for the user (optional).
+   * @param {AuthProviderType} input.identityProviderType - The type of the identity provider (optional).
    * @throws {Error} - If the setUidClaims cloud function execution fails, an Error is thrown.
    */
-  private async _setUidCustomClaims() {
+  private async _setUidCustomClaims({
+    identityProviderId = undefined,
+    identityProviderType = undefined,
+  }: {
+    identityProviderId?: string;
+    identityProviderType?: AuthProviderType;
+  } = {}) {
     this.verboseLog('Entry point to setUidCustomClaims');
     this._verifyAuthentication();
 
     this.verboseLog('Calling cloud function for setUidClaims');
     const setUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
-    const result = await setUidClaims({ assessmentUid: this.app!.user!.uid });
+    const result = await setUidClaims({
+      assessmentUid: this.app!.user!.uid,
+      identityProviderId,
+      identityProviderType,
+    });
     this.verboseLog('setUidClaims returned with result', result);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -577,24 +592,25 @@ export class RoarFirekit {
   private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     this.verboseLog('Entry point for syncEduSSOUser');
     if (authProvider === AuthProviderType.CLEVER) {
-      if (oAuthAccessToken === undefined) {
-        this.verboseLog('Not OAuth token provided.');
-        throw new Error('No OAuth access token provided.');
-      }
-      this._verifyAuthentication();
-      this.verboseLog('Calling syncEduSSOUser cloud function [Clever]');
-      const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
-      const adminResult = await syncCleverUser({
-        assessmentUid: this.app!.user!.uid,
-        accessToken: oAuthAccessToken,
-      });
-      this.verboseLog('syncCleverUser cloud function returned with result', adminResult);
+      return;
+      // if (oAuthAccessToken === undefined) {
+      //   this.verboseLog('Not OAuth token provided.');
+      //   throw new Error('No OAuth access token provided.');
+      // }
+      // this._verifyAuthentication();
+      // this.verboseLog('Calling syncEduSSOUser cloud function [Clever]');
+      // const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
+      // const adminResult = await syncCleverUser({
+      //   assessmentUid: this.app!.user!.uid,
+      //   accessToken: oAuthAccessToken,
+      // });
+      // this.verboseLog('syncCleverUser cloud function returned with result', adminResult);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(adminResult.data as any, 'status') !== 'ok') {
-        this.verboseLog('There was an error with the cloud function syncCleverUser cloud function', adminResult.data);
-        throw new Error('Failed to sync Clever and ROAR data.');
-      }
+      // // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // if (_get(adminResult.data as any, 'status') !== 'ok') {
+      //   this.verboseLog('There was an error with the cloud function syncCleverUser cloud function', adminResult.data);
+      //   throw new Error('Failed to sync Clever and ROAR data.');
+      // }
     } else if (authProvider === AuthProviderType.CLASSLINK) {
       this.verboseLog('Calling syncEduSSOUser cloud function [ClassLink]');
       if (oAuthAccessToken === undefined) {
@@ -706,9 +722,10 @@ export class RoarFirekit {
         throw error;
       })
       .then(() => {
-        return createUserWithEmailAndPassword(this.app!.auth, email, password).then(
-          this._setUidCustomClaims.bind(this),
-        );
+        this._identityProviderType = AuthProviderType.EMAIL;
+        return createUserWithEmailAndPassword(this.app!.auth, email, password).then(() => {
+          return this._setUidCustomClaims();
+        });
       });
   }
 
@@ -729,6 +746,7 @@ export class RoarFirekit {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password)
       .then(async (adminUserCredential) => {
+        this._identityProviderType = AuthProviderType.EMAIL;
         const roarProviderIds = this._getProviderIds();
         const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
         const roarAdminIdToken = await getIdToken(adminUserCredential.user);
@@ -738,7 +756,9 @@ export class RoarFirekit {
 
         return signInWithCredential(this.app!.auth, roarAdminCredential);
       })
-      .then(this._setUidCustomClaims.bind(this))
+      .then(() => {
+        return this._setUidCustomClaims();
+      })
       .catch((error: AuthError) => {
         console.error('Error signing in', error);
         throw error;
@@ -821,6 +841,7 @@ export class RoarFirekit {
     this._verifyInit();
     return signInWithEmailLink(this.admin!.auth, email, emailLink)
       .then(async (userCredential) => {
+        this._identityProviderType = AuthProviderType.EMAIL;
         const roarProviderIds = this._getProviderIds();
         const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
         const roarAdminIdToken = await getIdToken(userCredential.user);
@@ -902,6 +923,9 @@ export class RoarFirekit {
 
     return signInWithPopup(this.admin!.auth, authProvider)
       .then(async (adminUserCredential) => {
+        this._identityProviderType = provider;
+        const roarProviderIds = this._getProviderIds();
+
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Google Access Token. You can use it to access Google APIs.
@@ -913,7 +937,16 @@ export class RoarFirekit {
           // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
           oAuthAccessToken = credential?.accessToken;
 
-          const roarProviderIds = this._getProviderIds();
+          let providerId: string;
+          if (provider === AuthProviderType.CLEVER) {
+            providerId = roarProviderIds.CLEVER;
+          } else if (provider === AuthProviderType.CLASSLINK) {
+            providerId = roarProviderIds.CLASSLINK;
+          }
+          this._identityProviderId = adminUserCredential.user.providerData.find(
+            (userInfo) => userInfo.providerId === providerId,
+          )?.uid;
+
           const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
           const roarAdminIdToken = await getIdToken(adminUserCredential.user);
           const roarAdminCredential = roarAdminProvider.credential({
@@ -931,7 +964,11 @@ export class RoarFirekit {
       })
       .then((credential) => {
         if (credential) {
-          return this._setUidCustomClaims();
+          const claimsParams = {
+            identityProviderId: this._identityProviderId,
+            identityProviderType: this._identityProviderType,
+          };
+          return this._setUidCustomClaims(claimsParams);
         }
       })
       .then((setClaimsResult) => {
@@ -959,15 +996,14 @@ export class RoarFirekit {
   async linkAuthProviderWithPopup(provider: AuthProviderType) {
     this._verifyAuthentication();
     const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const roarProviderIds = this._getProviderIds();
 
     let authProvider;
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
     } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
       authProvider = new OAuthProvider(roarProviderIds.CLEVER);
     } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
       authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
@@ -984,6 +1020,7 @@ export class RoarFirekit {
 
     return linkWithPopup(this.admin!.auth!.currentUser!, authProvider)
       .then(async (adminUserCredential) => {
+        this._identityProviderType = provider;
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Google Access Token. You can use it to access Google APIs.
@@ -996,6 +1033,16 @@ export class RoarFirekit {
           oAuthAccessToken = credential?.accessToken;
 
           const roarProviderIds = this._getProviderIds();
+          let providerId: string;
+          if (provider === AuthProviderType.CLEVER) {
+            providerId = roarProviderIds.CLEVER;
+          } else if (provider === AuthProviderType.CLASSLINK) {
+            providerId = roarProviderIds.CLASSLINK;
+          }
+          this._identityProviderId = adminUserCredential.user.providerData.find(
+            (userInfo) => userInfo.providerId === providerId,
+          )?.uid;
+
           const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
           const roarAdminIdToken = await getIdToken(adminUserCredential.user);
           const roarAdminCredential = roarAdminProvider.credential({
@@ -1013,7 +1060,11 @@ export class RoarFirekit {
       })
       .then((credential) => {
         if (credential) {
-          return this._setUidCustomClaims();
+          const claimsParams = {
+            identityProviderId: this._identityProviderId,
+            identityProviderType: this._identityProviderType,
+          };
+          return this._setUidCustomClaims(claimsParams);
         }
       })
       .then((setClaimsResult) => {
@@ -1139,6 +1190,7 @@ export class RoarFirekit {
             // This gives you a Google Access Token. You can use it to access Google APIs.
             // TODO: Find a way to put this in the onAuthStateChanged handler
             authProvider = AuthProviderType.GOOGLE;
+            this._identityProviderType = authProvider;
             oAuthAccessToken = credential?.accessToken;
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
@@ -1152,6 +1204,12 @@ export class RoarFirekit {
             } else if (providerId === roarProviderIds.CLASSLINK) {
               authProvider = AuthProviderType.CLASSLINK;
             }
+
+            this._identityProviderType = authProvider;
+            this._identityProviderId = adminUserCredential.user.providerData.find(
+              (userInfo) => userInfo.providerId === providerId,
+            )?.uid;
+
             oAuthAccessToken = credential?.accessToken;
             this.verboseLog('authProvider is', authProvider);
             this.verboseLog('oAuthAccesToken is', oAuthAccessToken);
@@ -1183,7 +1241,11 @@ export class RoarFirekit {
         this.verboseLog('Attempting to set uid custom claims using credential', credential);
         if (credential) {
           this.verboseLog('Calling setUidCustomClaims with creds', credential);
-          return this._setUidCustomClaims();
+          const claimsParams = {
+            identityProviderId: this._identityProviderId,
+            identityProviderType: this._identityProviderType,
+          };
+          return this._setUidCustomClaims(claimsParams);
         }
         return null;
       })
