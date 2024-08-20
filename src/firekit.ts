@@ -2491,50 +2491,6 @@ export class RoarFirekit {
     });
   }
 
-  // LEVANTE
-  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
-    try {
-      const result = await cloudCreateLevanteUsers({ userData });
-      return result;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      console.error('Error creating Levante users in firekit', error);
-      throw error;
-    }
-  }
-
-  async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
-    this._verifyAuthentication();
-
-    const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
-    try {
-      const result = await cloudSaveSurveyResponses({ surveyResponses });
-      return result;
-    } catch (error) {
-      console.error('Error saving survey responses in firekit', error);
-      throw error;
-    }
-  }
-
-  async createLevanteGroup(groupData: RoarOrg) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const cloudCreateLevanteGroup = httpsCallable(this.admin!.functions, 'createLevanteGroup');
-    try {
-      const result = await cloudCreateLevanteGroup({ groupData });
-      return result;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      console.error('Error creating Levante group in firekit', error);
-      throw error;
-    }
-  }
-
   /**
    * Creates an AdobeSign agreement for the given email address and document type.
    *
@@ -2603,5 +2559,59 @@ export class RoarFirekit {
       console.error('Error getting AdobeSign URL');
       throw error;
     }
+  }
+
+  // LEVANTE
+  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
+    try {
+      const result = await cloudCreateLevanteUsers({ userData });
+      return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error('Error creating Levante users in firekit', error);
+      throw error;
+    }
+  }
+
+  async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
+    this._verifyAuthentication();
+
+    const cloudSaveSurveyResponses = httpsCallable(this.admin!.functions, 'saveSurveyResponses');
+    try {
+      const result = await cloudSaveSurveyResponses({ surveyResponses });
+      return result;
+    } catch (error) {
+      console.error('Error saving survey responses in firekit', error);
+      throw error;
+    }
+  }
+
+  async createLevanteGroup(groupData: RoarOrg) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudCreateLevanteGroup = httpsCallable(this.admin!.functions, 'createLevanteGroup');
+    try {
+      const result = await cloudCreateLevanteGroup({ groupData });
+      return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error('Error creating Levante group in firekit', error);
+      throw error;
+    }
+  }
+
+  async linkUsers(users: LevanteUserData[]) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudLinkUsers = httpsCallable(this.admin!.functions, 'linkUsers');
+    
+    const result = await cloudLinkUsers({ users });
+    return result;
   }
 }
