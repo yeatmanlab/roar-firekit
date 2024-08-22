@@ -89,6 +89,8 @@ enum AuthProviderType {
 }
 
 interface CreateUserInput {
+  email: string;
+  password?: string;
   activationCode?: string;
   dob: string;
   grade: string;
@@ -1992,6 +1994,121 @@ export class RoarFirekit {
     return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
       this.verboseLog('Password reset email sent to', email);
     });
+  }
+
+  async createUpdateUsers(users: { email: string; password: string; userData: CreateUserInput }[]) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const sendUsers: UserDataInAdminDb[] = [];
+    const errorUsers: { user: { [x: string]: any }; error: string }[] = [];
+    for (const userItem of users) {
+      const userDocData: UserDataInAdminDb = {
+        userType: UserType.student,
+        studentData: {} as StudentData,
+        districts: emptyOrg(),
+        schools: emptyOrg(),
+        classes: emptyOrg(),
+        families: emptyOrg(),
+        groups: emptyOrg(),
+        archived: false,
+      };
+      const { email, password, userData } = userItem;
+      // Check for Date of Birth
+      if (!_get(userData, 'dob')) {
+        errorUsers.push({ user: userData, error: 'Date of Birth is required.' });
+        continue;
+      }
+
+      // Check for PID. If not supplied, generate one.
+      if (_get(userData, 'pid')) {
+        _set(userDocData, 'assessmentPid', userData.pid);
+      } else {
+        // If PID was not supplied, then construct one using an eight character
+        // checksum of the email.
+        // Prefix that checksum with optional org abbreviations:
+        // 1. If the district has an abbreviation, start with that.
+        // 2. Then add the school abbreviation, if it exists.
+        // 3. If neither of those are available, use the group abbreviation.
+        // 4. Otherwise prepend nothing.
+        const emailCheckSum = crc32String(email);
+
+        const districtPrefix = _get(userData, 'district.abbreviation');
+        const schoolPrefix = _get(userData, 'school.abbreviation');
+        const groupPrefix = _get(userData, 'group.abbreviation');
+
+        const pidParts: string[] = [];
+        if (districtPrefix) pidParts.push(districtPrefix);
+        if (schoolPrefix) pidParts.push(schoolPrefix);
+        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
+        pidParts.push(emailCheckSum);
+        _set(userDocData, 'assessmentPid', pidParts.join('-'));
+      }
+
+      // TODO: this can probably be optimized.
+      if (email) _set(userDocData, 'email', email);
+      if (password) _set(userDocData, 'password', password);
+      if (_get(userData, 'username') != undefined) {
+        _set(userDocData, 'username', userData.username);
+      }
+      if (_get(userData, 'name') != undefined) {
+        _set(userDocData, 'name', userData.name);
+      }
+      if (_get(userData, 'dob') != undefined) {
+        _set(userDocData, 'studentData.dob', userData.dob);
+      }
+      if (_get(userData, 'gender') != undefined) {
+        _set(userDocData, 'studentData.gender', userData.gender);
+      }
+      if (_get(userData, 'grade') != undefined) {
+        _set(userDocData, 'studentData.grade', userData.grade);
+      }
+      if (_get(userData, 'state_id') != undefined) {
+        _set(userDocData, 'studentData.state_id', userData.state_id);
+      }
+      if (_get(userData, 'hispanic_ethnicity') != undefined) {
+        _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
+      }
+      if (_get(userData, 'ell_status') != undefined) {
+        _set(userDocData, 'studentData.ell_status', userData.ell_status);
+      }
+      if (_get(userData, 'iep_status') != undefined) {
+        _set(userDocData, 'studentData.iep_status', userData.iep_status);
+      }
+      if (_get(userData, 'frl_status') != undefined) {
+        _set(userDocData, 'studentData.frl_status', userData.frl_status);
+      }
+      if (_get(userData, 'race') != undefined) {
+        _set(userDocData, 'studentData.race', userData.race);
+      }
+      if (_get(userData, 'home_language') != undefined) {
+        _set(userDocData, 'studentData.home_language', userData.home_language);
+      }
+
+      if (_get(userData, 'district') != undefined) {
+        _set(userDocData, 'orgIds.district', userData.district!.id);
+      }
+      if (_get(userData, 'school') != undefined) {
+        _set(userDocData, 'orgIds.school', userData.school!.id);
+      }
+      if (_get(userData, 'class') != undefined) {
+        _set(userDocData, 'orgIds.class', userData.class!.id);
+      }
+      if (_get(userData, 'group') != undefined) {
+        _set(userDocData, 'orgIds.group', userData.group!.id);
+      }
+      if (_get(userData, 'family') != undefined) {
+        _set(userDocData, 'orgIds.family', userData.family!.id);
+      }
+
+      sendUsers.push(userDocData);
+    }
+
+    console.log('Users to be created:', sendUsers);
+    // After constructing sendUsers array, send them to the sorting function.
+    // const cloudImportUpdateUsers = httpsCallable(this.admin!.functions, 'importAndUpdateUsers');
+    // await cloudImportUpdateUsers({ users: sendUsers });
+    return [{ status: 'success' }, { status: 'rejected', reason: 'Something went wrong' }];
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
