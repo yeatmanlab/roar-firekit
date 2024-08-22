@@ -1806,9 +1806,8 @@ export class RoarFirekit {
       sequential: sequential,
       tags: tags,
       legal: legal,
+      testData: isTestData ?? false,
     };
-
-    if (isTestData) administrationData.testData = true;
 
     await runTransaction(this.admin!.db, async (transaction) => {
       let administrationDocRef: DocumentReference;
