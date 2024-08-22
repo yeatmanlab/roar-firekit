@@ -729,6 +729,7 @@ export class RoarFirekit {
     this._verifyInit();
     return signInWithEmailAndPassword(this.admin!.auth, email, password)
       .then(async (adminUserCredential) => {
+        console.log("login with user", email, password)
         const roarProviderIds = this._getProviderIds();
         const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
         const roarAdminIdToken = await getIdToken(adminUserCredential.user);
@@ -738,7 +739,7 @@ export class RoarFirekit {
 
         return signInWithCredential(this.app!.auth, roarAdminCredential);
       })
-      .then(this._setUidCustomClaims.bind(this))
+      // .then(this._setUidCustomClaims.bind(this))
       .catch((error: AuthError) => {
         console.error('Error signing in', error);
         throw error;
