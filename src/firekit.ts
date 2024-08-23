@@ -2002,7 +2002,6 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const sendUsers: UserDataInAdminDb[] = [];
-    const errorUsers: { user: { [x: string]: any }; error: string }[] = [];
     for (const userItem of users) {
       const userDocData: UserDataInAdminDb = {
         userType: UserType.student,
@@ -2015,11 +2014,6 @@ export class RoarFirekit {
         archived: false,
       };
       const { email, password, userData } = userItem;
-      // Check for Date of Birth
-      if (!_get(userData, 'dob')) {
-        errorUsers.push({ user: userData, error: 'Date of Birth is required.' });
-        continue;
-      }
 
       // Check for PID. If not supplied, generate one.
       if (_get(userData, 'pid')) {
