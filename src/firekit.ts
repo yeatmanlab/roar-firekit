@@ -109,6 +109,7 @@ interface CreateUserInput {
     last?: string;
   };
   username?: string;
+  unenroll?: boolean;
   school: { id: string; abbreviation?: string } | null;
   district: { id: string; abbreviation?: string } | null;
   class: { id: string; abbreviation?: string } | null;
@@ -2084,6 +2085,9 @@ export class RoarFirekit {
       if (_get(userData, 'home_language') != undefined) {
         _set(userDocData, 'studentData.home_language', userData.home_language);
       }
+      if (_get(userData, 'unenroll') != undefined) {
+        _set(userDocData, 'unenroll', userData.unenroll);
+      }
 
       if (_get(userData, 'district') != undefined) {
         _set(userDocData, 'orgIds.district', userData.district!.id);
@@ -2104,11 +2108,9 @@ export class RoarFirekit {
       sendUsers.push(userDocData);
     }
 
-    console.log('Users to be created:', sendUsers);
     // After constructing sendUsers array, send them to the sorting function.
-    // const cloudImportUpdateUsers = httpsCallable(this.admin!.functions, 'importAndUpdateUsers');
-    // await cloudImportUpdateUsers({ users: sendUsers });
-    return [{ status: 'success' }, { status: 'rejected', reason: 'Something went wrong' }];
+    const cloudImportUpdateUsers = httpsCallable(this.admin!.functions, 'batchImportUpdate');
+    return await cloudImportUpdateUsers({ users: sendUsers });
   }
 
   async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
