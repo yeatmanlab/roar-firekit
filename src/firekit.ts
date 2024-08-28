@@ -1454,7 +1454,9 @@ export class RoarFirekit {
       return;
     }
 
-    this.userData = await this._getUser(this.roarUid!);
+    const roarUid = await this.getRoarUid();
+
+    this.userData = await this._getUser(roarUid);
 
     if (this.userData) {
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
@@ -1472,7 +1474,7 @@ export class RoarFirekit {
 
       this.roarAppUserInfo = {
         db: this.app!.db,
-        roarUid: this.roarUid,
+        roarUid: roarUid,
         assessmentUid: this.app!.user!.uid,
         assessmentPid: assessmentPid,
         userType: this.userData.userType,
@@ -1535,10 +1537,28 @@ export class RoarFirekit {
   public get roarUid() {
     return this.admin?.user?.uid;
   }
+  public async getRoarUid() {
+    const userClaimsRef = doc(this.admin!.db, 'userClaims', this.admin!.user!.uid);
+    const userClaims = await getDoc(userClaimsRef).then((doc) => {
+      if (!doc.exists()) {
+        throw new Error('User claims document does not exist.');
+      }
+      return doc.data();
+    });
+
+    if (!_isEmpty(userClaims) && userClaims.claims.roarUid) {
+      return userClaims.claims.roarUid;
+    } else {
+      return this.admin?.user?.uid;
+    }
+  }
 
   async startAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
-    const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+
+    const roarUid = await this.getRoarUid();
+    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+    const assignmentDocRef = doc(userAssignmentsRef, administrationId);
 
     if (transaction) {
       return transaction.update(assignmentDocRef, { started: true });
@@ -1549,7 +1569,9 @@ export class RoarFirekit {
 
   async completeAssignment(administrationId: string, transaction?: Transaction) {
     this._verifyAuthentication();
-    const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+    const roarUid = await this.getRoarUid();
+    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+    const assignmentDocRef = doc(userAssignmentsRef, administrationId);
 
     if (transaction) {
       return transaction.update(assignmentDocRef, { completed: true });
@@ -1565,7 +1587,10 @@ export class RoarFirekit {
     transaction: Transaction,
   ) {
     this._verifyAuthentication();
-    const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
+
+    const roarUid = await this.getRoarUid();
+    const assignmentDocRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+    const docRef = doc(assignmentDocRef, administrationId);
     const docSnap = await transaction.get(docRef);
     if (docSnap.exists()) {
       const assessments: AssignedAssessment[] = docSnap.data().assessments;
@@ -1585,6 +1610,8 @@ export class RoarFirekit {
   async startAssessment(administrationId: string, taskId: string, taskVersion: string) {
     this._verifyAuthentication();
 
+    const roarUid = await this.getRoarUid();
+
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // First grab data about the administration
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
@@ -1601,7 +1628,8 @@ export class RoarFirekit {
 
         // Check the assignment to see if none of the assessments have been
         // started yet. If not, start the assignment
-        const assignmentDocRef = doc(this.dbRefs!.admin.assignments, administrationId);
+        const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+        const assignmentDocRef = doc(userAssignmentsRef, administrationId);
         const assignmentDocSnap = await transaction.get(assignmentDocRef);
         if (assignmentDocSnap.exists()) {
           const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
@@ -1688,9 +1716,7 @@ export class RoarFirekit {
             },
           });
         } else {
-          throw new Error(
-            `Could not find assignment for user ${this.roarUid} with administration id ${administrationId}`,
-          );
+          throw new Error(`Could not find assignment for user ${roarUid} with administration id ${administrationId}`);
         }
       } else {
         throw new Error(`Could not find administration with id ${administrationId}`);
@@ -1705,7 +1731,10 @@ export class RoarFirekit {
     await runTransaction(this.admin!.db, async (transaction) => {
       // Check to see if all of the assessments in this assignment have been completed,
       // If so, complete the assignment
-      const docRef = doc(this.dbRefs!.admin.assignments, administrationId);
+
+      const roarUid = await this.getRoarUid();
+      const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+      const docRef = doc(userAssignmentsRef, administrationId);
       const docSnap = await transaction.get(docRef);
 
       // Update this assignment's `completedOn` timestamp
