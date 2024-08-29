@@ -360,6 +360,8 @@ export class RoarRun {
         );
       }
 
+      // TODO: Augment this function or create another function to store trial data underneath a user's object
+
       const trialRef = doc(collection(this.runRef, 'trials'));
 
       return setDoc(trialRef, {

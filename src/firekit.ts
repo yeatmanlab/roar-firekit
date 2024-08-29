@@ -169,6 +169,22 @@ interface UpdateTaskVariantData {
   variantId?: string;
 }
 
+// TODO: See if I can create a variant of the ROAR firekit class where trials are written
+// to the admin user's object instead of the target user's trials
+// this schema might look something like this
+// offline_admin_user : {
+//  offline_run_data: {
+//    user1: {
+//      trials...  
+//    },
+//    user2: {
+//      trials...  
+//    },
+//    user3: {
+//      trials...  
+//    },
+//  }
+// }
 export class RoarFirekit {
   admin?: FirebaseProject;
   app?: FirebaseProject;
@@ -1518,6 +1534,7 @@ export class RoarFirekit {
     }
   }
 
+
   async startAssessment(administrationId: string, taskId: string, taskVersion: string) {
     this._verifyAuthentication();
 
@@ -1603,6 +1620,9 @@ export class RoarFirekit {
             },
           };
 
+
+          // TODO: use target participant user info instead of the default 
+          // This would allow an admin user to launch another user into
           return new RoarAppkit({
             firebaseProject: this.app,
             userInfo: this.roarAppUserInfo!,
