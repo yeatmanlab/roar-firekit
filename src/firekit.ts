@@ -2751,7 +2751,7 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const cloudLinkUsers = httpsCallable(this.admin!.functions, 'linkUsers');
-    
+
     const result = await cloudLinkUsers({ users });
     return result;
   }
