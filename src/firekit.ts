@@ -2703,19 +2703,14 @@ export class RoarFirekit {
   }
 
   // LEVANTE
-  async createLevanteUsersWithEmailPassword(userData: LevanteUserData) {
+  async createUsers(userData: LevanteUserData) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
-    const cloudCreateLevanteUsers = httpsCallable(this.admin!.functions, 'createLevanteUsers');
-    try {
-      const result = await cloudCreateLevanteUsers({ userData });
-      return result;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      console.error('Error creating Levante users in firekit', error);
-      throw error;
-    }
+    const cloudCreateUsers = httpsCallable(this.admin!.functions, 'createUsers');
+    
+    const result = await cloudCreateUsers({ userData });
+    return result;
   }
 
   async saveSurveyResponses(surveyResponses: LevanteSurveyResponses) {
