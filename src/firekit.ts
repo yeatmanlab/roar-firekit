@@ -2708,7 +2708,7 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const cloudCreateUsers = httpsCallable(this.admin!.functions, 'createUsers');
-    
+
     const result = await cloudCreateUsers({ userData });
     return result;
   }
