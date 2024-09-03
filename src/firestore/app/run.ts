@@ -68,7 +68,7 @@ export interface ComputedScores {
   [key: string]: unknown;
 }
 
-interface RunScores {
+export interface RunScores {
   raw: RawScores;
   computed: ComputedScores;
 }
@@ -82,6 +82,7 @@ export interface RunInput {
   runId?: string;
   testData?: boolean;
   demoData?: boolean;
+  parentUser?: RoarAppUser;
 }
 
 interface ScoreUpdate {
