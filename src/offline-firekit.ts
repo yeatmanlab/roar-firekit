@@ -153,6 +153,7 @@ export class OfflineFirekit extends RoarFirekit {
               variant: isVariantDemo,
               run: isAssignmentDemo || isUserDemo || isTaskDemo || isVariantDemo,
             },
+            // parentUser: this.roarAppUser,
           });
         } else {
           throw new Error(
