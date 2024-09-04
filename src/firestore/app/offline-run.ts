@@ -1,4 +1,4 @@
-import { arrayUnion, DocumentReference, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, collection, doc, DocumentReference, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { RoarRun, RunInput, RunScores } from './run';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
@@ -38,10 +38,13 @@ export class OfflineRun extends RoarRun {
 
     // set runRef to parent user's userRun collection
     if(runId) {
-        this.runRef = this.parentUser?.userRef.collection('userRuns').doc(user.userRef).collection('runs').doc(runId);   
+        // this.runRef = this.parentUser?.userRef.collection('userRuns').doc(user.userRef).collection('runs').doc(runId);   
+        this.runRef = doc(this.parentUser!.userRef, 'runs', runId);
+        // this.runRef = this.parentUser?.userRef.doc(runId);   
     }
     else {
-        this.runRef = this.parentUser?.userRef.collection('userRuns').doc(user.userRef).collection('runs').doc();
+        this.runRef = doc(collection(this.parentUser!.userRef, 'runs'));
+        // this.runRef = this.parentUser?.userRef.collection('userRuns').doc(user.userRef).collection('runs').doc();
     }
   }
 

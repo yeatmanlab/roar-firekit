@@ -39,7 +39,7 @@ export class OfflineAppKit extends RoarAppkit {
       this.parentUser = parentUser;
     }
 
-    private async _init () {
+    protected async _init () {
         if (this.firebaseConfig) {
             this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
           }
@@ -85,5 +85,17 @@ export class OfflineAppKit extends RoarAppkit {
           this._initialized = true;
     }
 
+    async startRun(additionalRunMetadata?: { [key: string]: unknown }): Promise<boolean> {
+        console.log("start run called in offline appkitinit")
+        if (!this._initialized) {
+            await this._init();
+          }
+      
+          if (!this.authenticated) {
+            throw new Error('User must be authenticated to start a run.');
+          }
+      
+          return this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
+    }
 
 }

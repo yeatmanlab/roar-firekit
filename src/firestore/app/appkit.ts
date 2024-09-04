@@ -102,7 +102,7 @@ export class RoarAppkit {
     this._started = false;
   }
 
-  private async _init() {
+  protected async _init() {
     if (this.firebaseConfig) {
       this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
     }
