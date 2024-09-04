@@ -113,12 +113,11 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
 
 export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string) => {
   const hostname = window.location.hostname;
-  const regex = /^roar-staging--pr.*-.*\.web\.app$/;
 
-  // Use the DEBUG reCAPTCHA key for local development and PR deployments
+  // Use the DEBUG reCAPTCHA key for local development
   // This allows us to bypass the reCAPTCHA domain verification
   // Debug token is a private key passed in from a .env file and should not be exposed
-  if (hostname === 'localhost' || regex.test(hostname)) {
+  if (hostname === 'localhost') {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
