@@ -15,7 +15,7 @@ interface DataFlags {
   run?: boolean;
 }
 
-interface AppkitInput {
+export interface AppkitInput {
   firebaseProject?: FirebaseProject;
   firebaseConfig?: FirebaseConfig;
   userInfo: UserInfo;
@@ -26,6 +26,7 @@ interface AppkitInput {
   runId?: string;
   testData?: DataFlags;
   demoData?: DataFlags;
+  parentUser?: RoarAppUser;
 }
 
 /**
@@ -41,15 +42,15 @@ export class RoarAppkit {
   user?: RoarAppUser;
   testData: DataFlags;
   demoData: DataFlags;
-  private _userInfo: UserInfo;
-  private _taskInfo: TaskVariantInfo;
-  private _assigningOrgs?: OrgLists;
-  private _readOrgs?: OrgLists;
-  private _assignmentId?: string;
-  private _runId?: string;
-  private _authenticated: boolean;
-  private _initialized: boolean;
-  private _started: boolean;
+  protected _userInfo: UserInfo;
+  protected _taskInfo: TaskVariantInfo;
+  protected _assigningOrgs?: OrgLists;
+  protected _readOrgs?: OrgLists;
+  protected _assignmentId?: string;
+  protected _runId?: string;
+  protected _authenticated: boolean;
+  protected _initialized: boolean;
+  protected _started: boolean;
   /**
    * Create a RoarAppkit.
    *
