@@ -22,8 +22,8 @@ export interface UserInfo {
   testData?: boolean;
   demoData?: boolean;
   offlineEnabled?: boolean;
-  offlineTasks: string[];
-  offlineAdministrations: string[];
+  offlineTasks?: string[];
+  offlineAdministrations?: string[];
 }
 
 export interface UserInput extends UserInfo {
