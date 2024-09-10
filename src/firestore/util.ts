@@ -72,7 +72,7 @@ export const replaceValues = (
 export interface CommonFirebaseConfig {
   projectId: string;
   apiKey: string;
-  siteKey?: string;
+  siteKey: string;
   debugToken?: string;
 }
 
@@ -111,7 +111,7 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   }
 };
 
-export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string) => {
+export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string | undefined) => {
   const hostname = window.location.hostname;
 
   // Use the DEBUG reCAPTCHA key for local development
@@ -194,12 +194,8 @@ export const initializeFirebaseProject = async (
 
     // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
     // Get the App Check token for use in Axios calls to Firebase from the client
-    let appCheckToken = null;
-    if (siteKey && debugToken) {
-      const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
-      const appCheckTokenResult = await getToken(appCheck);
-      appCheckToken = appCheckTokenResult.token;
-    }
+    const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
+    const { token: appCheckToken } = await getToken(appCheck);
 
     let performance: FirebasePerformance | undefined = undefined;
     try {
