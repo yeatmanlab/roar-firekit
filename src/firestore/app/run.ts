@@ -348,10 +348,13 @@ export class RoarRun {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
-
     if (!this.aborted) {
       // Check that the trial has all of the required reserved keys
-      if (!requiredTrialFields.every((key) => key in trialData)) {
+      if (
+        !requiredTrialFields.every((key) => {
+          return key in trialData && trialData[key] != undefined;
+        })
+      ) {
         throw new Error(
           'All ROAR trials saved to Firestore must have the following reserved keys: ' +
             `${requiredTrialFields}.` +
