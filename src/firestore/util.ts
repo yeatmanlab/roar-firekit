@@ -195,7 +195,20 @@ export const initializeFirebaseProject = async (
     // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
     // Get the App Check token for use in Axios calls to Firebase from the client
     const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
-    const { token: appCheckToken } = await getToken(appCheck);
+
+    let appCheckToken: string | null = null;
+
+    await getToken(appCheck).then( (appCheckTokenResult) => {
+        console.log('App Check token obtained successfully.');
+        console.log('Token: ', appCheckTokenResult.token);
+        appCheckToken = appCheckTokenResult.token;
+    }).catch(error => {
+      if (error.code === 'appCheck/throttled') {
+        console.error('App Check token request throttled. Please try again later.');
+      } else {
+        console.error('Error obtaining App Check token:', error);
+      }
+    })
 
     let performance: FirebasePerformance | undefined = undefined;
     try {
