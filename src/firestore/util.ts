@@ -6,6 +6,7 @@ import {
   connectAuthEmulator,
   getAuth,
   inMemoryPersistence,
+  onIdTokenChanged,
   setPersistence,
 } from 'firebase/auth';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
@@ -198,17 +199,18 @@ export const initializeFirebaseProject = async (
 
     let appCheckToken: string | null = null;
 
-    await getToken(appCheck).then( (appCheckTokenResult) => {
+    getToken(appCheck, false)
+      .then((appCheckTokenResult) => {
         console.log('App Check token obtained successfully.');
-        console.log('Token: ', appCheckTokenResult.token);
         appCheckToken = appCheckTokenResult.token;
-    }).catch(error => {
-      if (error.code === 'appCheck/throttled') {
-        console.error('App Check token request throttled. Please try again later.');
-      } else {
-        console.error('Error obtaining App Check token:', error);
-      }
-    })
+      })
+      .catch((error) => {
+        if (error.code === 'appCheck/throttled') {
+          console.error('App Check token request throttled. Please try again later.');
+        } else {
+          console.error('Error obtaining App Check token:', error);
+        }
+      });
 
     let performance: FirebasePerformance | undefined = undefined;
     try {
