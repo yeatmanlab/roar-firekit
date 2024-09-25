@@ -1623,113 +1623,108 @@ export class RoarFirekit {
     const roarUid = this.roarUid ?? (await this.getRoarUid());
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
-      // First grab data about the administration
-      const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
-      const administrationDocSnap = await transaction.get(administrationDocRef);
-      if (administrationDocSnap.exists()) {
+      // Check the assignment to see if none of the assessments have been
+      // started yet. If not, start the assignment
+      const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
+      const assignmentDocRef = doc(userAssignmentsRef, administrationId);
+      const assignmentDocSnap = await transaction.get(assignmentDocRef);
+      if (assignmentDocSnap.exists()) {
+        // First grab the assessments from the assignment document
+        const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
+        const assessmentUpdateData = {
+          startedOn: new Date(),
+        };
+        // Grab this assessment (task), and get the params
         let assessmentParams: { [x: string]: unknown } = {};
-        const assessments: Assessment[] = administrationDocSnap.data().assessments;
-        const thisAssessment = assessments.find((a) => a.taskId === taskId);
+        const thisAssessment = assignedAssessments.find((a) => a.taskId === taskId);
         if (thisAssessment) {
           assessmentParams = thisAssessment.params;
         } else {
-          throw new Error(`Could not find assessment with taskId ${taskId} in administration ${administrationId}`);
+          throw new Error(
+            `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${roarUid}`,
+          );
         }
 
-        // Check the assignment to see if none of the assessments have been
-        // started yet. If not, start the assignment
-        const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
-        const assignmentDocRef = doc(userAssignmentsRef, administrationId);
-        const assignmentDocSnap = await transaction.get(assignmentDocRef);
-        if (assignmentDocSnap.exists()) {
-          const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
-          const assessmentUpdateData = {
-            startedOn: new Date(),
-          };
+        // Append runId to `allRunIds` for this assessment
+        // in the userId/assignments collection
+        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
 
-          // Append runId to `allRunIds` for this assessment
-          // in the userId/assignments collection
-          await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
-
-          if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
-            await this.startAssignment(administrationId, transaction);
-          }
-
-          if (this.roarAppUserInfo === undefined) {
-            await this.getMyData();
-          }
-
-          const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-          const readOrgs = assignmentDocSnap.data().readOrgs;
-          const taskAndVariant = await getTaskAndVariant({
-            db: this.app!.db,
-            taskId,
-            variantParams: assessmentParams,
-          });
-          if (taskAndVariant.task === undefined) {
-            throw new Error(`Could not find task ${taskId}`);
-          }
-
-          if (taskAndVariant.variant === undefined) {
-            throw new Error(
-              `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
-            );
-          }
-
-          const taskName = taskAndVariant.task.name;
-          const taskDescription = taskAndVariant.task.description;
-          const variantName = taskAndVariant.variant.name;
-          const variantDescription = taskAndVariant.variant.description;
-
-          const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
-          const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
-          const { testData: isTaskTest, demoData: isTaskDemo } = taskAndVariant.task;
-          const { testData: isVariantTest, demoData: isVariantDemo } = taskAndVariant.variant;
-
-          const taskInfo = {
-            db: this.app!.db,
-            taskId,
-            taskName,
-            taskDescription,
-            taskVersion,
-            variantName,
-            variantDescription,
-            variantParams: assessmentParams,
-            testData: {
-              task: isTaskTest ?? false,
-              variant: isVariantTest ?? false,
-            },
-            demoData: {
-              task: isTaskDemo ?? false,
-              variant: isVariantDemo ?? false,
-            },
-          };
-
-          return new RoarAppkit({
-            firebaseProject: this.app,
-            userInfo: this.roarAppUserInfo!,
-            assigningOrgs,
-            readOrgs,
-            assignmentId: administrationId,
-            taskInfo,
-            testData: {
-              user: isUserTest,
-              task: isTaskTest,
-              variant: isVariantTest,
-              run: isAssignmentTest || isUserTest || isTaskTest || isVariantTest,
-            },
-            demoData: {
-              user: isUserDemo,
-              task: isTaskDemo,
-              variant: isVariantDemo,
-              run: isAssignmentDemo || isUserDemo || isTaskDemo || isVariantDemo,
-            },
-          });
-        } else {
-          throw new Error(`Could not find assignment for user ${roarUid} with administration id ${administrationId}`);
+        if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
+          await this.startAssignment(administrationId, transaction);
         }
+
+        if (this.roarAppUserInfo === undefined) {
+          await this.getMyData();
+        }
+
+        const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+        const readOrgs = assignmentDocSnap.data().readOrgs;
+        const taskAndVariant = await getTaskAndVariant({
+          db: this.app!.db,
+          taskId,
+          variantParams: assessmentParams,
+        });
+        if (taskAndVariant.task === undefined) {
+          throw new Error(`Could not find task ${taskId}`);
+        }
+
+        if (taskAndVariant.variant === undefined) {
+          throw new Error(
+            `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
+          );
+        }
+
+        const taskName = taskAndVariant.task.name;
+        const taskDescription = taskAndVariant.task.description;
+        const variantName = taskAndVariant.variant.name;
+        const variantDescription = taskAndVariant.variant.description;
+
+        const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
+        const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
+        const { testData: isTaskTest, demoData: isTaskDemo } = taskAndVariant.task;
+        const { testData: isVariantTest, demoData: isVariantDemo } = taskAndVariant.variant;
+
+        const taskInfo = {
+          db: this.app!.db,
+          taskId,
+          taskName,
+          taskDescription,
+          taskVersion,
+          variantName,
+          variantDescription,
+          variantParams: assessmentParams,
+          testData: {
+            task: isTaskTest ?? false,
+            variant: isVariantTest ?? false,
+          },
+          demoData: {
+            task: isTaskDemo ?? false,
+            variant: isVariantDemo ?? false,
+          },
+        };
+
+        return new RoarAppkit({
+          firebaseProject: this.app,
+          userInfo: this.roarAppUserInfo!,
+          assigningOrgs,
+          readOrgs,
+          assignmentId: administrationId,
+          taskInfo,
+          testData: {
+            user: isUserTest,
+            task: isTaskTest,
+            variant: isVariantTest,
+            run: isAssignmentTest || isUserTest || isTaskTest || isVariantTest,
+          },
+          demoData: {
+            user: isUserDemo,
+            task: isTaskDemo,
+            variant: isVariantDemo,
+            run: isAssignmentDemo || isUserDemo || isTaskDemo || isVariantDemo,
+          },
+        });
       } else {
-        throw new Error(`Could not find administration with id ${administrationId}`);
+        throw new Error(`Could not find assignment for user ${roarUid} with administration id ${administrationId}`);
       }
     });
 

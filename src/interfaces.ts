@@ -186,6 +186,7 @@ export interface AssignedAssessment extends DocumentData {
   rewardShown: boolean;
   [x: string]: unknown;
   optional?: boolean;
+  params: { [x: string]: unknown };
 }
 
 export interface Assignment extends DocumentData {
