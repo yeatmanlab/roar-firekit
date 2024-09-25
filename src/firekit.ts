@@ -45,7 +45,7 @@ import {
   updateDoc,
   setDoc,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 
 import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from './auth';
 import {
@@ -597,27 +597,7 @@ export class RoarFirekit {
    */
   private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
     this.verboseLog('Entry point for syncEduSSOUser');
-    if (authProvider === AuthProviderType.CLEVER) {
-      return;
-      // if (oAuthAccessToken === undefined) {
-      //   this.verboseLog('Not OAuth token provided.');
-      //   throw new Error('No OAuth access token provided.');
-      // }
-      // this._verifyAuthentication();
-      // this.verboseLog('Calling syncEduSSOUser cloud function [Clever]');
-      // const syncCleverUser = httpsCallable(this.admin!.functions, 'syncCleverUser');
-      // const adminResult = await syncCleverUser({
-      //   assessmentUid: this.app!.user!.uid,
-      //   accessToken: oAuthAccessToken,
-      // });
-      // this.verboseLog('syncCleverUser cloud function returned with result', adminResult);
-
-      // // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // if (_get(adminResult.data as any, 'status') !== 'ok') {
-      //   this.verboseLog('There was an error with the cloud function syncCleverUser cloud function', adminResult.data);
-      //   throw new Error('Failed to sync Clever and ROAR data.');
-      // }
-    } else if (authProvider === AuthProviderType.CLASSLINK) {
+    if (authProvider === AuthProviderType.CLASSLINK) {
       this.verboseLog('Calling syncEduSSOUser cloud function [ClassLink]');
       if (oAuthAccessToken === undefined) {
         this.verboseLog('Not OAuth token provided.');
@@ -1412,6 +1392,18 @@ export class RoarFirekit {
     return taskMap;
   }
 
+  public async getAdministrationIds() {
+    this._verifyAuthentication();
+    const getAdministrationIdsCallable = httpsCallable(this.admin!.functions, 'updateUserRecord');
+    const response = (await getAdministrationIdsCallable()) as HttpsCallableResult<{ status: string; data?: unknown }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to retrieve administration IDs.');
+    }
+
+    return response.data.data ?? [];
+  }
+
   private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
     this._verifyAuthentication();
     const userDocRef = doc(this.admin!.db, 'users', uid);
@@ -2073,9 +2065,12 @@ export class RoarFirekit {
     console.log('Updating user record for user', uid, 'with', record);
 
     const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
-    const updateResponse = await cloudUpdateUserRecord({ uid, userRecord });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(updateResponse.data as any, 'status') !== 'ok') {
+    const updateResponse = (await cloudUpdateUserRecord({ uid, userRecord })) as HttpsCallableResult<{
+      status: string;
+      data?: unknown;
+    }>;
+
+    if (_get(updateResponse.data, 'status') !== 'ok') {
       throw new Error('Failed to update user record.');
     }
   }
@@ -2355,6 +2350,7 @@ export class RoarFirekit {
       adminOrgs: targetAdminOrgs,
       isTestData,
     });
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (_get(adminResponse.data as any, 'status') !== 'ok') {
       throw new Error('Failed to create administrator user account.');
