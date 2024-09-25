@@ -1392,10 +1392,19 @@ export class RoarFirekit {
     return taskMap;
   }
 
-  public async getAdministrations() {
+  public async getAdministrations({
+    testData = false,
+    restrictToOpenAdministrations = false,
+  }: {
+    testData: boolean;
+    restrictToOpenAdministrations: boolean;
+  }) {
     this._verifyAuthentication();
     const getAdministrationCallable = httpsCallable(this.admin!.functions, 'getAdministrations');
-    const response = (await getAdministrationCallable()) as HttpsCallableResult<{ status: string; data?: unknown }>;
+    const response = (await getAdministrationCallable({
+      testData,
+      restrictToOpenAdministrations,
+    })) as HttpsCallableResult<{ status: string; data?: unknown }>;
 
     if (_get(response.data, 'status') !== 'ok') {
       throw new Error('Failed to retrieve administration IDs.');
