@@ -1392,10 +1392,10 @@ export class RoarFirekit {
     return taskMap;
   }
 
-  public async getAdministrationIds() {
+  public async getAdministrations() {
     this._verifyAuthentication();
-    const getAdministrationIdsCallable = httpsCallable(this.admin!.functions, 'updateUserRecord');
-    const response = (await getAdministrationIdsCallable()) as HttpsCallableResult<{ status: string; data?: unknown }>;
+    const getAdministrationCallable = httpsCallable(this.admin!.functions, 'getAdministrations');
+    const response = (await getAdministrationCallable()) as HttpsCallableResult<{ status: string; data?: unknown }>;
 
     if (_get(response.data, 'status') !== 'ok') {
       throw new Error('Failed to retrieve administration IDs.');
