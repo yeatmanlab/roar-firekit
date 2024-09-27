@@ -2392,6 +2392,11 @@ export class RoarFirekit {
       throw new Error('You must specify a schoolId when creating a class.');
     }
 
+    orgData = {
+      archived: false,
+      ...orgData,
+    };
+
     return runTransaction(this.admin!.db, async (transaction) => {
       // If org is a class, retrieve the districtId from the parent school
       if (orgsCollection === 'classes') {
