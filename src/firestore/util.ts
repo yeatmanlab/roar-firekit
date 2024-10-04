@@ -1,4 +1,4 @@
-import { FirebaseApp, getApp, initializeApp } from 'firebase/app';
+import { getApp, initializeApp } from 'firebase/app';
 import {
   Auth,
   browserLocalPersistence,
@@ -8,7 +8,7 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
+// import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
@@ -111,30 +111,30 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
   }
 };
 
-export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string | undefined) => {
-  const hostname = window.location.hostname;
-
-  // Use the DEBUG reCAPTCHA key for local development
-  // This allows us to bypass the reCAPTCHA domain verification
-  // Debug token is a private key passed in from a .env file and should not be exposed
-  if (hostname === 'localhost') {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
-    } catch (error) {
-      throw new Error(`Error setting App Check debug token: ${error}`);
-    }
-  }
-
-  try {
-    return initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(siteKey as string),
-      isTokenAutoRefreshEnabled: true,
-    });
-  } catch (error) {
-    throw new Error(`Error initializing App Check with reCAPTCHA provider: ${error}`);
-  }
-};
+// export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string | undefined) => {
+//   const hostname = window.location.hostname;
+//
+//   // Use the DEBUG reCAPTCHA key for local development
+//   // This allows us to bypass the reCAPTCHA domain verification
+//   // Debug token is a private key passed in from a .env file and should not be exposed
+//   if (hostname === 'localhost') {
+//     try {
+//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+//     } catch (error) {
+//       throw new Error(`Error setting App Check debug token: ${error}`);
+//     }
+//   }
+//
+//   try {
+//     return initializeAppCheck(app, {
+//       provider: new ReCaptchaEnterpriseProvider(siteKey as string),
+//       isTokenAutoRefreshEnabled: true,
+//     });
+//   } catch (error) {
+//     throw new Error(`Error initializing App Check with reCAPTCHA provider: ${error}`);
+//   }
+// };
 
 export enum AuthPersistence {
   local = 'local',
@@ -189,13 +189,14 @@ export const initializeFirebaseProject = async (
       storage,
     };
   } else {
-    const { siteKey, debugToken, ...appConfig } = config as LiveFirebaseConfig;
+    // const { siteKey, debugToken, ...appConfig } = config as LiveFirebaseConfig;
+    const { ...appConfig } = config as LiveFirebaseConfig;
     const app = safeInitializeApp(appConfig as LiveFirebaseConfig, name);
 
     // Initialize App Check with reCAPTCHA provider before calling any other Firebase services
     // Get the App Check token for use in Axios calls to Firebase from the client
-    const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
-    const { token: appCheckToken } = await getToken(appCheck);
+    // const appCheck = initializeAppCheckWithRecaptcha(app, siteKey, debugToken);
+    // const { token: appCheckToken } = await getToken(appCheck);
 
     let performance: FirebasePerformance | undefined = undefined;
     try {
@@ -209,7 +210,7 @@ export const initializeFirebaseProject = async (
 
     const kit = {
       firebaseApp: app,
-      appCheckToken: appCheckToken,
+      // appCheckToken: appCheckToken,
       auth: optionallyMarkRaw('auth', getAuth(app)),
       db: optionallyMarkRaw('db', getFirestore(app)),
       functions: optionallyMarkRaw('functions', getFunctions(app)),
