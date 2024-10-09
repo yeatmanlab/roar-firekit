@@ -192,6 +192,55 @@ export class RoarAppkit {
   }
 
   /**
+   * Validate the task variant parameters against a given schema.
+   *
+   * This method checks if the parameters passed into the task (`this._taskInfo.variantParams`) match the expected
+   * types and values defined in the `parameterSchema`. If any parameter is invalid, an error
+   * is thrown with a detailed message. If all parameters are valid, a success message is logged.
+   *
+   * @param {Array<{ [key: string]: unknown }>} parameterSchema - The schema defining valid parameters,
+   * including their expected types and possible values.
+   * An array of objects, each with the following:
+   * - parameter: string, the name of the parameter
+   * - type: string, the expected data type of the parameter
+   * - values: unknown[], the possible values for the parameter
+   *
+   * @throws {Error} If any parameter is invalid, an error is thrown with details of the invalid parameters.
+   */
+  async validateParameters(parameterSchema: Array<{ [key: string]: unknown }>) {
+    const variantParams = this._taskInfo.variantParams;
+    const errors: string[] = [];
+
+    for (const [key, value] of Object.entries(variantParams)) {
+      const validParameter = parameterSchema.find((item) => item?.parameter === key);
+
+      if (!validParameter) {
+        errors.push(`Invalid parameter: ${key}`);
+        continue;
+      }
+
+      if (typeof value !== validParameter.type) {
+        errors.push(
+          `Invalid data type: ${typeof value} for parameter: ${key}; expected data type: ${validParameter.type}`,
+        );
+        continue;
+      }
+
+      if (!(validParameter.values as unknown[]).some((validValue) => validValue === value)) {
+        errors.push(
+          `Invalid value: ${value} for parameter: ${key}; expected one of the following values: ${validParameter.values}`,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Detected invalid game parameters. \n${errors.join('\n')}`);
+    }
+
+    console.log('Parameters successfully validated.');
+  }
+
+  /**
    * Update the ROAR task's game parameters.
    * This must be called after the startRun() method.
    *
