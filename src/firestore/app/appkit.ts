@@ -223,7 +223,6 @@ export class RoarAppkit {
         errors.push(
           `Invalid data type: ${typeof value} for parameter: ${key}; expected data type: ${validParameter.type}`,
         );
-        continue;
       }
 
       if (!(validParameter.values as unknown[]).some((validValue) => validValue === value)) {
