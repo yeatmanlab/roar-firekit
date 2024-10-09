@@ -6,7 +6,9 @@ import { ComputedScores, RawScores, RoarRun } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
-import { FirebaseConfig, initializeFirebaseProject } from '../util';
+import { FirebaseConfig, ValidationError, initializeFirebaseProject, errorsMap } from '../util';
+import Ajv, { JSONSchemaType } from 'ajv';
+import ajvErrors from 'ajv-errors';
 
 interface DataFlags {
   user?: boolean;
@@ -192,51 +194,33 @@ export class RoarAppkit {
   }
 
   /**
-   * Validate the task variant parameters against a given schema.
+   * Validate the task variant parameters against a given JSON schema.
    *
-   * This method checks if the parameters passed into the task (`this._taskInfo.variantParams`) match the expected
-   * types and values defined in the `parameterSchema`. If any parameter is invalid, an error
-   * is thrown with a detailed message. If all parameters are valid, a success message is logged.
+   * This method uses the AJV library to validate the `variantParams` from the task information
+   * against the provided JSON schema. If the parameters are invalid, it throws an error with
+   * detailed messages for each validation error.
    *
-   * @param {Array<{ [key: string]: unknown }>} parameterSchema - The schema defining valid parameters,
-   * including their expected types and possible values.
-   * An array of objects, each with the following:
-   * - parameter: string, the name of the parameter
-   * - type: string, the expected data type of the parameter
-   * - values: unknown[], the possible values for the parameter
-   *
-   * @throws {Error} If any parameter is invalid, an error is thrown with details of the invalid parameters.
+   * @param {JSONSchemaType<unknown>} parameterSchema - The JSON schema to validate the parameters against.
+   * @throws {Error} Throws an error if the parameters are invalid, including detailed validation error messages.
    */
-  async validateParameters(parameterSchema: Array<{ [key: string]: unknown }>) {
+  async validateParameters(parameterSchema: JSONSchemaType<unknown>) {
+    const ajv = new Ajv({ allErrors: true, verbose: true });
+    ajvErrors(ajv);
+
+    const validate = ajv.compile(parameterSchema);
     const variantParams = this._taskInfo.variantParams;
-    const errors: string[] = [];
+    const valid = validate(variantParams);
 
-    for (const [key, value] of Object.entries(variantParams)) {
-      const validParameter = parameterSchema.find((item) => item?.parameter === key);
-
-      if (!validParameter) {
-        errors.push(`Invalid parameter: ${key}`);
-        continue;
-      }
-
-      if (typeof value !== validParameter.type) {
-        errors.push(
-          `Invalid data type: ${typeof value} for parameter: ${key}; expected data type: ${validParameter.type}`,
-        );
-      }
-
-      if (!(validParameter.values as unknown[]).some((validValue) => validValue === value)) {
-        errors.push(
-          `Invalid value: ${value} for parameter: ${key}; expected one of the following values: ${validParameter.values}`,
-        );
-      }
+    if (!valid) {
+      const errorMessages = validate.errors
+        ?.map((error) => {
+          return errorsMap[error.keyword](error as ValidationError);
+        })
+        .join('\n');
+      throw new Error(`Detected invalid game parameters. \n${errorMessages}`);
+    } else {
+      console.log('Parameters successfully validated.');
     }
-
-    if (errors.length > 0) {
-      throw new Error(`Detected invalid game parameters. \n${errors.join('\n')}`);
-    }
-
-    console.log('Parameters successfully validated.');
   }
 
   /**
