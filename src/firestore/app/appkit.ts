@@ -6,7 +6,8 @@ import { ComputedScores, RawScores, RoarRun } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
-import { FirebaseConfig, ValidationError, initializeFirebaseProject, errorsMap } from '../util';
+import { FirebaseConfig, initializeFirebaseProject } from '../util';
+import {ValidationError, errorsMap} from '../../validation/errors';
 import Ajv, { JSONSchemaType } from 'ajv';
 import ajvErrors from 'ajv-errors';
 
