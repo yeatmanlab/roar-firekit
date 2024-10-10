@@ -7,8 +7,8 @@ import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
-import {ValidationError, errorsMap} from '../../validation/errors';
-import Ajv, { JSONSchemaType } from 'ajv';
+import { ValidationError, errorsMap } from '../../validation/errors';
+import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
 
 interface DataFlags {
@@ -205,7 +205,8 @@ export class RoarAppkit {
    * @throws {Error} Throws an error if the parameters are invalid, including detailed validation error messages.
    */
   async validateParameters(parameterSchema: JSONSchemaType<unknown>) {
-    const ajv = new Ajv({ allErrors: true, verbose: true });
+    // This version of ajv is not compatible with other JSON schema versions.
+    const ajv = new Ajv2020({ allErrors: true, verbose: true });
     ajvErrors(ajv);
 
     const validate = ajv.compile(parameterSchema);
@@ -218,7 +219,7 @@ export class RoarAppkit {
           return errorsMap[error.keyword](error as ValidationError);
         })
         .join('\n');
-      throw new Error(`Detected invalid game parameters. \n${errorMessages}`);
+      throw new Error(`Detected invalid game parameters. \n\n${errorMessages}`);
     } else {
       console.log('Parameters successfully validated.');
     }

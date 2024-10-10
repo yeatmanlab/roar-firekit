@@ -12,25 +12,21 @@ export interface ValidationError {
 }
 
 const displayAdditionalPropertiesError = (error: ValidationError) => {
-  return `Error in parameter "${error.params.additionalProperty}": ${error.message}
-  Please remove this parameter from your variant parameters.
+  return `Error in parameter "${error.params.additionalProperty}": ${error.message}\nRemove this parameter from variant parameters.
   `;
 };
 
 const displayTypeError = (error: ValidationError) => {
-  return `Error in parameter "${error.instancePath}": ${error.message} 
-  Expected type: ${error.schema}, Received type: ${error.data}
+  return `Error in parameter "${error.instancePath}": ${error.message}\nExpected type: ${error.schema}\nReceived type: ${error.data}
   `;
 };
 const displayValueError = (error: ValidationError) => {
-  return `Error in parameter "${error.instancePath}": ${error.message} 
-  Expected value: ${error.params?.allowedValues}, Received value: ${error.data}
+  return `Error in parameter "${error.instancePath}": ${error.message}\nExpected value: ${error.params?.allowedValues}\nReceived value: ${error.data}
   `;
 };
 
 const displayRangeError = (error: ValidationError) => {
-  return `Error in parameter "${error.instancePath}": ${error.message} 
-  Expected range: ${error.params.limit}, Received value: ${error.data}
+  return `Error in parameter "${error.instancePath}": ${error.message}\nExpected range: ${error.params.limit}\nReceived value: ${error.data}
   `;
 };
 
