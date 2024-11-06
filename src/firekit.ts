@@ -2182,19 +2182,19 @@ export class RoarFirekit {
       }
 
       if (_get(userData, 'district') != undefined) {
-        _set(userDocData, 'orgIds.district', userData.district!.id);
+        _set(userDocData, 'orgIds.district', [userData.district!.id]);
       }
       if (_get(userData, 'school') != undefined) {
-        _set(userDocData, 'orgIds.school', userData.school!.id);
+        _set(userDocData, 'orgIds.school', [userData.school!.id]);
       }
       if (_get(userData, 'class') != undefined) {
-        _set(userDocData, 'orgIds.class', userData.class!.id);
+        _set(userDocData, 'orgIds.class', [userData.class!.id]);
       }
       if (_get(userData, 'group') != undefined) {
-        _set(userDocData, 'orgIds.group', userData.group!.id);
+        _set(userDocData, 'orgIds.group', [userData.group!.id]);
       }
       if (_get(userData, 'family') != undefined) {
-        _set(userDocData, 'orgIds.family', userData.family!.id);
+        _set(userDocData, 'orgIds.family', [userData.family!.id]);
       }
 
       sendUsers.push(userDocData);
@@ -2265,11 +2265,11 @@ export class RoarFirekit {
     if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
     if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
 
-    if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
-    if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
-    if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
-    if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
-    if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
+    if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', [userData.district!.id]);
+    if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', [userData.school!.id]);
+    if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', [userData.class!.id]);
+    if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', [userData.group!.id]);
+    if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', [userData.family!.id]);
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createStudentAccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
