@@ -1895,16 +1895,20 @@ export class RoarFirekit {
 
     await runTransaction(this.admin!.db, async (transaction) => {
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
-      const statsDocRef = doc(administrationDocRef, 'stats', 'completion');
+      const subcollections = ['stats', 'assigningOrgs', 'readOrgs'];
+      for (const subcollection of subcollections) {
+        const subcollectionRef = collection(this.admin!.db, 'administrations', administrationId, subcollection);
+        const subcollectionSnapshot = await getDocs(subcollectionRef);
+
+        subcollectionSnapshot.forEach((doc) => {
+          if (doc.exists()) {
+            transaction.delete(doc.ref);
+          }
+        });
+      }
 
       const docSnap = await transaction.get(administrationDocRef);
       if (docSnap.exists()) {
-        // Delete the stats/completion doc if it exists
-        const statsDocSnap = await transaction.get(statsDocRef);
-        if (statsDocSnap.exists()) {
-          transaction.delete(statsDocRef);
-        }
-
         // Delete the administration doc
         transaction.delete(administrationDocRef);
       }
