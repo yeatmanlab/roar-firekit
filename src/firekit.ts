@@ -110,11 +110,11 @@ interface CreateUserInput {
   };
   username?: string;
   unenroll?: boolean;
-  school: { id: string; abbreviation?: string } | null;
-  district: { id: string; abbreviation?: string } | null;
-  class: { id: string; abbreviation?: string } | null;
-  family: { id: string; abbreviation?: string } | null;
-  group: { id: string; abbreviation?: string } | null;
+  schools: { id: string; abbreviation?: string } | null;
+  districts: { id: string; abbreviation?: string } | null;
+  classes: { id: string; abbreviation?: string } | null;
+  families: { id: string; abbreviation?: string } | null;
+  groups: { id: string; abbreviation?: string } | null;
 }
 
 interface CreateParentInput {
@@ -2130,9 +2130,9 @@ export class RoarFirekit {
         // 4. Otherwise prepend nothing.
         const emailCheckSum = crc32String(email);
 
-        const districtPrefix = _get(userData, 'district.abbreviation');
-        const schoolPrefix = _get(userData, 'school.abbreviation');
-        const groupPrefix = _get(userData, 'group.abbreviation');
+        const districtPrefix = _get(userData, 'districts.abbreviation');
+        const schoolPrefix = _get(userData, 'schools.abbreviation');
+        const groupPrefix = _get(userData, 'groups.abbreviation');
 
         const pidParts: string[] = [];
         if (districtPrefix) pidParts.push(districtPrefix);
@@ -2185,20 +2185,20 @@ export class RoarFirekit {
         _set(userDocData, 'unenroll', userData.unenroll);
       }
 
-      if (_get(userData, 'district') != undefined) {
-        _set(userDocData, 'orgIds.district', userData.district!.id);
+      if (_get(userData, 'districts') != undefined) {
+        _set(userDocData, 'orgIds.districts', [userData.districts!.id]);
       }
-      if (_get(userData, 'school') != undefined) {
-        _set(userDocData, 'orgIds.school', userData.school!.id);
+      if (_get(userData, 'schools') != undefined) {
+        _set(userDocData, 'orgIds.schools', [userData.schools!.id]);
       }
-      if (_get(userData, 'class') != undefined) {
-        _set(userDocData, 'orgIds.class', userData.class!.id);
+      if (_get(userData, 'classes') != undefined) {
+        _set(userDocData, 'orgIds.classes', [userData.classes!.id]);
       }
-      if (_get(userData, 'group') != undefined) {
-        _set(userDocData, 'orgIds.group', userData.group!.id);
+      if (_get(userData, 'groups') != undefined) {
+        _set(userDocData, 'orgIds.groups', [userData.groups!.id]);
       }
-      if (_get(userData, 'family') != undefined) {
-        _set(userDocData, 'orgIds.family', userData.family!.id);
+      if (_get(userData, 'families') != undefined) {
+        _set(userDocData, 'orgIds.families', [userData.families!.id]);
       }
 
       sendUsers.push(userDocData);
@@ -2240,9 +2240,9 @@ export class RoarFirekit {
       // 4. Otherwise prepend nothing.
       const emailCheckSum = crc32String(email);
 
-      const districtPrefix = _get(userData, 'district.abbreviation');
-      const schoolPrefix = _get(userData, 'school.abbreviation');
-      const groupPrefix = _get(userData, 'group.abbreviation');
+      const districtPrefix = _get(userData, 'districts.abbreviation');
+      const schoolPrefix = _get(userData, 'schools.abbreviation');
+      const groupPrefix = _get(userData, 'groups.abbreviation');
 
       const pidParts: string[] = [];
       if (districtPrefix) pidParts.push(districtPrefix);
@@ -2269,11 +2269,11 @@ export class RoarFirekit {
     if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
     if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
 
-    if (_get(userData, 'district')) _set(userDocData, 'orgIds.district', userData.district!.id);
-    if (_get(userData, 'school')) _set(userDocData, 'orgIds.school', userData.school!.id);
-    if (_get(userData, 'class')) _set(userDocData, 'orgIds.class', userData.class!.id);
-    if (_get(userData, 'group')) _set(userDocData, 'orgIds.group', userData.group!.id);
-    if (_get(userData, 'family')) _set(userDocData, 'orgIds.family', userData.family!.id);
+    if (_get(userData, 'districts')) _set(userDocData, 'orgIds.districts', [userData.districts!.id]);
+    if (_get(userData, 'schools')) _set(userDocData, 'orgIds.schools', [userData.schools!.id]);
+    if (_get(userData, 'classes')) _set(userDocData, 'orgIds.classes', [userData.classes!.id]);
+    if (_get(userData, 'groups')) _set(userDocData, 'orgIds.groups', [userData.groups!.id]);
+    if (_get(userData, 'families')) _set(userDocData, 'orgIds.families', [userData.families!.id]);
 
     const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createStudentAccount');
     await cloudCreateStudent({ email, password, userData: userDocData });
