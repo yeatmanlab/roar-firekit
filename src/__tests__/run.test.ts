@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { convertTrialToFirestore } from '../firestore/app/run';
 
 describe('convertTrialToFirestore', () => {
