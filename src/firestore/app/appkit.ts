@@ -18,7 +18,7 @@ interface DataFlags {
   run?: boolean;
 }
 
-interface AppkitInput {
+export interface AppkitInput {
   firebaseProject?: FirebaseProject;
   firebaseConfig?: FirebaseConfig;
   userInfo: UserInfo;
