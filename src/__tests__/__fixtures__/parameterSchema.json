@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roar.education/schemas/swr/parameters.json",
+  "title": "Valid Parameters",
+  "description": "Valid game parameters for the roar-swr application.",
+  "type": "object",
+  "properties": {
+    "addNoResponse": {
+      "type": "boolean",
+      "description": "Indicates if trials with no response should be added.",
+      "enum": [true, false]
+    },
+    "audioFeedbackOption": {
+      "type": "string",
+      "description": "Option for audio feedback type.",
+      "enum": ["random", "neutral", "binary", "null"]
+    },
+    "consent": {
+      "type": "boolean",
+      "description": "Indicates if consent was provided.",
+      "enum": [true, false]
+    },
+    "numAdaptive": {
+      "type": "number",
+      "description": "Number of adaptive trials.",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "numNew": {
+      "type": "number",
+      "description": "Number of new trials.",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "numValidated": {
+      "type": "number",
+      "description": "Number of validated trials.",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "recruitment": {
+      "type": "string",
+      "description": "Recruitment source for participants.",
+      "enum": ["school", "parentSignup", "redcap", "pilot"]
+    },
+    "skipInstructions": {
+      "type": "boolean",
+      "description": "Indicates if instructions should be skipped.",
+      "enum": [true, false]
+    },
+    "storyOption": {
+      "type": "string",
+      "description": "Option for the story mode used.",
+      "enum": ["grade-based"]
+    },
+    "userMode": {
+      "type": "string",
+      "description": "Mode of the user during the task.",
+      "enum": ["shortAdaptive", "fullItemBank", "presentationExpShort"]
+    }
+  },
+  "additionalProperties": false
+}

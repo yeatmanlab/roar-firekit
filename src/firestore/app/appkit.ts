@@ -7,6 +7,9 @@ import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
+import { ValidationError, errorsMap } from '../../validation/errors';
+import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
+import ajvErrors from 'ajv-errors';
 
 interface DataFlags {
   user?: boolean;
@@ -15,7 +18,7 @@ interface DataFlags {
   run?: boolean;
 }
 
-interface AppkitInput {
+export interface AppkitInput {
   firebaseProject?: FirebaseProject;
   firebaseConfig?: FirebaseConfig;
   userInfo: UserInfo;
@@ -189,6 +192,37 @@ export class RoarAppkit {
     }
 
     return this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
+  }
+
+  /**
+   * Validate the task variant parameters against a given JSON schema.
+   *
+   * This method uses the AJV library to validate the `variantParams` from the task information
+   * against the provided JSON schema. If the parameters are invalid, it throws an error with
+   * detailed messages for each validation error.
+   *
+   * @param {JSONSchemaType<unknown>} parameterSchema - The JSON schema to validate the parameters against.
+   * @throws {Error} Throws an error if the parameters are invalid, including detailed validation error messages.
+   */
+  async validateParameters(parameterSchema: JSONSchemaType<unknown>) {
+    // This version of ajv is not compatible with other JSON schema versions.
+    const ajv = new Ajv2020({ allErrors: true, verbose: true });
+    ajvErrors(ajv);
+
+    const validate = ajv.compile(parameterSchema);
+    const variantParams = this._taskInfo.variantParams;
+    const valid = validate(variantParams);
+
+    if (!valid) {
+      const errorMessages = validate.errors
+        ?.map((error) => {
+          return errorsMap[error.keyword](error as ValidationError);
+        })
+        .join('\n');
+      throw new Error(`Detected invalid game parameters. \n\n${errorMessages}`);
+    } else {
+      console.log('Parameters successfully validated.');
+    }
   }
 
   /**
