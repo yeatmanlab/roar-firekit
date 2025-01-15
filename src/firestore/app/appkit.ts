@@ -7,7 +7,6 @@ import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
-import { ValidationError, errorsMap } from '../../validation/errors';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
 
@@ -216,7 +215,7 @@ export class RoarAppkit {
     if (!valid) {
       const errorMessages = validate.errors
         ?.map((error) => {
-          return errorsMap[error.keyword](error as ValidationError);
+          return `Error in parameter "${error.instancePath}": ${error.message}`;
         })
         .join('\n');
       throw new Error(`Detected invalid game parameters. \n\n${errorMessages}`);
