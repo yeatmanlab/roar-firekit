@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi } from 'vitest';
 import { AppkitInput, RoarAppkit } from '../../firestore/app/appkit';
 import parameterSchema from '../__fixtures__/parameterSchema.json';
