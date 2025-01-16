@@ -6,58 +6,145 @@
   "type": "object",
   "properties": {
     "addNoResponse": {
-      "type": "boolean",
-      "description": "Indicates if trials with no response should be added.",
-      "enum": [true, false]
+      "oneOf": [
+        {
+          "type": "boolean",
+          "enum": [true, false]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Indicates if trials with no response should be added."
     },
     "audioFeedbackOption": {
-      "type": "string",
-      "description": "Option for audio feedback type.",
-      "enum": ["random", "neutral", "binary", "null"]
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["random", "neutral", "binary", "null"]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Option for audio feedback type."
     },
     "consent": {
-      "type": "boolean",
-      "description": "Indicates if consent was provided.",
-      "enum": [true, false]
+      "oneOf": [
+        {
+          "type": "boolean",
+          "enum": [true, false]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Indicates if consent was provided."
     },
     "numAdaptive": {
-      "type": "number",
-      "description": "Number of adaptive trials.",
-      "minimum": 0,
-      "maximum": 100
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Number of adaptive trials."
     },
     "numNew": {
-      "type": "number",
-      "description": "Number of new trials.",
-      "minimum": 0,
-      "maximum": 100
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Number of new trials."
     },
     "numValidated": {
-      "type": "number",
-      "description": "Number of validated trials.",
-      "minimum": 0,
-      "maximum": 100
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Number of validated trials."
     },
     "recruitment": {
-      "type": "string",
-      "description": "Recruitment source for participants.",
-      "enum": ["school", "parentSignup", "redcap", "pilot"]
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["school", "parentSignup", "redcap", "pilot"]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Recruitment source for participants."
     },
     "skipInstructions": {
-      "type": "boolean",
-      "description": "Indicates if instructions should be skipped.",
-      "enum": [true, false]
+      "oneOf": [
+        {
+          "type": "boolean",
+          "enum": [true, false]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Indicates if instructions should be skipped."
     },
     "storyOption": {
-      "type": "string",
-      "description": "Option for the story mode used.",
-      "enum": ["grade-based"]
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["grade-based"]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Option for the story mode used."
     },
     "userMode": {
-      "type": "string",
-      "description": "Mode of the user during the task.",
-      "enum": ["shortAdaptive", "fullItemBank", "presentationExpShort"]
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["shortAdaptive", "fullItemBank", "presentationExpShort"]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Mode of the user during the task."
     }
   },
-  "additionalProperties": false
+  "additionalProperties": {
+    "not": true,
+    "errorMessage": "Parameter is not allowed."
+  },
+  "errorMessage": {
+    "properties": {
+      "addNoResponse": "addNoResponse must be a boolean or null.",
+      "audioFeedbackOption": "audioFeedbackOption must be a string with a value of 'random', 'neutral', 'binary', or null.",
+      "consent": "consent must be a boolean or null.",
+      "numAdaptive": "numAdaptive must be a number between 0 and 100 or null.",
+      "numNew": "numNew must be a number between 0 and 100 or null.",
+      "numValidated": "numValidated must be a number between 0 and 100 or null.",
+      "recruitment": "recruitment must be a string with a value of 'school', 'parentSignup', 'redcap', or 'pilot' or null.",
+      "skipInstructions": "skipInstructions must be a boolean or null.",
+      "storyOption": "storyOption must be a string with a value of 'grade-based' or null.",
+      "userMode": "userMode must be a string with a value of 'shortAdaptive', 'fullItemBank', or 'presentationExpShort' or null."
+    }
+  }
 }
