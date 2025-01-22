@@ -2284,7 +2284,7 @@ export class RoarFirekit {
     caretakerPassword: string,
     caretakerUserData: CreateParentInput,
     children: ChildData[],
-    consentData: {name: string, text: string, version: string},
+    consentData: { name: string; text: string; version: string },
     isTestData = false,
   ) {
     // Format children objects
