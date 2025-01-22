@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi } from 'vitest';
 import { AppkitInput, RoarAppkit } from '../../firestore/app/appkit';
 import parameterSchema from '../__fixtures__/parameterSchema.json';
@@ -12,7 +13,8 @@ const mockInvalidGameParameters = {
 };
 const mockValidAppkitInput = { taskInfo: { variantParams: mockValidGameParameters } } as unknown as AppkitInput;
 const mockInvalidAppkitInput = { taskInfo: { variantParams: mockInvalidGameParameters } } as unknown as AppkitInput;
-const errorMessage = 'Error in parameter "/recruitment": must be equal to one of the allowed values';
+const errorMessage =
+  "Error in parameter \"/recruitment\": recruitment must be a string with a value of 'school', 'parentSignup', 'redcap', or 'pilot' or null";
 
 vi.mock('../../firestore/app/appkit', async () => {
   // Import the actual RoarAppkit class
