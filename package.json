@@ -62,7 +62,7 @@
     "lib/**/*"
   ],
   "dependencies": {
-    "@bdelab/roar-firekit": "^4.1.1",
+    "@bdelab/roar-firekit": "10.5.0-alpha.0",
     "crc-32": "^1.2.2",
     "dot-object": "^2.1.4",
     "firebase": "^9.23.0",

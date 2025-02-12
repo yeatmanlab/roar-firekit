@@ -15,6 +15,7 @@ export default {
       'dashboard.score_report.*',
       'dashboard.progress_report.*',
       'dashboard.student_report.*',
+      'functions.admin.get_administrations',
     ],
   },
   PLATFORM_ADMIN: {
@@ -28,6 +29,9 @@ export default {
       'dashboard.admin_forms.*',
       'dashboard.users.edit',
       'dashboard.users.change_password',
+      'functions.users.create',
+      'functions.users.update_record',
+      'functions.users.create_administrator',
     ],
   },
   SUPER_ADMIN: {
@@ -55,11 +59,11 @@ export default {
  * - dashboard.users.change_password              x
  * - dashboard.users.edit_administrator           x
  *
- * FUNCTIONS:
+ * CLOUD FUNCTIONS:
+ * - functions.admin.get_administrations
  * - functions.users.create
- * - functions.users.create_administrator
  * - functions.users.update_record
- * - functions.users
- * - functions.get_administrations
+ * - functions.users.create_administrator
+ *
  *
  */
