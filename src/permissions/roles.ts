@@ -1,7 +1,7 @@
 export default {
   GUEST: {
     title: 'Guest',
-    permissions: [],
+    permissions: ['functions.get_administrations'],
   },
   STUDENT: {
     title: 'Student',
@@ -60,5 +60,6 @@ export default {
  * - functions.users.create_administrator
  * - functions.users.update_record
  * - functions.users
+ * - functions.get_administrations
  *
  */
