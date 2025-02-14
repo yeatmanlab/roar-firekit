@@ -1,7 +1,7 @@
 export default {
   GUEST: {
     title: 'Guest',
-    permissions: ['functions.get_administrations'],
+    permissions: [],
   },
   STUDENT: {
     title: 'Student',
@@ -15,6 +15,8 @@ export default {
       'dashboard.score_report.*',
       'dashboard.progress_report.*',
       'dashboard.student_report.*',
+      'dashboard.admin_forms.list_orgs',
+      'dashboard.admin_forms.list_users',
       'functions.admin.get_administrations',
     ],
   },
