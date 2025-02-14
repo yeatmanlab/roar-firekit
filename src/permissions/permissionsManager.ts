@@ -40,8 +40,8 @@ function getRoleFromToken(token: string): string {
   const decodedToken = jwtDecode(token);
 
   // Retrieve the user's role from the token's claims. If the claim is missing or invalid, default to the GUEST role.
-  const userRole: string = _get(decodedToken, 'claims.role', fallbackRole);
-  if (!_get(decodedToken, 'claims') || !_get(decodedToken, 'claims.role')) {
+  const userRole: string = _get(decodedToken, 'role', fallbackRole);
+  if (!_get(decodedToken, 'role')) {
     console.warn(
       `[ROAR Permissions Manager] Invalid or missing role claim in User's custom claims. Defaulting to the ${fallbackRole} role.`,
     );
