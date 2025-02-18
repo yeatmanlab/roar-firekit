@@ -1,4 +1,5 @@
 import { PermissionsService } from './permissions-service';
+import { Permissions } from '../constants/permissions';
 
 const MOCK_ADMIN_TOKEN =
   'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJSUE1fVGVzdF9Ub2tlbiIsImlhdCI6MTczOTU1ODk1MiwiZXhwIjoxNzcxMDk3ODkyLCJhdWQiOiJyb2FyLmVkdWNhdGlvbiIsInN1YiI6InRlc3RUb2tlbjEiLCJyb2xlIjoiQURNSU4ifQ.Q32pjnv5RVljsQYMxU7d40N3DOGvp7plkWOLQwlcdJQ';
@@ -12,12 +13,9 @@ const MOCK_SUPER_ADMIN_TOKEN =
 describe('canUser', () => {
   it('Students can only take actions in their permissions set', () => {
     const permissions = [
-      { action: 'dashboard.score_report.view', expected: false },
-      { action: 'dashboard.administrator.view', expected: false },
-      { action: 'dashboard.admin_forms.list_orgs', expected: false },
-      { action: 'dashboard.admin_forms.list_users', expected: false },
-      { action: 'functions.users.create', expected: false },
-      { action: 'functions.users.update_record', expected: false },
+      { action: Permissions.Dashboard.ScoreReport.VIEW, expected: false },
+      { action: Permissions.Dashboard.Administrator.VIEW, expected: false },
+      { action: Permissions.Dashboard.Organizations.LIST, expected: false },
     ];
 
     for (const action of permissions) {
@@ -27,12 +25,11 @@ describe('canUser', () => {
   });
   it('Admins can only take actions in their permission set', () => {
     const permissions = [
-      { action: 'dashboard.score_report.view', expected: true },
-      { action: 'dashboard.admin_forms.list_orgs', expected: true },
-      { action: 'dashboard.admin_forms.list_users', expected: true },
-      { action: 'dashboard.users.edit', expected: false },
-      { action: 'functions.users.create', expected: false },
-      { action: 'functions.users.update_record', expected: false },
+      { action: Permissions.Dashboard.ScoreReport.VIEW, expected: true },
+      { action: Permissions.Dashboard.Organizations.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.EDIT, expected: false },
+      { action: Permissions.Dashboard.Users.CREATE, expected: false },
     ];
 
     for (const action of permissions) {
@@ -42,12 +39,11 @@ describe('canUser', () => {
   });
   it('Platform admins can take actions in their permission set', () => {
     const permissions = [
-      { action: 'dashboard.score_report.view', expected: true },
-      { action: 'dashboard.admin_forms.list_orgs', expected: true },
-      { action: 'dashboard.admin_forms.list_users', expected: true },
-      { action: 'dashboard.users.edit', expected: true },
-      { action: 'functions.users.create', expected: true },
-      { action: 'functions.users.update_record', expected: true },
+      { action: Permissions.Dashboard.ScoreReport.VIEW, expected: true },
+      { action: Permissions.Dashboard.Organizations.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.EDIT, expected: true },
+      { action: Permissions.Dashboard.Users.CREATE, expected: true },
     ];
 
     for (const action of permissions) {
@@ -57,12 +53,11 @@ describe('canUser', () => {
   });
   it('Super admins can take all actions', () => {
     const permissions = [
-      { action: 'dashboard.score_report.view', expected: true },
-      { action: 'dashboard.admin_forms.list_orgs', expected: true },
-      { action: 'dashboard.admin_forms.list_users', expected: true },
-      { action: 'dashboard.users.edit', expected: true },
-      { action: 'functions.users.create', expected: true },
-      { action: 'functions.users.update_record', expected: true },
+      { action: Permissions.Dashboard.ScoreReport.VIEW, expected: true },
+      { action: Permissions.Dashboard.Organizations.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.LIST, expected: true },
+      { action: Permissions.Dashboard.Users.EDIT, expected: true },
+      { action: Permissions.Dashboard.Users.CREATE, expected: true },
     ];
 
     for (const action of permissions) {

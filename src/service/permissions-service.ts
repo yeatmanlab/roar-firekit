@@ -1,13 +1,11 @@
-import roles from './roles';
+import { roles } from '../constants/roles';
+import { UserRoles, FallbackRole } from '../constants/user-roles';
 import _get from 'lodash/get';
 import { jwtDecode } from 'jwt-decode';
 
-interface Role {
-  title: string;
-  permissions: string[];
+interface DecodedToken {
+  role: string;
 }
-
-const fallbackRole = 'GUEST';
 
 export const PermissionsService = (() => {
   /**
@@ -18,17 +16,25 @@ export const PermissionsService = (() => {
    */
   const canUser = (token: string, permission: string) => {
     console.log(`[ROAR Permissions Manager] Checking permission ${permission} with token: ${token}`);
-    const userRole: string = getRoleFromToken(token);
-    const role: Role = _get(roles, userRole.toUpperCase());
+    try {
+      const userRole = getRoleFromToken(token)?.toUpperCase();
 
-    // Check to see if the user's role has the requested permission
-    const roleTitle: string = userRole.toUpperCase();
-    if (roleTitle === 'SUPER_ADMIN') return true;
-    const roleHasPermission = checkPermissionList(role.permissions, permission);
-    if (roleHasPermission) return true;
+      // If the user is a super admin, grant permission.
+      if (userRole === UserRoles.SUPER_ADMIN) return true;
 
-    // Else, return false
-    return false;
+      const config = roles[userRole as keyof typeof roles];
+
+      // If the user role doesn't exist in our config, flag and deny.
+      if (!config) {
+        console.error(`[ROAR Permissions Service] Invalid user role "${userRole}".`);
+        return false;
+      }
+
+      return checkPermissionList(config.permissions, permission);
+    } catch (error) {
+      console.error('[ROAR Permissions Service] Error checking permissions:', error);
+      return false;
+    }
   };
 
   /**
@@ -39,13 +45,13 @@ export const PermissionsService = (() => {
    * @returns {string} The user's role based on the provided JWT token.
    */
   const getRoleFromToken = (token: string) => {
-    const decodedToken = jwtDecode(token);
+    const decodedToken = jwtDecode<DecodedToken>(token);
+    const userRole = decodedToken.role ?? FallbackRole;
 
     // Retrieve the user's role from the token's claims. If the claim is missing or invalid, default to the GUEST role.
-    const userRole: string = _get(decodedToken, 'role', fallbackRole);
-    if (!_get(decodedToken, 'role')) {
+    if (!decodedToken.role) {
       console.warn(
-        `[ROAR Permissions Manager] Invalid or missing role claim in User's custom claims. Defaulting to the ${fallbackRole} role.`,
+        `[ROAR Permissions Manager] Invalid or missing role claim in User's custom claims. Defaulting to the ${FallbackRole} role.`,
       );
     }
     return userRole;
@@ -60,20 +66,9 @@ export const PermissionsService = (() => {
    */
   const checkPermissionList = (permissionsList: string[], permission: string) => {
     // Check if the literal permission is in the list
-    const literalPermissionMatch = permissionsList.includes(permission);
-    console.log('[RPM] Checking literal permission match', literalPermissionMatch);
-    if (literalPermissionMatch) return true;
-
+    if (permissionsList.includes(permission)) return true;
     // Check if the permission matches a wildcard permission
-    for (const rolePermission of permissionsList) {
-      const wildcardMatch = matchWildcardPermission(permission, rolePermission);
-      const reverseWidcardMatch = matchWildcardPermission(rolePermission, permission);
-      console.log('[RPM] Checking wildcard permission match', wildcardMatch);
-      if (wildcardMatch || reverseWidcardMatch) return true;
-    }
-
-    // Else, return false
-    return false;
+    return permissionsList.some((rolePermission) => matchWildcardPermission(rolePermission, permission));
   };
 
   /**
@@ -85,44 +80,22 @@ export const PermissionsService = (() => {
    * @returns {Boolean} True if the permissions match considering wildcards. False otherwise.
    */
   const matchWildcardPermission = (pattern: string, permission: string) => {
-    console.log('[RPM] Checking wildcard permission', pattern, permission);
     const patternParts = pattern.split('.');
     const permissionParts = permission.split('.');
-    console.log('[RPM] Permission parts', permissionParts);
-    console.log('[RPM] Pattern parts', patternParts);
-
-    // Check if the first parts match
-    if (patternParts[0] !== permissionParts[0]) {
-      return false;
-    }
-
     // Check if the pattern has a wildcard
     const wildcardIndex = patternParts.indexOf('*');
-    console.log('[RPM] Wildcard index', wildcardIndex);
 
     // If there's no wildcard, the parts should match exactly
     if (wildcardIndex === -1) {
-      console.log('[RPM] No wildcard');
       return (
         patternParts.length === permissionParts.length &&
         patternParts.every((part, index) => part === permissionParts[index])
       );
     }
-
     // If there's a wildcard, it must be the last part
-    if (wildcardIndex !== patternParts.length - 1) {
-      return false;
-    }
-
+    if (wildcardIndex !== patternParts.length - 1) return false;
     // Check if all parts before the wildcard match
-    for (let i = 1; i < wildcardIndex; i++) {
-      if (patternParts[i] !== permissionParts[i]) {
-        return false;
-      }
-    }
-
-    // The wildcard matches any number of remaining parts in the permission
-    return true;
+    return patternParts.slice(0, wildcardIndex).every((part, index) => part === permissionParts[index]);
   };
 
   return { canUser };
