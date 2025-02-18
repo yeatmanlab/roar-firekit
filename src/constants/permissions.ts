@@ -23,7 +23,7 @@ export const Permissions = {
       CREATE: 'dashboard.administrations.create',
       EDIT: 'dashboard.administrations.edit',
     },
-    Administrator: {
+    Administrators: {
       ALL: 'dashboard.administrator.*',
       VIEW: 'dashboard.administrator.view',
       CREATE: 'dashboard.administrator.create',
@@ -40,6 +40,10 @@ export const Permissions = {
       CREATE: 'dashboard.users.create',
       EDIT: 'dashboard.users.edit',
       CHANGE_PASSWORD: 'dashboard.users.change_password',
+    },
+    Tasks: {
+      ALL: 'dashboard.tasks.*',
+      MANAGE: 'dashboard.tasks.manage',
     },
   },
 };

@@ -1,6 +1,5 @@
 import { roles } from '../constants/roles';
 import { UserRoles, FallbackRole } from '../constants/user-roles';
-import _get from 'lodash/get';
 import { jwtDecode } from 'jwt-decode';
 
 interface DecodedToken {

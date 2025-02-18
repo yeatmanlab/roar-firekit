@@ -18,7 +18,7 @@ export const roles = {
   [UserRoles.ADMIN]: {
     title: 'Admin',
     permissions: [
-      Permissions.Dashboard.Administrator.VIEW,
+      Permissions.Dashboard.Administrators.VIEW,
       Permissions.Dashboard.Profile.VIEW,
       Permissions.Dashboard.ScoreReport.VIEW,
       Permissions.Dashboard.ProgressReport.VIEW,
@@ -31,9 +31,9 @@ export const roles = {
   [UserRoles.PLATFORM_ADMIN]: {
     title: 'Platform Admin',
     permissions: [
-      Permissions.Dashboard.Administrator.VIEW,
-      Permissions.Dashboard.Administrator.CREATE,
-      Permissions.Dashboard.Administrator.EDIT,
+      Permissions.Dashboard.Administrators.VIEW,
+      Permissions.Dashboard.Administrators.CREATE,
+      Permissions.Dashboard.Administrators.EDIT,
       Permissions.Dashboard.Profile.ALL,
       Permissions.Dashboard.ScoreReport.VIEW,
       Permissions.Dashboard.ProgressReport.VIEW,
@@ -47,4 +47,4 @@ export const roles = {
     title: 'Super Admin',
     permissions: [],
   },
-} as const satisfies Record<UserRoles, Role>;
+};
