@@ -1,11 +1,6 @@
 import { UserRoles } from './user-roles.js';
 import { Permissions } from './permissions.js';
 
-interface Role {
-  title: string;
-  permissions: Array<String>;
-}
-
 export const roles = {
   [UserRoles.GUEST]: {
     title: 'Guest',

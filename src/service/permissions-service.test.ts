@@ -14,7 +14,7 @@ const MOCK_SUPER_ADMIN_TOKEN =
 
 describe('canUser', () => {
   it('Students can only take actions in their permissions set', () => {
-    let permissions = roles[UserRoles.STUDENT].permissions.map((permission) => {
+    const permissions = roles[UserRoles.STUDENT].permissions.map((permission) => {
       return { action: permission as string, expected: true };
     });
 
@@ -29,7 +29,7 @@ describe('canUser', () => {
     }
   });
   it('Admins can only take actions in their permission set', () => {
-    let permissions = roles[UserRoles.ADMIN].permissions.map((permission) => {
+    const permissions = roles[UserRoles.ADMIN].permissions.map((permission) => {
       return { action: permission as string, expected: true };
     });
 
@@ -44,7 +44,7 @@ describe('canUser', () => {
     }
   });
   it('Platform admins can take actions in their permission set', () => {
-    let permissions = roles[UserRoles.PLATFORM_ADMIN].permissions.map((permission) => {
+    const permissions = roles[UserRoles.PLATFORM_ADMIN].permissions.map((permission) => {
       return { action: permission as string, expected: true };
     });
 
@@ -56,7 +56,7 @@ describe('canUser', () => {
     }
   });
   it('Super admins can take all actions', () => {
-    let permissions = roles[UserRoles.SUPER_ADMIN].permissions.map((permission) => {
+    const permissions = roles[UserRoles.SUPER_ADMIN].permissions.map((permission) => {
       return { action: permission as string, expected: true };
     });
 
