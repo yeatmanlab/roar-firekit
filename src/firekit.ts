@@ -1451,14 +1451,14 @@ export class RoarFirekit {
     }
   }
 
-  async getMyData() {
+  async getMyData(targetUid?: string) {
     this.verboseLog('Entry point for getMyData');
     this._verifyInit();
     if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
 
-    const roarUid = await this.getRoarUid();
+    const roarUid = targetUid ?? await this.getRoarUid();
 
     this.userData = await this._getUser(roarUid!);
 
@@ -1655,7 +1655,12 @@ export class RoarFirekit {
           await this.startAssignment(administrationId, transaction, targetUid);
         }
         if (this.roarAppUserInfo === undefined) {
-          await this.getMyData();
+          if (targetUid) {
+            // set data to target participant while assesssment is running, effectively 'spoofing' their identity
+            await this.getMyData(targetUid);
+          } else {
+            await this.getMyData();
+          }
         }
 
         const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
