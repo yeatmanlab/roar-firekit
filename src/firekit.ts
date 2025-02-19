@@ -2290,6 +2290,7 @@ export class RoarFirekit {
     caretakerPassword: string,
     caretakerUserData: CreateParentInput,
     children: ChildData[],
+    consentData: { name: string; text: string; version: string },
     isTestData = false,
   ) {
     // Format children objects
@@ -2334,6 +2335,7 @@ export class RoarFirekit {
       caretakerPassword,
       caretakerUserData,
       children: formattedChildren,
+      consentData,
       isTestData,
     });
   }
