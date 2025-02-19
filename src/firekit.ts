@@ -1563,10 +1563,10 @@ export class RoarFirekit {
     return _roarUid;
   }
 
-  async startAssignment(administrationId: string, transaction?: Transaction) {
+  async startAssignment(administrationId: string, transaction?: Transaction, targetUid?: string) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
     const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
     const assignmentDocRef = doc(userAssignmentsRef, administrationId);
 
@@ -1595,10 +1595,11 @@ export class RoarFirekit {
     taskId: string,
     updates: { [x: string]: unknown },
     transaction: Transaction,
+    targetUid?: string,
   ) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
     const assignmentDocRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
     const docRef = doc(assignmentDocRef, administrationId);
     const docSnap = await transaction.get(docRef);
@@ -1617,10 +1618,11 @@ export class RoarFirekit {
     }
   }
 
-  async startAssessment(administrationId: string, taskId: string, taskVersion: string) {
+  async startAssessment(administrationId: string, taskId: string, taskVersion: string, targetUid?: string) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+    console.log('targetUid', targetUid, roarUid);
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // Check the assignment to see if none of the assessments have been
@@ -1647,12 +1649,11 @@ export class RoarFirekit {
 
         // Append runId to `allRunIds` for this assessment
         // in the userId/assignments collection
-        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
+        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, targetUid);
 
         if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
-          await this.startAssignment(administrationId, transaction);
+          await this.startAssignment(administrationId, transaction, targetUid);
         }
-
         if (this.roarAppUserInfo === undefined) {
           await this.getMyData();
         }
