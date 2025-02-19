@@ -1458,7 +1458,7 @@ export class RoarFirekit {
       return;
     }
 
-    const roarUid = targetUid ?? await this.getRoarUid();
+    const roarUid = targetUid ?? (await this.getRoarUid());
 
     this.userData = await this._getUser(roarUid!);
 
@@ -1737,13 +1737,13 @@ export class RoarFirekit {
     return appKit;
   }
 
-  async completeAssessment(administrationId: string, taskId: string) {
+  async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
     this._verifyAuthentication();
     await runTransaction(this.admin!.db, async (transaction) => {
       // Check to see if all of the assessments in this assignment have been completed,
       // If so, complete the assignment
 
-      const roarUid = this.roarUid ?? (await this.getRoarUid());
+      const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
       const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
       const docRef = doc(userAssignmentsRef, administrationId);
       const docSnap = await transaction.get(docRef);
