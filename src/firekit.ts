@@ -1481,7 +1481,7 @@ export class RoarFirekit {
         roarUid: roarUid,
         assessmentUid: this.app!.user!.uid,
         assessmentPid: assessmentPid,
-        ...this.userData,
+        userType: this.userData.userType,
         ...(this.userData.testData && { testData: true }),
         ...(this.userData.demoData && { demoData: true }),
       };
