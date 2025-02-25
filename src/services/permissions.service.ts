@@ -14,7 +14,6 @@ export const PermissionsService = (() => {
    * @returns {Boolean} True if the user has the permission, false otherwise.
    */
   const canUser = (token: string, permission: string) => {
-    console.log(`[ROAR Permissions Manager] Checking permission ${permission} with token: ${token}`);
     try {
       const userRole = getRoleFromToken(token)?.toUpperCase();
 
@@ -49,8 +48,8 @@ export const PermissionsService = (() => {
 
     // Retrieve the user's role from the token's claims. If the claim is missing or invalid, default to the GUEST role.
     if (!decodedToken.role) {
-      console.warn(
-        `[ROAR Permissions Manager] Invalid or missing role claim in User's custom claims. Defaulting to the ${FallbackRole} role.`,
+      console.error(
+        `[ROAR Permissions Service] Missing role claim in user's custom claims. Defaulting to the ${userRole} role.`,
       );
     }
     return userRole;

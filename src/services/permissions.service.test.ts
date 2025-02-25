@@ -1,4 +1,4 @@
-import { PermissionsService } from './permissions-service';
+import { PermissionsService } from './permissions.service';
 import { Permissions } from '../constants/permissions';
 import { UserRoles } from '../constants/user-roles';
 import { roles } from '../constants/roles';
@@ -19,7 +19,7 @@ describe('canUser', () => {
     });
 
     permissions.push(
-      { action: Permissions.Dashboard.Users.EDIT, expected: false },
+      { action: Permissions.Users.UPDATE, expected: false },
       { action: 'test.fake.permission', expected: false },
     );
 
@@ -34,7 +34,7 @@ describe('canUser', () => {
     });
 
     permissions.push(
-      { action: Permissions.Dashboard.Users.CREATE, expected: false },
+      { action: Permissions.Users.CREATE, expected: false },
       { action: 'test.fake.permission', expected: false },
     );
 
