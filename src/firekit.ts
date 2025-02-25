@@ -1622,7 +1622,6 @@ export class RoarFirekit {
     this._verifyAuthentication();
 
     const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-    console.log('targetUid', targetUid, roarUid);
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // Check the assignment to see if none of the assessments have been
