@@ -1451,14 +1451,14 @@ export class RoarFirekit {
     }
   }
 
-  async getMyData() {
+  async getMyData(targetUid?: string) {
     this.verboseLog('Entry point for getMyData');
     this._verifyInit();
     if (!this._isAuthenticated() || !this.roarUid) {
       return;
     }
 
-    const roarUid = await this.getRoarUid();
+    const roarUid = targetUid ?? (await this.getRoarUid());
 
     this.userData = await this._getUser(roarUid!);
 
@@ -1563,10 +1563,10 @@ export class RoarFirekit {
     return _roarUid;
   }
 
-  async startAssignment(administrationId: string, transaction?: Transaction) {
+  async startAssignment(administrationId: string, transaction?: Transaction, targetUid?: string) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
     const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
     const assignmentDocRef = doc(userAssignmentsRef, administrationId);
 
@@ -1595,10 +1595,11 @@ export class RoarFirekit {
     taskId: string,
     updates: { [x: string]: unknown },
     transaction: Transaction,
+    targetUid?: string,
   ) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
     const assignmentDocRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
     const docRef = doc(assignmentDocRef, administrationId);
     const docSnap = await transaction.get(docRef);
@@ -1617,10 +1618,10 @@ export class RoarFirekit {
     }
   }
 
-  async startAssessment(administrationId: string, taskId: string, taskVersion: string) {
+  async startAssessment(administrationId: string, taskId: string, taskVersion: string, targetUid?: string) {
     this._verifyAuthentication();
 
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
+    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // Check the assignment to see if none of the assessments have been
@@ -1647,14 +1648,18 @@ export class RoarFirekit {
 
         // Append runId to `allRunIds` for this assessment
         // in the userId/assignments collection
-        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction);
+        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, targetUid);
 
         if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
-          await this.startAssignment(administrationId, transaction);
+          await this.startAssignment(administrationId, transaction, targetUid);
         }
-
         if (this.roarAppUserInfo === undefined) {
-          await this.getMyData();
+          if (targetUid) {
+            // set data to target participant while assesssment is running, effectively 'spoofing' their identity
+            await this.getMyData(targetUid);
+          } else {
+            await this.getMyData();
+          }
         }
 
         const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
@@ -1731,13 +1736,13 @@ export class RoarFirekit {
     return appKit;
   }
 
-  async completeAssessment(administrationId: string, taskId: string) {
+  async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
     this._verifyAuthentication();
     await runTransaction(this.admin!.db, async (transaction) => {
       // Check to see if all of the assessments in this assignment have been completed,
       // If so, complete the assignment
 
-      const roarUid = this.roarUid ?? (await this.getRoarUid());
+      const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
       const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
       const docRef = doc(userAssignmentsRef, administrationId);
       const docSnap = await transaction.get(docRef);
