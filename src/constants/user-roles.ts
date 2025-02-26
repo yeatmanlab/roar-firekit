@@ -1,9 +1,9 @@
 export enum UserRoles {
-  SUPER_ADMIN = 'SUPER_ADMIN',
-  PLATFORM_ADMIN = 'PLATFORM_ADMIN',
-  ADMIN = 'ADMIN',
-  STUDENT = 'STUDENT',
-  GUEST = 'GUEST',
+  SUPER_ADMIN = 'super_admin',
+  PLATFORM_ADMIN = 'platform_admin',
+  ADMIN = 'admin',
+  STUDENT = 'student',
+  GUEST = 'guest',
 }
 
 export const FallbackRole = UserRoles.GUEST;

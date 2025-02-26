@@ -15,10 +15,10 @@ export const PermissionsService = (() => {
    */
   const canUser = (token: string, permission: string) => {
     try {
-      const userRole = getRoleFromToken(token)?.toUpperCase();
+      const userRole = getRoleFromToken(token)?.toLowerCase();
 
       // If the user is a super admin, grant permission.
-      if (userRole === UserRoles.SUPER_ADMIN) return true;
+      if (userRole === UserRoles.SUPER_ADMIN.toLowerCase()) return true;
 
       const config = roles[userRole as keyof typeof roles];
 
