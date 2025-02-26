@@ -35,7 +35,7 @@ export const Permissions = {
   },
   Profile: {
     ALL: 'profile.*',
-    READ: 'profile.READ',
+    READ: 'profile.read',
   },
   Users: {
     ALL: 'users.*',
