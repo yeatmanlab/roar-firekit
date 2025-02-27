@@ -1,5 +1,5 @@
 {
-  "name": "@bdelab/roar-firekit",
+  "name": "@levante-framework/firekit",
   "version": "9.2.0",
   "description": "A library to facilitate Firebase authentication and Cloud Firestore interaction for ROAR apps",
   "main": "lib/index.js",
