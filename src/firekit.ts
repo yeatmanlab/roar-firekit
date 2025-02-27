@@ -2775,4 +2775,13 @@ export class RoarFirekit {
     const result = await cloudLinkUsers({ users });
     return result;
   }
+
+  async syncPasswords(users: { email: string; password: string; uid: string }[]) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudSyncPasswords = httpsCallable(this.admin!.functions, 'syncPasswords');
+    const result = await cloudSyncPasswords({ users });
+    return result;
+  }
 }
