@@ -2405,6 +2405,7 @@ export class RoarFirekit {
 
     orgData = {
       archived: false,
+      createdAt: new Date(),
       ...orgData,
     };
 
