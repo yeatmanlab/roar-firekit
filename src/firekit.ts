@@ -2785,4 +2785,13 @@ export class RoarFirekit {
     const result = await cloudSyncPasswords({ users });
     return result;
   }
+
+  async editUsers(users: { uid: string; month: string; year: string; group: string; district: string; school: string; class: string }[]) {
+    this._verifyAuthentication();
+    this._verifyAdmin();
+
+    const cloudEditUsers = httpsCallable(this.admin!.functions, 'editUsers');
+    const result = await cloudEditUsers({ users });
+    return result;
+  }
 }
