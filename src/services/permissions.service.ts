@@ -55,6 +55,7 @@ export const PermissionsService = (() => {
       if (remainingParts.length === 0) return true;
 
       const currentPart = remainingParts.shift()!.toLowerCase();
+      if (currentPart === '*') return true; // Handle wildcard (*) permissions.
       const matchingKey = Object.keys(currentObject).find((objKey) => currentPart === objKey.toLowerCase());
       if (matchingKey) {
         return checkPath(currentObject?.[matchingKey], remainingParts);
