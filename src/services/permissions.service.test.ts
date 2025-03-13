@@ -61,10 +61,23 @@ describe('canUser', () => {
       return { action: permission as string, expected: true };
     });
 
-    permissions.push({ action: 'test.fake.permission', expected: true });
+    // super_admins are also subject to permissions that do not exist.
+    // This ensures that invalid permissions are not introduced.
+    permissions.push({ action: 'test.fake.permission', expected: false });
 
     for (const action of permissions) {
       const canTakeAction = PermissionsService.canUser(MOCK_SUPER_ADMIN_TOKEN, action.action);
+      expect(canTakeAction).toBe(action.expected);
+    }
+  });
+  it('Returns false for invalid permissions', () => {
+    const permissions = [
+      { action: 'test.fake.permission', expected: false },
+      { action: 'users.false', expected: false },
+    ];
+
+    for (const action of permissions) {
+      const canTakeAction = PermissionsService.canUser(MOCK_ADMIN_TOKEN, action.action);
       expect(canTakeAction).toBe(action.expected);
     }
   });
