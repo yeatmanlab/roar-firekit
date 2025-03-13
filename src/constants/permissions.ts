@@ -26,12 +26,12 @@ export const Permissions = {
     UPDATE: 'administrations.update',
   },
   Administrators: {
-    ALL: 'administrator.*',
-    READ: 'administrator.read',
-    CREATE: 'administrator.create',
-    UPDATE: 'administrator.update',
+    ALL: 'administrators.*',
+    READ: 'administrators.read',
+    CREATE: 'administrators.create',
+    UPDATE: 'administrators.update',
     Credentials: {
-      UPDATE: 'administrator.credentials.update',
+      UPDATE: 'administrators.credentials.update',
     },
   },
   Profile: {
