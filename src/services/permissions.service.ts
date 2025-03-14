@@ -1,6 +1,7 @@
 import { roles } from '../constants/roles';
 import { UserRoles, FallbackRole } from '../constants/user-roles';
 import { Permissions } from '../constants/permissions';
+import { flattenObjectValues } from '../utils/flattenObjectValues.util';
 import { jwtDecode } from 'jwt-decode';
 
 interface DecodedToken {
@@ -50,21 +51,8 @@ export const PermissionsService = (() => {
   const isValidPermission = (permission: unknown): boolean => {
     if (typeof permission !== 'string') return false;
 
-    // Recursive function to navigate through the Permissions object without considering case.
-    const checkPath = (currentObject: any, remainingParts: string[]): boolean => {
-      if (remainingParts.length === 0) return true;
-
-      const currentPart = remainingParts.shift()!.toLowerCase();
-      if (currentPart === '*') return true; // Handle wildcard (*) permissions.
-      const matchingKey = Object.keys(currentObject).find((objKey) => currentPart === objKey.toLowerCase());
-      if (matchingKey) {
-        return checkPath(currentObject?.[matchingKey], remainingParts);
-      }
-
-      return false;
-    };
-
-    return checkPath(Permissions, permission.split('.'));
+    const allPermissions = flattenObjectValues(Permissions);
+    return allPermissions.includes(permission.toLowerCase());
   };
 
   /**
