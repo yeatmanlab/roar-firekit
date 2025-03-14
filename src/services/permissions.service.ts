@@ -84,7 +84,7 @@ export const PermissionsService = (() => {
    */
   const checkPermissionList = (permissionsList: string[], permission: string) => {
     // Check if the literal permission is in the list
-    if (permissionsList.includes(permission)) return true;
+    if (permissionsList.includes(permission.toLowerCase())) return true;
     // Check if the permission matches a wildcard permission
     return permissionsList.some((rolePermission) => matchWildcardPermission(rolePermission, permission));
   };
@@ -107,7 +107,7 @@ export const PermissionsService = (() => {
     if (wildcardIndex === -1) {
       return (
         patternParts.length === permissionParts.length &&
-        patternParts.every((part, index) => part === permissionParts[index])
+        patternParts.every((part, index) => part.toLowerCase() === permissionParts[index].toLowerCase())
       );
     }
     // If there's a wildcard, it must be the last part

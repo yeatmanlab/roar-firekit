@@ -81,4 +81,17 @@ describe('canUser', () => {
       expect(canTakeAction).toBe(action.expected);
     }
   });
+  it('Handles any case of permissions properly', () => {
+    const permissions = [
+      { action: 'users.LIST', expected: true },
+      { action: 'uSERs.list', expected: true },
+      { action: 'users.liST', expected: true },
+      { action: 'USERS.LIST', expected: true },
+    ];
+
+    for (const action of permissions) {
+      const canTakeAction = PermissionsService.canUser(MOCK_ADMIN_TOKEN, action.action);
+      expect(canTakeAction).toBe(action.expected);
+    }
+  });
 });
