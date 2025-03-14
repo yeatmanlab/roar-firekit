@@ -13,6 +13,9 @@ const MOCK_PLATFORM_ADMIN_TOKEN =
 const MOCK_SUPER_ADMIN_TOKEN =
   'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJSUE1fVGVzdF9Ub2tlbiIsImlhdCI6MTc0MDU5NTg5MywiZXhwIjoxNzcyMTMxOTAzLCJhdWQiOiJyb2FyLmVkdWNhdGlvbiIsInN1YiI6InRlc3RUb2tlblN1cGVyQWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4ifQ.K0crV-sD5twhTrrsq4HnRgEZRlKMuTftmJmRRvS7SN4';
 
+const NO_ROLE_TOKEN =
+  'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJST0FSIFBlcm1pc3Npb25zIE1hbmFnZXIiLCJpYXQiOjE3NDE5ODI1OTAsImV4cCI6MTc3MzUxODU5MCwiYXVkIjoicm9hci5lZHVjYXRpb24iLCJzdWIiOiJUb2tlbiBmb3IgUlBNIHVuaXQgdGVzdHMifQ.-sKjiDioIfIpVYSZvM7wWXLmIwKb_NUUfG83IOSwNhI';
+
 describe('canUser', () => {
   it('Students can only take actions in their permissions set', () => {
     const permissions = roles[UserRoles.STUDENT].permissions.map((permission) => {
@@ -91,6 +94,30 @@ describe('canUser', () => {
 
     for (const action of permissions) {
       const canTakeAction = PermissionsService.canUser(MOCK_ADMIN_TOKEN, action.action);
+      expect(canTakeAction).toBe(action.expected);
+    }
+  });
+  it('Handles invalid tokens properly', () => {
+    // In the case of an invalid token, the function should assume the GUEST role.
+    const permissions = [
+      { action: Permissions.Users.LIST, expected: false },
+      { action: Permissions.Administrations.LIST, expected: false },
+    ];
+
+    for (const action of permissions) {
+      const canTakeAction = PermissionsService.canUser('invalid_token', action.action);
+      expect(canTakeAction).toBe(action.expected);
+    }
+  });
+  it('Handles tokens with no role property', () => {
+    // In the case of an invalid token, the function should assume the GUEST role.
+    const permissions = [
+      { action: Permissions.Users.LIST, expected: false },
+      { action: Permissions.Administrations.LIST, expected: false },
+    ];
+
+    for (const action of permissions) {
+      const canTakeAction = PermissionsService.canUser(NO_ROLE_TOKEN, action.action);
       expect(canTakeAction).toBe(action.expected);
     }
   });
