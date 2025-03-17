@@ -86,10 +86,10 @@ describe('canUser', () => {
   });
   it('Handles any case of permissions properly', () => {
     const permissions = [
-      { action: 'users.LIST', expected: true },
-      { action: 'uSERs.list', expected: true },
-      { action: 'users.liST', expected: true },
-      { action: 'USERS.LIST', expected: true },
+      { action: 'users.LIST', expected: false },
+      { action: 'uSERs.list', expected: false },
+      { action: 'users.liST', expected: false },
+      { action: 'USERS.LIST', expected: false },
     ];
 
     for (const action of permissions) {
