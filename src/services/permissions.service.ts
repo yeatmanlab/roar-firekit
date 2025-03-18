@@ -1,5 +1,7 @@
 import { roles } from '../constants/roles';
 import { UserRoles, FallbackRole } from '../constants/user-roles';
+import { Permissions } from '../constants/permissions';
+import { flattenObjectValues } from '../utils/flattenObjectValues.util';
 import { jwtDecode } from 'jwt-decode';
 
 interface DecodedToken {
@@ -14,6 +16,10 @@ export const PermissionsService = (() => {
    * @returns {Boolean} True if the user has the permission, false otherwise.
    */
   const canUser = (token: string, permission: string) => {
+    if (!isValidPermission(permission)) {
+      console.error(`[ROAR Permissions Service] Invalid permission "${permission}".`);
+      return false;
+    }
     try {
       const userRole = getRoleFromToken(token)?.toLowerCase();
 
@@ -33,6 +39,20 @@ export const PermissionsService = (() => {
       console.error('[ROAR Permissions Service] Error checking permissions:', error);
       return false;
     }
+  };
+
+  /**
+   * This function returns a boolean indicating whether the provided permission is present
+   * in the Permissions object.
+   *
+   * @param {any} permission A permission string to check.
+   * @returns {Boolean} True if the permission is valid, false otherwise.
+   */
+  const isValidPermission = (permission: unknown): boolean => {
+    if (typeof permission !== 'string') return false;
+
+    const allPermissions = flattenObjectValues(Permissions);
+    return allPermissions.includes(permission);
   };
 
   /**
