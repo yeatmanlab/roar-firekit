@@ -373,6 +373,17 @@ export class RoarRun {
         serverTimestamp: serverTimestamp(),
       })
         .then(async () => {
+          // For record interactions if the app has it (blur, focus, fullscreenenter, fullscreenexit).
+          if (trialData.interaction_data) {
+            // We need to flatten the array to avoid the nested structure error.
+            const interactions = Array.isArray(trialData.interaction_data)
+              ? trialData.interaction_data
+              : [trialData.interaction_data];
+
+            await updateDoc(this.runRef, {
+              interaction_data: arrayUnion(...interactions),
+            });
+          }
           // Only update scores if the trial was a test or a practice response.
           if (trialData.assessment_stage === 'test_response' || trialData.assessment_stage === 'practice_response') {
             // Here we update the scores for this run. We create scores for each subtask in the task.
