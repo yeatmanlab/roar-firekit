@@ -51,5 +51,6 @@ export const Permissions = {
     ALL: 'tasks.*',
     CREATE: 'tasks.create',
     UPDATE: 'tasks.update',
+    LAUNCH: 'tasks.launch',
   },
 };

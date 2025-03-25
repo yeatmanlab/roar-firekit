@@ -38,6 +38,22 @@ export const roles = {
       Permissions.Users.ALL,
     ],
   },
+  [UserRoles.LAUNCH_ADMIN]: {
+    title: 'Launch Admin',
+    permissions: [
+      Permissions.Administrators.READ,
+      Permissions.Administrators.CREATE,
+      Permissions.Administrators.UPDATE,
+      Permissions.Profile.ALL,
+      Permissions.Reports.Score.READ,
+      Permissions.Reports.Progress.READ,
+      Permissions.Reports.Student.READ,
+      Permissions.Organizations.ALL,
+      Permissions.Administrations.ALL,
+      Permissions.Users.ALL,
+      Permissions.Tasks.LAUNCH,
+    ],
+  },
   [UserRoles.SUPER_ADMIN]: {
     title: 'Super Admin',
     permissions: [],
