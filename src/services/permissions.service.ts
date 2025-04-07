@@ -33,7 +33,7 @@ export const PermissionsService = (() => {
         console.error(`[ROAR Permissions Service] Invalid user role "${userRole}".`);
         return false;
       }
-
+      console.log("config.permissions", config.permissions, permission)
       return checkPermissionList(config.permissions, permission);
     } catch (error) {
       console.error('[ROAR Permissions Service] Error checking permissions:', error);
