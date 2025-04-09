@@ -373,7 +373,7 @@ export class RoarRun {
         serverTimestamp: serverTimestamp(),
       })
         .then(async () => {
-          //For record interactions if the app has it (blur, focus, fullscreenenter, fullscreenexit).
+          // For record interactions if the app has it (blur, focus, fullscreenenter, fullscreenexit).
           if (trialData.interaction_data) {
             // We need to flatten the array to avoid the nested structure error.
             const interactions = Array.isArray(trialData.interaction_data)
