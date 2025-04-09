@@ -380,9 +380,37 @@ export class RoarRun {
               ? trialData.interaction_data
               : [trialData.interaction_data];
 
-            await updateDoc(this.runRef, {
-              interaction_data: arrayUnion(...interactions),
-            });
+            const seenKeys = new Set<string>();
+            const updateObj: Record<string, FieldValue> = {};
+
+            for (const { event, trial } of interactions) {
+              if (event && typeof trial !== 'undefined') {
+                // Fallback to "test" if it is not practice or break
+                let stageKey: 'practice' | 'test' | 'break' = 'test';
+
+                if (trialData.assessment_stage === 'practice_response') {
+                  stageKey = 'practice';
+                } else if (trialData.assessment_stage === 'break_response') {
+                  stageKey = 'break';
+                }
+
+                const uniqueKey = `${stageKey}-${event}-${trial}`;
+                if (seenKeys.has(uniqueKey)) continue;
+                seenKeys.add(uniqueKey);
+
+                const firestorePath = `interaction_event_summary.${stageKey}.${event}`;
+                updateObj[firestorePath] = increment(1);
+              }
+            }
+
+            // Save new increments
+            if (Object.keys(updateObj).length > 0) {
+              try {
+                await updateDoc(this.runRef, updateObj);
+              } catch (e) {
+                console.error('❌ Failed to update event summary:', e);
+              }
+            }
           }
           // Only update scores if the trial was a test or a practice response.
           if (trialData.assessment_stage === 'test_response' || trialData.assessment_stage === 'practice_response') {
