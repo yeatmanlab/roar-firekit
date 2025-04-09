@@ -380,7 +380,7 @@ export class RoarRun {
               : [trialData.interaction_data];
 
             const seenKeys = new Set<string>();
-            const updateObj: Record<string, any> = {};
+            const updateObj: Record<string, FieldValue> = {};
 
             for (const { event, trial } of interactions) {
               if (event && typeof trial !== 'undefined') {
