@@ -375,6 +375,7 @@ export class RoarRun {
         .then(async () => {
           //For record interactions if the app has it (blur, focus, fullscreenenter, fullscreenexit).
           if (trialData.interaction_data) {
+            // We need to flatten the array to avoid the nested structure error.
             const interactions = Array.isArray(trialData.interaction_data)
               ? trialData.interaction_data
               : [trialData.interaction_data];
@@ -384,7 +385,7 @@ export class RoarRun {
 
             for (const { event, trial } of interactions) {
               if (event && typeof trial !== 'undefined') {
-                // Fallback to "test" if stage is missing or unrecognized
+                // Fallback to "test" if it is not practice or break
                 let stageKey: 'practice' | 'test' | 'break' = 'test';
 
                 if (trialData.assessment_stage === 'practice_response') {
