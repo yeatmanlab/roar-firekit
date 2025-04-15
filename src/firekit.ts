@@ -44,6 +44,7 @@ import {
   runTransaction,
   updateDoc,
   setDoc,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 
@@ -1738,35 +1739,59 @@ export class RoarFirekit {
 
   async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
     this._verifyAuthentication();
-    await runTransaction(this.admin!.db, async (transaction) => {
-      // Check to see if all of the assessments in this assignment have been completed,
-      // If so, complete the assignment
-
-      const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-      const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
-      const docRef = doc(userAssignmentsRef, administrationId);
-      const docSnap = await transaction.get(docRef);
-
-      // Update this assignment's `completedOn` timestamp
-      await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
-
-      if (docSnap.exists()) {
-        // Now check to see if all of the assessments in this assignment have
-        // been completed.  Because we do this all in one transaction, we have
-        // to put the `.get` call before any `.update` or `.set` calls. Thus, in
-        // the `docSnap` that we are referencing below, the current assessment
-        // will not have a `completedOn` timestamp yet (we set that after we
-        // called `.get`).  We therefore check to see if all of the assessments
-        // have been completed **or** have the current taskId.
-        if (
-          docSnap.data().assessments.every((a: AssignedAssessment) => {
-            return Boolean(a.completedOn) || a.optional || a.taskId === taskId;
-          })
-        ) {
-          this.completeAssignment(administrationId, transaction);
+    
+    try {
+      await runTransaction(this.admin!.db, async (transaction) => {
+        // Get the user's assignment document
+        const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+        if (!roarUid) {
+          throw new Error("Could not determine user ID");
         }
-      }
+        
+        const assignmentDoc = await this.getAssignmentDoc(roarUid, administrationId, transaction);
+        
+        // Update this assessment's `completedOn` timestamp
+        await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
+        
+        // Check if all assessments are now completed
+        if (assignmentDoc.exists()) {
+          this.checkAndCompleteAssignment(assignmentDoc, taskId, administrationId, transaction);
+        }
+      });
+    } catch (error) {
+      throw new Error(`Failed to complete assessment: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Gets the assignment document for a user
+   */
+  private async getAssignmentDoc(roarUid: string, administrationId: string, transaction: Transaction) {
+    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
+    const docRef = doc(userAssignmentsRef, administrationId);
+    return await transaction.get(docRef);
+  }
+  
+  /**
+   * Checks if all assessments in an assignment are completed and marks the assignment as complete if so
+   * 
+   * Note: When checking if all assessments are completed, we need to consider the current task
+   * as already completed, even though its completedOn timestamp was just set in the transaction
+   * and won't be reflected in the document snapshot we're examining.
+   */
+  private checkAndCompleteAssignment(
+    docSnap: DocumentSnapshot, 
+    currentTaskId: string, 
+    administrationId: string, 
+    transaction: Transaction
+  ) {
+    const allAssessmentsCompleted = docSnap.data()?.assessments.every((a: AssignedAssessment) => {
+      return Boolean(a.completedOn) || a.optional || a.taskId === currentTaskId;
     });
+    
+    if (allAssessmentsCompleted) {
+      this.completeAssignment(administrationId, transaction);
+    }
   }
 
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
