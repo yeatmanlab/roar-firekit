@@ -274,7 +274,7 @@ export class RoarAppkit {
    * @throws {Error} If the run has not been started.
    * @method
    */
-  addInteractions(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
+  addInteraction(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
     if (this._started) {
       return this.run!.addInteraction(interaction, requiredEvents);
     } else {
