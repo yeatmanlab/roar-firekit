@@ -2,7 +2,7 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { ComputedScores, RawScores, RoarRun, InteractionEvent } from './run';
+import { ComputedScores, RawScores, RoarRun, InteractionEvent, InteractionSummary } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
@@ -270,9 +270,9 @@ export class RoarAppkit {
    * @method
    * @async
    */
-  addInteractions(interaction: InteractionEvent) {
+  addInteractions(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
     if (this._started) {
-      return this.run!.addInteraction(interaction);
+      return this.run!.addInteraction(interaction, requiredEvents);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }

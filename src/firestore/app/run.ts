@@ -106,7 +106,7 @@ export interface InteractionEvent {
   time: number;
 }
 
-interface InteractionSummary<T> {
+export interface InteractionSummary<T> {
   blur?: T;
   focus?: T;
   fullscreenenter?: T;
@@ -216,24 +216,33 @@ export class RoarRun {
   /**
    * Add interaction data for the current trial.
    *
-   * This will keep a running log of interaction data for the current trial.
-   * The log will be reset after each `writeTrial` call.
+   * This method logs timestamped interaction events (e.g., 'blur', 'focus')
+   * for the current trial in `trialInteractions`, and flags them for run-level
+   * incrementing in `runInteractionIncrements`.
    *
-   * @param {InteractionEvent} interaction - Interaction event
+   * If a list of event types is provided via `trackEvents`, only those events
+   * will be recorded. If not provided, all event types defined in `trialInteractions`
+   * will be recorded.
+   *
+   * The log is cleared after each `writeTrial` call.
+   *
+   * @param {InteractionEvent} interaction - Interaction event to record
+   * @param {Array<'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit'>} [trackEvents] - Optional list of event types to track
    */
-  addInteraction(interaction: InteractionEvent) {
-    // First add the interaction time to the trial level interaction summary.
-    if (interaction.event in this.trialInteractions) {
+  addInteraction(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
+    const shouldTrackAll = !requiredEvents || requiredEvents.length === 0;
+    const shouldTrack =
+      shouldTrackAll || requiredEvents.includes(interaction.event as keyof InteractionSummary<number>);
+
+    if (shouldTrack && interaction.event in this.trialInteractions) {
       this.trialInteractions[interaction.event]?.push(interaction.time);
-    } // blur[], focus[], fullscreenenter[], fullscreenexit[]
-    // We want to update the increments for each event type only once if they happened.
-    // So we iterate through the event types (i.e., the keys of trialInteractions)
-    // and if that event type occurred, set the increment to 1.
+    }
+
     this.runInteractionIncrements = _mapValues(
       this.trialInteractions,
       (_value, key: keyof InteractionSummary<number>) =>
-        this.runInteractionIncrements[key] || interaction.event === key,
-    ); // blur: boolean, focus: boolean, fullscreenenter: boolean, fullscreenexit: boolean
+        this.runInteractionIncrements[key] || (shouldTrack && interaction.event === key),
+    );
   }
 
   /**
@@ -251,10 +260,13 @@ export class RoarRun {
    * @param trialDocRef - Reference to the Firestore document representing the current trial
    */
   async writeInteractions(assessmentStage: string, trialDocRef: DocumentReference) {
-    // Write the detailed interaction data for the current trial
-    await updateDoc(trialDocRef, this.trialInteractions as DocumentData);
+    // Remove interaction types that are empty
+    const filteredInteractions = Object.fromEntries(
+      Object.entries(this.trialInteractions).filter(([, times]) => Array.isArray(times) && times.length > 0),
+    );
 
-    // Prepare an update object to increment run-level interaction counters
+    await updateDoc(trialDocRef, filteredInteractions as DocumentData);
+
     const updateObj: Record<string, FieldValue> = {};
     for (const event of Object.keys(this.runInteractionIncrements)) {
       if (this.runInteractionIncrements[event as keyof typeof this.runInteractionIncrements]) {
