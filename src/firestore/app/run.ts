@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   DocumentReference,
+  DocumentData,
   getDoc,
   increment,
   serverTimestamp,
@@ -14,6 +15,7 @@ import _intersection from 'lodash/intersection';
 import _mapValues from 'lodash/mapValues';
 import _pick from 'lodash/pick';
 import _set from 'lodash/set';
+import _isEmpty from 'lodash/isEmpty';
 import dot from 'dot-object';
 import { RoarTaskVariant } from './task';
 import { RoarAppUser } from './user';
@@ -96,6 +98,21 @@ const castToTheta = (value: ThetaValue) => {
   return value as number;
 };
 
+type Event = 'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit';
+
+export interface InteractionEvent {
+  event: Event;
+  trial: number;
+  time: number;
+}
+
+interface InteractionSummary<T> {
+  blur?: T;
+  focus?: T;
+  fullscreenenter?: T;
+  fullscreenexit?: T;
+}
+
 /**
  * Class representing a ROAR run.
  *
@@ -115,6 +132,8 @@ export class RoarRun {
   testData: boolean;
   demoData: boolean;
   scores: RunScores;
+  runInteractionIncrements: InteractionSummary<boolean>;
+  trialInteractions: InteractionSummary<number[]>;
   /** Create a ROAR run
    * @param {RunInput} input
    * @param {RoarAppUser} input.user - The user running the task
@@ -161,6 +180,96 @@ export class RoarRun {
       raw: {},
       computed: {},
     };
+
+    this.trialInteractions = {
+      blur: [],
+      focus: [],
+      fullscreenenter: [],
+      fullscreenexit: [],
+    };
+    this.runInteractionIncrements = {
+      blur: false,
+      focus: false,
+      fullscreenenter: false,
+      fullscreenexit: false,
+    };
+  }
+
+  /**
+   * Reset the interaction data for the current trial
+   */
+  resetInteractions() {
+    this.trialInteractions = {
+      blur: [],
+      focus: [],
+      fullscreenenter: [],
+      fullscreenexit: [],
+    };
+    this.runInteractionIncrements = {
+      blur: false,
+      focus: false,
+      fullscreenenter: false,
+      fullscreenexit: false,
+    };
+  }
+
+  /**
+   * Add interaction data for the current trial.
+   *
+   * This will keep a running log of interaction data for the current trial.
+   * The log will be reset after each `writeTrial` call.
+   *
+   * @param {InteractionEvent} interaction - Interaction event
+   */
+  addInteraction(interaction: InteractionEvent) {
+    // First add the interaction time to the trial level interaction summary.
+    if (interaction.event in this.trialInteractions) {
+      this.trialInteractions[interaction.event]?.push(interaction.time);
+    } // blur[], focus[], fullscreenenter[], fullscreenexit[]
+    // We want to update the increments for each event type only once if they happened.
+    // So we iterate through the event types (i.e., the keys of trialInteractions)
+    // and if that event type occurred, set the increment to 1.
+    this.runInteractionIncrements = _mapValues(
+      this.trialInteractions,
+      (_value, key: keyof InteractionSummary<number>) =>
+        this.runInteractionIncrements[key] || interaction.event === key,
+    ); // blur: boolean, focus: boolean, fullscreenenter: boolean, fullscreenexit: boolean
+  }
+
+  /**
+   * Writes interaction data for the current trial and updates run-level counters.
+   *
+   * This method saves the interaction data collected during the current trial to Firestore.
+   * It performs two writes:
+   * 1. Updates the trial document with detailed interaction data (e.g., timestamps).
+   * 2. Increments counters on the run document to track how many times each interaction type occurred
+   *    (e.g., blur, focus) during a specific assessment stage (e.g., practice, test).
+   *
+   * After writing, the interaction data is reset for the next trial.
+   *
+   * @param assessmentStage - The current stage of the assessment (e.g., "practice", "test")
+   * @param trialDocRef - Reference to the Firestore document representing the current trial
+   */
+  async writeInteractions(assessmentStage: string, trialDocRef: DocumentReference) {
+    // Write the detailed interaction data for the current trial
+    await updateDoc(trialDocRef, this.trialInteractions as DocumentData);
+
+    // Prepare an update object to increment run-level interaction counters
+    const updateObj: Record<string, FieldValue> = {};
+    for (const event of Object.keys(this.runInteractionIncrements)) {
+      if (this.runInteractionIncrements[event as keyof typeof this.runInteractionIncrements]) {
+        const fieldPath = `interactions.${assessmentStage}.${event}`;
+        updateObj[fieldPath] = increment(1);
+      }
+    }
+
+    // Only update the run document if there are increments to apply
+    if (!_isEmpty(updateObj)) {
+      await updateDoc(this.runRef, updateObj);
+    }
+
+    // Reset interaction tracking for the next trial
+    this.resetInteractions();
   }
 
   /**
@@ -282,7 +391,10 @@ export class RoarRun {
     if (!this.aborted) {
       // In cases that the run is non-block-scoped and should only have the reliable attribute stored
       if (reliableByBlock === undefined) {
-        return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable });
+        return updateDoc(this.runRef, {
+          engagementFlags: engagementObj,
+          reliable: markAsReliable,
+        });
       }
       // In cases we want to store reliability by block, we need to store the reliable attribute as well as the reliableByBlock attribute
       else {
@@ -373,45 +485,7 @@ export class RoarRun {
         serverTimestamp: serverTimestamp(),
       })
         .then(async () => {
-          // For record interactions if the app has it (blur, focus, fullscreenenter, fullscreenexit).
-          if (trialData.interaction_data) {
-            // We need to flatten the array to avoid the nested structure error.
-            const interactions = Array.isArray(trialData.interaction_data)
-              ? trialData.interaction_data
-              : [trialData.interaction_data];
-
-            const seenKeys = new Set<string>();
-            const updateObj: Record<string, FieldValue> = {};
-
-            for (const { event, trial } of interactions) {
-              if (event && typeof trial !== 'undefined') {
-                // Fallback to "test" if it is not practice or break
-                let stageKey: 'practice' | 'test' | 'break' = 'test';
-
-                if (trialData.assessment_stage === 'practice_response') {
-                  stageKey = 'practice';
-                } else if (trialData.assessment_stage === 'break_response') {
-                  stageKey = 'break';
-                }
-
-                const uniqueKey = `${stageKey}-${event}-${trial}`;
-                if (seenKeys.has(uniqueKey)) continue;
-                seenKeys.add(uniqueKey);
-
-                const firestorePath = `interaction_event_summary.${stageKey}.${event}`;
-                updateObj[firestorePath] = increment(1);
-              }
-            }
-
-            // Save new increments
-            if (Object.keys(updateObj).length > 0) {
-              try {
-                await updateDoc(this.runRef, updateObj);
-              } catch (e) {
-                console.error('❌ Failed to update event summary:', e);
-              }
-            }
-          }
+          await this.writeInteractions(trialData.assessment_stage as string, trialRef);
           // Only update scores if the trial was a test or a practice response.
           if (trialData.assessment_stage === 'test_response' || trialData.assessment_stage === 'practice_response') {
             // Here we update the scores for this run. We create scores for each subtask in the task.

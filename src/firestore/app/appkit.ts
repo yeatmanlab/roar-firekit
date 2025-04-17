@@ -2,7 +2,7 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { ComputedScores, RawScores, RoarRun } from './run';
+import { ComputedScores, RawScores, RoarRun, InteractionEvent } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
@@ -172,7 +172,12 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to update their own data.');
     }
 
-    return this.user!.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
+    return this.user!.updateUser({
+      tasks,
+      variants,
+      assessmentPid,
+      ...userMetadata,
+    });
   }
 
   /**
@@ -236,14 +241,38 @@ export class RoarAppkit {
       const oldVariantId = this.task!.variantId;
       return this.task!.updateTaskParams(newParams)
         .then(() => {
-          return updateDoc(this.user!.userRef, { variants: arrayRemove(oldVariantId) });
+          return updateDoc(this.user!.userRef, {
+            variants: arrayRemove(oldVariantId),
+          });
         })
         .then(() => {
-          return updateDoc(this.user!.userRef, { variants: arrayUnion(this.task!.variantId) });
+          return updateDoc(this.user!.userRef, {
+            variants: arrayUnion(this.task!.variantId),
+          });
         })
         .then(() => {
-          return updateDoc(this.run!.runRef, { variantId: this.task!.variantId });
+          return updateDoc(this.run!.runRef, {
+            variantId: this.task!.variantId,
+          });
         });
+    } else {
+      throw new Error('This run has not started. Use the startRun method first.');
+    }
+  }
+
+  /**
+   * Add interaction data for the current trial
+   * 
+   * This will keep a running log of interaction data for the current trial.
+   * The log will be reset after each `writeTrial` call.
+   
+   * @param {InteractionEvent} interaction - interaction event
+   * @method
+   * @async
+   */
+  addInteractions(interaction: InteractionEvent) {
+    if (this._started) {
+      return this.run!.addInteraction(interaction);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
