@@ -264,19 +264,19 @@ export class RoarAppkit {
    * Add interaction data for the current trial.
    *
    * This method records an interaction event for the current trial and optionally filters
-   * which event types to track. If `requiredEvents` is provided, only events matching those
+   * which event types to track. If `allowedEvents` is provided, only events matching those
    * types will be recorded. Otherwise, all events defined in `trialInteractions` will be tracked.
    *
    * The interaction log is stored at the trial level and will be reset after each `writeTrial` call.
    *
    * @param {InteractionEvent} interaction - The interaction event to record (e.g., blur, focus).
-   * @param {Array<'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit'>} [requiredEvents] - Optional list of interaction types to track.
+   * @param {Array<'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit'>} [allowedEvents] - Optional list of interaction types to track.
    * @throws {Error} If the run has not been started.
    * @method
    */
-  addInteraction(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
+  addInteraction(interaction: InteractionEvent, allowedEvents?: (keyof InteractionSummary<number>)[]) {
     if (this._started) {
-      return this.run!.addInteraction(interaction, requiredEvents);
+      return this.run!.addInteraction(interaction, allowedEvents);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }

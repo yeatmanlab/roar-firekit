@@ -229,10 +229,9 @@ export class RoarRun {
    * @param {InteractionEvent} interaction - Interaction event to record
    * @param {Array<'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit'>} [trackEvents] - Optional list of event types to track
    */
-  addInteraction(interaction: InteractionEvent, requiredEvents?: (keyof InteractionSummary<number>)[]) {
-    const shouldTrackAll = !requiredEvents || requiredEvents.length === 0;
-    const shouldTrack =
-      shouldTrackAll || requiredEvents.includes(interaction.event as keyof InteractionSummary<number>);
+  addInteraction(interaction: InteractionEvent, allowedEvents?: (keyof InteractionSummary<number>)[]) {
+    const shouldTrackAll = !allowedEvents || allowedEvents.length === 0;
+    const shouldTrack = shouldTrackAll || allowedEvents.includes(interaction.event as keyof InteractionSummary<number>);
 
     if (shouldTrack && interaction.event in this.trialInteractions) {
       this.trialInteractions[interaction.event]?.push(interaction.time);
