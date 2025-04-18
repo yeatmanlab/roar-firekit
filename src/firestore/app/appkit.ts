@@ -2,7 +2,7 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { ComputedScores, RawScores, RoarRun, InteractionEvent, InteractionSummary } from './run';
+import { ComputedScores, RawScores, RoarRun, InteractionEvent } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
@@ -261,22 +261,18 @@ export class RoarAppkit {
   }
 
   /**
-   * Add interaction data for the current trial.
-   *
-   * This method records an interaction event for the current trial and optionally filters
-   * which event types to track. If `allowedEvents` is provided, only events matching those
-   * types will be recorded. Otherwise, all events defined in `trialInteractions` will be tracked.
-   *
-   * The interaction log is stored at the trial level and will be reset after each `writeTrial` call.
-   *
-   * @param {InteractionEvent} interaction - The interaction event to record (e.g., blur, focus).
-   * @param {Array<'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit'>} [allowedEvents] - Optional list of interaction types to track.
-   * @throws {Error} If the run has not been started.
+   * Add interaction data for the current trial
+   * 
+   * This will keep a running log of interaction data for the current trial.
+   * The log will be reset after each `writeTrial` call.
+   
+   * @param {InteractionEvent} interaction - interaction event
    * @method
+   * @async
    */
-  addInteraction(interaction: InteractionEvent, allowedEvents?: (keyof InteractionSummary<number>)[]) {
+  addInteraction(interaction: InteractionEvent) {
     if (this._started) {
-      return this.run!.addInteraction(interaction, allowedEvents);
+      return this.run!.addInteraction(interaction);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
