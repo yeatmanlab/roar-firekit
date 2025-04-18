@@ -251,8 +251,15 @@ export class RoarRun {
    * @param trialDocRef - Reference to the Firestore document representing the current trial
    */
   async writeInteractions(assessmentStage: string, trialDocRef: DocumentReference) {
+    // Rename interaction keys (e.g., blur → interaction_blur)
+    const renamedInteractions: Record<string, number[]> = {};
+    for (const [key, value] of Object.entries(this.trialInteractions)) {
+      if (Array.isArray(value)) {
+        renamedInteractions[`interaction_${key}`] = value;
+      }
+    }
     // Write the detailed interaction data for the current trial
-    await updateDoc(trialDocRef, this.trialInteractions as DocumentData);
+    await updateDoc(trialDocRef, renamedInteractions as DocumentData);
 
     // Prepare an update object to increment run-level interaction counters
     const updateObj: Record<string, FieldValue> = {};
