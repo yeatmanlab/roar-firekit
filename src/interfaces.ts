@@ -237,3 +237,13 @@ export type RoarOrg = District | School | Class | Family | Group;
 
 export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
 export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
+
+interface SingleProjectRestConfig {
+  headers: { Authorization: string };
+  baseURL: string;
+}
+
+export interface RestConfig {
+  admin: SingleProjectRestConfig;
+  app: SingleProjectRestConfig;
+}

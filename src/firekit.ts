@@ -73,6 +73,7 @@ import {
   OrgCollectionName,
   UserType,
   Legal,
+  RestConfig,
 } from './interfaces';
 import { UserInput } from './firestore/app/user';
 import { RoarAppkit } from './firestore/app/appkit';
@@ -1344,7 +1345,19 @@ export class RoarFirekit {
     return this._idTokens;
   }
 
-  public get restConfig() {
+  /**
+   * Return the Firestore REST configuration for the app and admin projects.
+   *
+   * If the idTokens are not available yet (e.g. before authentication), return undefined.
+   *
+   * @returns {RestConfig | undefined} - An object containing the REST configuration for the app and admin projects.
+   */
+  public get restConfig(): RestConfig | undefined {
+    // N.B. We use `==` instead of `===` to catch both undefined and null values.
+    if (this._idTokens.admin == undefined || this._idTokens.app == undefined) {
+      return undefined;
+    }
+
     return {
       admin: {
         headers: { Authorization: `Bearer ${this._idTokens.admin}` },
