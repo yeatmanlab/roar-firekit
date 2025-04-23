@@ -1739,20 +1739,20 @@ export class RoarFirekit {
 
   async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
     this._verifyAuthentication();
-    
+
     try {
       await runTransaction(this.admin!.db, async (transaction) => {
         // Get the user's assignment document
         const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
         if (!roarUid) {
-          throw new Error("Could not determine user ID");
+          throw new Error('Could not determine user ID');
         }
-        
+
         const assignmentDoc = await this.getAssignmentDoc(roarUid, administrationId, transaction);
-        
+
         // Update this assessment's `completedOn` timestamp
         await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
-        
+
         // Check if all assessments are now completed
         if (assignmentDoc.exists()) {
           this.checkAndCompleteAssignment(assignmentDoc, taskId, administrationId, transaction);
@@ -1762,7 +1762,7 @@ export class RoarFirekit {
       throw new Error(`Failed to complete assessment: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  
+
   /**
    * Gets the assignment document for a user
    */
@@ -1771,24 +1771,24 @@ export class RoarFirekit {
     const docRef = doc(userAssignmentsRef, administrationId);
     return await transaction.get(docRef);
   }
-  
+
   /**
    * Checks if all assessments in an assignment are completed and marks the assignment as complete if so
-   * 
+   *
    * Note: When checking if all assessments are completed, we need to consider the current task
    * as already completed, even though its completedOn timestamp was just set in the transaction
    * and won't be reflected in the document snapshot we're examining.
    */
   private checkAndCompleteAssignment(
-    docSnap: DocumentSnapshot, 
-    currentTaskId: string, 
-    administrationId: string, 
-    transaction: Transaction
+    docSnap: DocumentSnapshot,
+    currentTaskId: string,
+    administrationId: string,
+    transaction: Transaction,
   ) {
     const allAssessmentsCompleted = docSnap.data()?.assessments.every((a: AssignedAssessment) => {
       return Boolean(a.completedOn) || a.optional || a.taskId === currentTaskId;
     });
-    
+
     if (allAssessmentsCompleted) {
       this.completeAssignment(administrationId, transaction);
     }
@@ -2313,7 +2313,7 @@ export class RoarFirekit {
    */
   async upsertOrg(orgData: {
     id?: string;
-    type: "districts" | "schools" | "classes" | "groups";
+    type: 'districts' | 'schools' | 'classes' | 'groups';
     [key: string]: unknown;
   }) {
     this._verifyAuthentication();
@@ -2452,75 +2452,6 @@ export class RoarFirekit {
     });
   }
 
-  /**
-   * Creates an AdobeSign agreement for the given email address and document type.
-   *
-   * This method invokes a cloud function to create an AdobeSign agreement with the specified
-   * email address and document type. It returns a promise that resolves with the created agreement data.
-   *
-   * @param {string} email - The email address of the signer.
-   * @param {string} documentType - The type of document for the agreement.
-   * @returns {Promise<any>} - A promise that resolves with the created agreement data.
-   * @throws {Error} - If an error occurs while creating the AdobeSign agreement.
-   */
-  async createAdobeSignAgreement(email: string, documentType: string) {
-    const cloudCreateAdobeSignAgreement = httpsCallable(this.admin!.functions, 'createAdobeSignAgreement');
-    try {
-      return await cloudCreateAdobeSignAgreement({
-        email,
-        documentType,
-      }).then(({ data }) => data);
-    } catch (error) {
-      console.error('Error creating AdobeSign agreement');
-      throw error;
-    }
-  }
-
-  /**
-   * Retrieves the status of an AdobeSign agreement by its ID.
-   *
-   * This method invokes a cloud function to get the status of an AdobeSign agreement using the specified
-   * agreement ID. It returns a promise that resolves with the agreement status data.
-   *
-   * @param {string} agreementId - The ID of the AdobeSign agreement.
-   * @returns {Promise<any>} - A promise that resolves with the agreement status data.
-   * @throws {Error} - If an error occurs while retrieving the AdobeSign agreement status.
-   */
-  async getAdobeSignAgreementStatus(agreementId: string) {
-    const cloudGetAdobeSignAgreementStatus = httpsCallable(this.admin!.functions, 'getAdobeSignAgreementStatus');
-    try {
-      return await cloudGetAdobeSignAgreementStatus({
-        agreementId,
-      }).then(({ data }) => data);
-    } catch (error) {
-      console.error('Error getting AdobeSign agreement status');
-      throw error;
-    }
-  }
-
-  /**
-   * Retrieves the signing URL for an AdobeSign agreement by its ID and the signer's email address.
-   *
-   * This method invokes a cloud function to get the signing URL of an AdobeSign agreement using the specified
-   * agreement ID and email address. It returns a promise that resolves with the signing URL data.
-   *
-   * @param {string} agreementId - The ID of the AdobeSign agreement.
-   * @param {string} email - The email address of the signer.
-   * @returns {Promise<any>} - A promise that resolves with the signing URL data.
-   * @throws {Error} - If an error occurs while retrieving the AdobeSign signing URL.
-   */
-  async getAdobeSignSigningUrl(agreementId: string, email: string) {
-    const cloudGetAdobeSignSigningUrl = httpsCallable(this.admin!.functions, 'getAdobeSignSigningUrl');
-    try {
-      return await cloudGetAdobeSignSigningUrl({
-        agreementId,
-        email,
-      }).then(({ data }) => data);
-    } catch (error) {
-      console.error('Error getting AdobeSign URL');
-      throw error;
-    }
-  }
 
   // LEVANTE
   async createUsers(userData: LevanteUserData) {
@@ -2565,7 +2496,17 @@ export class RoarFirekit {
     return result;
   }
 
-  async editUsers(users: { uid: string; month: string; year: string; group: string; district: string; school: string; class: string }[]) {
+  async editUsers(
+    users: {
+      uid: string;
+      month: string;
+      year: string;
+      group: string;
+      district: string;
+      school: string;
+      class: string;
+    }[],
+  ) {
     this._verifyAuthentication();
     this._verifyAdmin();
 

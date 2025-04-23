@@ -46,7 +46,7 @@
     "@firebase/rules-unit-testing": "^2.0.2",
     "@types/dot-object": "^2.1.2",
     "@types/jest": "^27.4.1",
-    "@types/lodash": "^4.14.192",
+    "@types/lodash": "^4.17.16",
     "@typescript-eslint/eslint-plugin": "^5.13.0",
     "@typescript-eslint/parser": "^5.13.0",
     "@vitest/coverage-v8": "^2.1.8",

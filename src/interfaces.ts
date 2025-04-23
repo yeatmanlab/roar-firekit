@@ -92,6 +92,8 @@ export interface UserDataInAdminDb extends DocumentData {
   groups: Orgs;
   families: Orgs;
   archived: boolean;
+  testData?: boolean;
+  demoData?: boolean;
   studentData?: StudentData;
   educatorData?: ExtraMetadata;
   caregiverData?: ExtraMetadata;
