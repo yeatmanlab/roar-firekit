@@ -3,7 +3,7 @@
 
 # roar-firekit
 
-Welcome to roar-firekit! Roar-firekit helps you store the data from your [ROAR application](https://dyslexia.stanford.edu/roar/) in [Cloud Firestore](https://cloud.google.com/firestore).
+Welcome to roar-firekit! Roar-firekit helps you store the data from your [ROAR application](https://dyslexia.stanford.edu/roar/) in [Cloud Firestore](https://cloud.google.com/firestore). This library simplifies Firebase integration for ROAR assessment applications.
 
 ## Installation
 
