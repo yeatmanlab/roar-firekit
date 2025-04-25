@@ -7,3 +7,4 @@ export { Permissions } from './constants/permissions';
 export { UserRoles } from './constants/user-roles';
 export { emptyOrg, emptyOrgList, getTreeTableOrgs, initializeFirebaseProject } from './firestore/util';
 export * from './firestore/query-assessment';
+export * from './domains/user';
