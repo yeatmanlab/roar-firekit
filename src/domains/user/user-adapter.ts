@@ -1,4 +1,4 @@
-import { Firestore } from 'firebase/firestore';
+import { DocumentReference, Firestore, doc } from 'firebase/firestore';
 import { UserInfo as AppUserInfo, UserUpdateInput as AppUserUpdateInput } from '../../firestore/app/user';
 import { UserService } from './user.service';
 import { User, UserData, UserType } from './user.model';
@@ -17,7 +17,7 @@ export class RoarAppUserAdapter {
   assessmentPid?: string;
   userType: UserType;
   onFirestore?: boolean;
-  userRef: Record<string, unknown>;
+  userRef: DocumentReference;
   userMetadata: { [key: string]: unknown };
   testData: boolean;
   demoData: boolean;
@@ -50,7 +50,13 @@ export class RoarAppUserAdapter {
       this._internalUser = user;
     });
     
-    this.userRef = {}; // Placeholder
+    if (this.userType === UserType.guest) {
+      this.userRef = doc(this.db, 'guests', this.assessmentUid);
+    } else if (this.roarUid) {
+      this.userRef = doc(this.db, 'users', this.roarUid);
+    } else {
+      throw new Error('Non-guest users must have a roarUid');
+    }
   }
 
   async init() {
