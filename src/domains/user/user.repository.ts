@@ -1,42 +1,41 @@
-import { DocumentData, DocumentReference } from 'firebase/firestore';
-import { IUser, IUserInfo, IUserUpdateInput } from './user.model';
+import { User, UserInfo, UserUpdateInput } from './user.model';
 
 /**
  * Repository interface for user data access
  */
-export interface IUserRepository {
+export interface UserRepository {
   /**
    * Create a user instance
    */
-  createUser(userInfo: IUserInfo): IUser;
+  create(userInfo: UserInfo): User;
   
   /**
    * Initialize user data from storage
    */
-  initUser(user: IUser): Promise<void>;
+  init(user: User): Promise<void>;
   
   /**
    * Check if user exists in storage
    */
-  checkUserExists(user: IUser): Promise<void>;
+  exists(user: User): Promise<void>;
   
   /**
    * Update user data
    */
-  updateUser(user: IUser, updateData: IUserUpdateInput): Promise<void>;
+  update(user: User, updateData: UserUpdateInput): Promise<void>;
   
   /**
    * Update the timestamp for the user
    */
-  updateTimestamp(user: IUser): Promise<void>;
+  updateTimestamp(user: User): Promise<void>;
   
   /**
-   * Get the document reference for a user
+   * Get the reference for a user
    */
-  getUserRef(user: IUser): DocumentReference;
+  getRef(user: User): unknown;
   
   /**
    * Get user data
    */
-  getUserData(user: IUser): DocumentData | undefined;
+  get(user: User): Record<string, unknown> | undefined;
 }

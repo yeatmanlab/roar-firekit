@@ -9,22 +9,22 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { IUser, IUserInfo, IUserUpdateInput } from './user.model';
-import { IUserRepository } from './user.repository';
+import { User, UserInfo, UserUpdateInput } from './user.model';
+import { UserRepository } from './user.repository';
 import { UserType } from '../../interfaces';
 import { removeUndefined } from '../../firestore/util';
 
 /**
  * Firebase-specific implementation of the user repository
  */
-export class FirebaseUserRepository implements IUserRepository {
+export class FirebaseUserRepository implements UserRepository {
   private db: Firestore;
 
   constructor(db: Firestore) {
     this.db = db;
   }
 
-  createUser(userInfo: IUserInfo): IUser {
+  create(userInfo: UserInfo): User {
     const { 
       roarUid, 
       assessmentUid, 
@@ -33,9 +33,6 @@ export class FirebaseUserRepository implements IUserRepository {
       userMetadata = {},
       testData = false,
       demoData = false,
-      offlineEnabled = false,
-      offlineTasks = [],
-      offlineAdministrations = [],
     } = userInfo;
 
     const allowedUserCategories = Object.values(UserType);
@@ -61,13 +58,10 @@ export class FirebaseUserRepository implements IUserRepository {
       userMetadata,
       testData,
       demoData,
-      offlineEnabled,
-      offlineTasks,
-      offlineAdministrations,
     };
   }
 
-  getUserRef(user: IUser): DocumentReference {
+  getRef(user: User): DocumentReference {
     if (user.userType === UserType.guest) {
       return doc(this.db, 'guests', user.assessmentUid);
     } else {
@@ -75,24 +69,24 @@ export class FirebaseUserRepository implements IUserRepository {
     }
   }
 
-  getUserData(user: IUser): DocumentData | undefined {
-    return user.userData;
+  get(user: User): Record<string, unknown> | undefined {
+    return user.userData as Record<string, unknown>;
   }
 
-  async initUser(user: IUser): Promise<void> {
-    const userRef = this.getUserRef(user);
+  async init(user: User): Promise<void> {
+    const userRef = this.getRef(user);
     
     const docSnap = await getDoc(userRef);
-    user.onFirestore = docSnap.exists();
+    user.onBackend = docSnap.exists();
     
-    if (user.onFirestore) {
-      user.userData = docSnap.data();
+    if (user.onBackend) {
+      user.userData = docSnap.data() as Record<string, unknown>;
     } else {
       await this._setUserData(user);
     }
   }
 
-  private async _setUserData(user: IUser): Promise<void> {
+  private async _setUserData(user: User): Promise<void> {
     if (user.userType !== UserType.guest) {
       throw new Error('Cannot set user data on a non-guest ROAR user.');
     }
@@ -104,31 +98,31 @@ export class FirebaseUserRepository implements IUserRepository {
       userType: user.userType,
       ...(user.testData && { testData: true }),
       ...(user.demoData && { demoData: true }),
-    });
+    }) as Record<string, unknown>;
     
-    const userRef = this.getUserRef(user);
+    const userRef = this.getRef(user);
     await setDoc(userRef, {
       ...user.userData,
       created: serverTimestamp(),
     });
     
-    user.onFirestore = true;
+    user.onBackend = true;
   }
 
-  async checkUserExists(user: IUser): Promise<void> {
-    if (!user.onFirestore) {
-      await this.initUser(user);
+  async exists(user: User): Promise<void> {
+    if (!user.onBackend) {
+      await this.init(user);
     }
 
-    if (!user.onFirestore) {
+    if (!user.onBackend) {
       throw new Error('This non-guest user is not in Firestore.');
     }
   }
 
-  async updateUser(user: IUser, updateInput: IUserUpdateInput): Promise<void> {
-    await this.checkUserExists(user);
+  async update(user: User, updateInput: UserUpdateInput): Promise<void> {
+    await this.exists(user);
     
-    const userRef = this.getUserRef(user);
+    const userRef = this.getRef(user);
     
     let userData: {
       lastUpdated?: ReturnType<typeof serverTimestamp>;
@@ -161,10 +155,10 @@ export class FirebaseUserRepository implements IUserRepository {
     await updateDoc(userRef, removeUndefined(userData));
   }
 
-  async updateTimestamp(user: IUser): Promise<void> {
-    await this.checkUserExists(user);
+  async updateTimestamp(user: User): Promise<void> {
+    await this.exists(user);
     
-    const userRef = this.getUserRef(user);
+    const userRef = this.getRef(user);
     await updateDoc(userRef, {
       lastUpdated: serverTimestamp(),
     });

@@ -1,7 +1,7 @@
 import { DocumentReference, Firestore } from 'firebase/firestore';
 import { UserInfo, UserUpdateInput } from '../../firestore/app/user';
 import { UserService } from './user.service';
-import { IUser } from './user.model';
+import { User } from './user.model';
 
 /**
  * Adapter class that maintains the existing RoarAppUser interface
@@ -20,9 +20,6 @@ export class RoarAppUserAdapter {
   userMetadata: { [key: string]: unknown };
   testData: boolean;
   demoData: boolean;
-  offlineEnabled: boolean;
-  offlineTasks: string[];
-  offlineAdministrations: string[];
 
   constructor(input: UserInfo & { db: Firestore }) {
     this.db = input.db;
@@ -33,9 +30,6 @@ export class RoarAppUserAdapter {
     this.userMetadata = input.userMetadata || {};
     this.testData = input.testData || false;
     this.demoData = input.demoData || false;
-    this.offlineEnabled = input.offlineEnabled || false;
-    this.offlineTasks = input.offlineTasks || [];
-    this.offlineAdministrations = input.offlineAdministrations || [];
 
     this.userService = UserService.createWithFirebase(this.db);
     
@@ -47,19 +41,16 @@ export class RoarAppUserAdapter {
       userMetadata: this.userMetadata,
       testData: this.testData,
       demoData: this.demoData,
-      offlineEnabled: this.offlineEnabled,
-      offlineTasks: this.offlineTasks,
-      offlineAdministrations: this.offlineAdministrations,
     });
     
-    this.userRef = this.userService.getUserRef();
+    this.userRef = this.userService.getUserRef() as DocumentReference;
   }
 
   async init() {
     await this.userService.initUser();
     
-    const user = this.userService.getUser() as IUser;
-    this.onFirestore = user.onFirestore;
+    const user = this.userService.getUser() as User;
+    this.onFirestore = user.onBackend;
     this.userData = user.userData;
     
     return;
@@ -68,14 +59,14 @@ export class RoarAppUserAdapter {
   async checkUserExists() {
     await this.userService.checkUserExists();
     
-    const user = this.userService.getUser() as IUser;
-    this.onFirestore = user.onFirestore;
+    const user = this.userService.getUser() as User;
+    this.onFirestore = user.onBackend;
   }
 
   async updateUser(updateInput: UserUpdateInput): Promise<void> {
     await this.userService.updateUser(updateInput);
     
-    const user = this.userService.getUser() as IUser;
+    const user = this.userService.getUser() as User;
     this.userData = user.userData;
   }
 

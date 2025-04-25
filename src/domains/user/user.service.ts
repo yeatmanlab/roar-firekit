@@ -1,19 +1,19 @@
 import { Firestore } from 'firebase/firestore';
-import { IUser, IUserInfo, IUserUpdateInput } from './user.model';
-import { IUserRepository } from './user.repository';
+import { User, UserInfo, UserUpdateInput } from './user.model';
+import { UserRepository } from './user.repository';
 import { FirebaseUserRepository } from './firebase-user.repository';
 
 /**
  * Service for managing user operations
  */
 export class UserService {
-  private repository: IUserRepository;
-  private user: IUser | null = null;
+  private repository: UserRepository;
+  private user: User | null = null;
 
   /**
    * Create a user service with a specific repository
    */
-  constructor(repository: IUserRepository) {
+  constructor(repository: UserRepository) {
     this.repository = repository;
   }
 
@@ -27,8 +27,8 @@ export class UserService {
   /**
    * Create and initialize a user
    */
-  async createUser(userInfo: IUserInfo): Promise<IUser> {
-    this.user = this.repository.createUser(userInfo);
+  async createUser(userInfo: UserInfo): Promise<User> {
+    this.user = this.repository.create(userInfo);
     return this.user;
   }
 
@@ -40,7 +40,7 @@ export class UserService {
       throw new Error('User has not been created. Call createUser first.');
     }
     
-    await this.repository.initUser(this.user);
+    await this.repository.init(this.user);
   }
 
   /**
@@ -51,18 +51,18 @@ export class UserService {
       throw new Error('User has not been created. Call createUser first.');
     }
     
-    await this.repository.checkUserExists(this.user);
+    await this.repository.exists(this.user);
   }
 
   /**
    * Update user data
    */
-  async updateUser(updateInput: IUserUpdateInput): Promise<void> {
+  async updateUser(updateInput: UserUpdateInput): Promise<void> {
     if (!this.user) {
       throw new Error('User has not been created. Call createUser first.');
     }
     
-    await this.repository.updateUser(this.user, updateInput);
+    await this.repository.update(this.user, updateInput);
   }
 
   /**
@@ -79,7 +79,7 @@ export class UserService {
   /**
    * Get the current user
    */
-  getUser(): IUser | null {
+  getUser(): User | null {
     return this.user;
   }
 
@@ -91,7 +91,7 @@ export class UserService {
       throw new Error('User has not been created. Call createUser first.');
     }
     
-    return this.repository.getUserRef(this.user);
+    return this.repository.getRef(this.user);
   }
 
   /**
@@ -102,6 +102,6 @@ export class UserService {
       throw new Error('User has not been created. Call createUser first.');
     }
     
-    return this.repository.getUserData(this.user);
+    return this.repository.get(this.user);
   }
 }
