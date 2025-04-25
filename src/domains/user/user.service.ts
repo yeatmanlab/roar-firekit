@@ -1,5 +1,5 @@
 import { Firestore } from 'firebase/firestore';
-import { User, UserInfo, UserUpdateInput } from './user.model';
+import { User, UserData, UserUpdateInput } from './user.model';
 import { UserRepository } from './user.repository';
 import { FirebaseUserRepository } from './firebase-user.repository';
 
@@ -27,8 +27,8 @@ export class UserService {
   /**
    * Create and initialize a user
    */
-  async createUser(userInfo: UserInfo): Promise<User> {
-    this.user = this.repository.create(userInfo);
+  async createUser(userData: UserData): Promise<User> {
+    this.user = this.repository.create(userData);
     return this.user;
   }
 
@@ -81,27 +81,5 @@ export class UserService {
    */
   getUser(): User | null {
     return this.user;
-  }
-
-  /**
-   * Get the user reference
-   */
-  getUserRef() {
-    if (!this.user) {
-      throw new Error('User has not been created. Call createUser first.');
-    }
-    
-    return this.repository.getRef(this.user);
-  }
-
-  /**
-   * Get user data
-   */
-  getUserData() {
-    if (!this.user) {
-      throw new Error('User has not been created. Call createUser first.');
-    }
-    
-    return this.repository.get(this.user);
   }
 }

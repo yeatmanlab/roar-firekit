@@ -1,9 +1,19 @@
-import { UserType } from '../../interfaces';
+/**
+ * Enum representing the types of users in the ROAR system
+ */
+export enum UserType {
+  admin = 'admin',
+  educator = 'educator',
+  student = 'student',
+  caregiver = 'caregiver',
+  guest = 'guest',
+  researcher = 'researcher',
+}
 
 /**
- * Base interface for user information
+ * Base interface for user data
  */
-export interface UserInfo {
+export interface UserData {
   /** The ROAR user ID */
   roarUid?: string;
   /** The assessment unique identifier */
@@ -18,6 +28,14 @@ export interface UserInfo {
   testData?: boolean;
   /** Flag indicating if this is demo data */
   demoData?: boolean;
+  /** Tasks associated with the user */
+  tasks?: string[];
+  /** Variants associated with the user */
+  variants?: string[];
+  /** Timestamp when the user was last updated */
+  lastUpdated?: Date;
+  /** Timestamp when the user was created */
+  created?: Date;
 }
 
 /**
@@ -37,9 +55,7 @@ export interface UserUpdateInput {
 /**
  * Interface representing a user in the ROAR system
  */
-export interface User extends UserInfo {
+export interface User extends UserData {
   /** Flag indicating if the user exists in the backend */
   onBackend?: boolean;
-  /** The user data from the backend */
-  userData?: Record<string, unknown>;
 }

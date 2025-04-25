@@ -1,17 +1,5 @@
-import {
-  DocumentData,
-  DocumentReference,
-  Firestore,
-  arrayUnion,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from 'firebase/firestore';
-import _extend from 'lodash/extend';
+import { Firestore } from 'firebase/firestore';
 import { UserType } from '../../interfaces';
-import { removeUndefined } from '../util';
 import { RoarAppUserAdapter } from '../../domains/user/user-adapter';
 
 export interface UserInfo {
@@ -40,16 +28,6 @@ export interface UserUpdateInput {
   [key: string]: unknown;
 }
 
-/** This interface holds data that the user can update on Firestore */
-interface FirestoreUserUpdate {
-  /** These are keys that all users can update */
-  tasks?: ReturnType<typeof arrayUnion>;
-  variants?: ReturnType<typeof arrayUnion>;
-  lastUpdated?: ReturnType<typeof serverTimestamp>;
-  /** And these are keys that only guest users will be able to create/update */
-  assessmentPid?: string;
-  [key: string]: unknown;
-}
 
 /** Class representing a ROAR user */
 export class RoarAppUser extends RoarAppUserAdapter {

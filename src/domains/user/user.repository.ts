@@ -1,4 +1,4 @@
-import { User, UserInfo, UserUpdateInput } from './user.model';
+import { User, UserData, UserUpdateInput } from './user.model';
 
 /**
  * Repository interface for user data access
@@ -7,7 +7,7 @@ export interface UserRepository {
   /**
    * Create a user instance
    */
-  create(userInfo: UserInfo): User;
+  create(userData: UserData): User;
   
   /**
    * Initialize user data from storage
@@ -28,14 +28,4 @@ export interface UserRepository {
    * Update the timestamp for the user
    */
   updateTimestamp(user: User): Promise<void>;
-  
-  /**
-   * Get the reference for a user
-   */
-  getRef(user: User): unknown;
-  
-  /**
-   * Get user data
-   */
-  get(user: User): Record<string, unknown> | undefined;
 }

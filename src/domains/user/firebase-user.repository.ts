@@ -1,5 +1,4 @@
 import {
-  DocumentData,
   DocumentReference,
   Firestore,
   arrayUnion,
@@ -9,9 +8,8 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { User, UserInfo, UserUpdateInput } from './user.model';
+import { User, UserData, UserType, UserUpdateInput } from './user.model';
 import { UserRepository } from './user.repository';
-import { UserType } from '../../interfaces';
 import { removeUndefined } from '../../firestore/util';
 
 /**
@@ -24,7 +22,7 @@ export class FirebaseUserRepository implements UserRepository {
     this.db = db;
   }
 
-  create(userInfo: UserInfo): User {
+  create(userData: UserData): User {
     const { 
       roarUid, 
       assessmentUid, 
@@ -33,11 +31,11 @@ export class FirebaseUserRepository implements UserRepository {
       userMetadata = {},
       testData = false,
       demoData = false,
-    } = userInfo;
+    } = userData;
 
-    const allowedUserCategories = Object.values(UserType);
-    if (!allowedUserCategories.includes(userType)) {
-      throw new Error(`User category must be one of ${allowedUserCategories.join(', ')}.`);
+    const allowedUserTypes = Object.values(UserType);
+    if (!allowedUserTypes.includes(userType)) {
+      throw new Error(`User type must be one of ${allowedUserTypes.join(', ')}.`);
     }
 
     if (roarUid === undefined && userType !== UserType.guest) {
@@ -48,39 +46,49 @@ export class FirebaseUserRepository implements UserRepository {
       throw new Error('Guest ROAR users cannot have a ROAR UID.');
     }
 
+    if (userType === UserType.guest && !assessmentUid) {
+      throw new Error('Guest users must have an assessmentUid.');
+    }
+
     if (userType !== UserType.guest && assessmentPid === undefined) {
       throw new Error('All non-guest ROAR users must have an assessment PID on instantiation.');
     }
 
     return {
-      ...userInfo,
+      ...userData,
       userType,
       userMetadata,
       testData,
       demoData,
+      onBackend: false,
     };
   }
 
-  getRef(user: User): DocumentReference {
+  /**
+   * Firebase-specific method to get document reference
+   * This is not part of the UserRepository interface
+   */
+  private _getDocRef(user: User): DocumentReference {
     if (user.userType === UserType.guest) {
       return doc(this.db, 'guests', user.assessmentUid);
+    } else if (user.roarUid) {
+      return doc(this.db, 'users', user.roarUid);
     } else {
-      return doc(this.db, 'users', user.roarUid!);
+      throw new Error('Non-guest users must have a roarUid');
     }
   }
 
-  get(user: User): Record<string, unknown> | undefined {
-    return user.userData as Record<string, unknown>;
-  }
-
   async init(user: User): Promise<void> {
-    const userRef = this.getRef(user);
+    const userRef = this._getDocRef(user);
     
     const docSnap = await getDoc(userRef);
     user.onBackend = docSnap.exists();
     
     if (user.onBackend) {
-      user.userData = docSnap.data() as Record<string, unknown>;
+      const data = docSnap.data();
+      if (data) {
+        Object.assign(user, removeUndefined(data));
+      }
     } else {
       await this._setUserData(user);
     }
@@ -91,22 +99,23 @@ export class FirebaseUserRepository implements UserRepository {
       throw new Error('Cannot set user data on a non-guest ROAR user.');
     }
     
-    user.userData = removeUndefined({
+    const userData = removeUndefined({
       ...user.userMetadata,
       assessmentPid: user.assessmentPid,
       assessmentUid: user.assessmentUid,
       userType: user.userType,
       ...(user.testData && { testData: true }),
       ...(user.demoData && { demoData: true }),
-    }) as Record<string, unknown>;
+    });
     
-    const userRef = this.getRef(user);
+    const userRef = this._getDocRef(user);
     await setDoc(userRef, {
-      ...user.userData,
+      ...userData,
       created: serverTimestamp(),
     });
     
     user.onBackend = true;
+    user.created = new Date();
   }
 
   async exists(user: User): Promise<void> {
@@ -115,16 +124,16 @@ export class FirebaseUserRepository implements UserRepository {
     }
 
     if (!user.onBackend) {
-      throw new Error('This non-guest user is not in Firestore.');
+      throw new Error('This non-guest user is not in the backend.');
     }
   }
 
   async update(user: User, updateInput: UserUpdateInput): Promise<void> {
     await this.exists(user);
     
-    const userRef = this.getRef(user);
+    const userRef = this._getDocRef(user);
     
-    let userData: {
+    let firestoreData: {
       lastUpdated?: ReturnType<typeof serverTimestamp>;
       tasks?: ReturnType<typeof arrayUnion>;
       variants?: ReturnType<typeof arrayUnion>;
@@ -134,33 +143,45 @@ export class FirebaseUserRepository implements UserRepository {
       lastUpdated: serverTimestamp(),
     };
 
-    if (updateInput.tasks) userData.tasks = arrayUnion(...updateInput.tasks);
-    if (updateInput.variants) userData.variants = arrayUnion(...updateInput.variants);
-
-    if (user.userType === UserType.guest) {
-      if (updateInput.assessmentPid) userData.assessmentPid = updateInput.assessmentPid;
-      
-      const { tasks, variants, assessmentPid, ...userMetadata } = updateInput;
-      userData = {
-        ...userMetadata,
-        ...userData,
-      };
+    if (updateInput.tasks) {
+      firestoreData.tasks = arrayUnion(...updateInput.tasks);
+      user.tasks = [...(user.tasks || []), ...updateInput.tasks];
+    }
+    
+    if (updateInput.variants) {
+      firestoreData.variants = arrayUnion(...updateInput.variants);
+      user.variants = [...(user.variants || []), ...updateInput.variants];
     }
 
-    user.userData = {
-      ...user.userData,
-      ...updateInput,
-    };
+    if (user.userType === UserType.guest) {
+      if (updateInput.assessmentPid) {
+        firestoreData.assessmentPid = updateInput.assessmentPid;
+        user.assessmentPid = updateInput.assessmentPid;
+      }
+      
+      const userMetadata = Object.entries(updateInput)
+        .filter(([key]) => !['tasks', 'variants', 'assessmentPid'].includes(key))
+        .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {});
+      firestoreData = {
+        ...userMetadata,
+        ...firestoreData,
+      };
+      
+      Object.assign(user, userMetadata);
+    }
 
-    await updateDoc(userRef, removeUndefined(userData));
+    await updateDoc(userRef, removeUndefined(firestoreData));
+    user.lastUpdated = new Date();
   }
 
   async updateTimestamp(user: User): Promise<void> {
     await this.exists(user);
     
-    const userRef = this.getRef(user);
+    const userRef = this._getDocRef(user);
     await updateDoc(userRef, {
       lastUpdated: serverTimestamp(),
     });
+    
+    user.lastUpdated = new Date();
   }
 }
