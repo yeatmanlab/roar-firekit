@@ -1856,33 +1856,59 @@ export class RoarFirekit {
       );
     }
 
-    // Call the Cloud Function
-    const createAdministrationFunction = httpsCallable(this.admin!.functions, 'createAdministration');
+    // First add the administration to the database
+    const administrationData: Administration = {
+      name,
+      publicName: publicName ?? name,
+      createdBy: this.roarUid!,
+      groups: orgs.groups ?? [],
+      families: orgs.families ?? [],
+      classes: orgs.classes ?? [],
+      schools: orgs.schools ?? [],
+      districts: orgs.districts ?? [],
+      dateCreated: new Date(),
+      dateOpened: dateOpen,
+      dateClosed: dateClose,
+      assessments: assessments,
+      sequential: sequential,
+      tags: tags,
+      legal: legal,
+      testData: isTestData ?? false,
+    };
 
-    try {
-      // Pass all arguments directly to the cloud function
-      const result = await createAdministrationFunction({
-        name,
-        publicName,
-        assessments,
-        dateOpen: dateOpen.toISOString(), // Convert to ISO string
-        dateClose: dateClose.toISOString(), // Convert to ISO string
-        sequential,
-        orgs,
-        tags,
-        administrationId,
-        isTestData,
-        legal,
+    await runTransaction(this.admin!.db, async (transaction) => {
+      let administrationDocRef: DocumentReference;
+      if (administrationId !== undefined) {
+        // Set the doc ref to the existing administration
+        administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
+
+        // Get the existing administration to make sure update is allowed.
+        const docSnap = await transaction.get(administrationDocRef);
+        if (!docSnap.exists()) {
+          throw new Error(`Could not find administration with id ${administrationId}`);
+        }
+      } else {
+        // Create a new administration doc ref
+        administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
+      }
+
+      // Create the administration doc in the admin Firestore,
+      transaction.set(administrationDocRef, administrationData, { merge: true });
+
+      // Then add the ID to the admin's list of administrationsCreated
+      const userDocRef = this.dbRefs!.admin.user;
+      transaction.update(userDocRef, {
+        'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
       });
-      // You might want to log or use the result if the cloud function returns data
-      this.verboseLog('createAdministration cloud function called successfully:', result);
-      // Assuming the cloud function returns the administration ID or similar relevant data
-      return result.data;
-    } catch (error) {
-      console.error('Error calling createAdministration cloud function', error);
-      // Re-throw the error or handle it as appropriate for the application
-      throw error;
-    }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }).catch((error: any) => {
+      console.error('Error creating administration', error.message);
+      if (error?.message) {
+        throw error;
+      } else {
+        throw new Error('Error creating administration');
+      }
+    });
   }
 
   /**
