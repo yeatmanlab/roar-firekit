@@ -1439,6 +1439,18 @@ export class RoarFirekit {
     return response.data.data ?? [];
   }
 
+  public async verifyParentRegistration() {
+    this._verifyAuthentication();
+    const verifyRegistrationCallable = httpsCallable(this.admin!.functions, 'verifyParentRegistration');
+    const response = (await verifyRegistrationCallable()) as HttpsCallableResult<{ status: string; data?: unknown }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to verify parent registration.');
+    }
+
+    return response.data.data ?? false;
+  }
+
   private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
     this._verifyAuthentication();
     const userDocRef = doc(this.admin!.db, 'users', uid);
