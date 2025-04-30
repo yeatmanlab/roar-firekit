@@ -239,7 +239,7 @@ export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
 export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
 
 interface SingleProjectRestConfig {
-  headers: { Authorization: string };
+  headers?: { Authorization: string };
   baseURL: string;
 }
 
