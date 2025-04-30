@@ -1857,11 +1857,11 @@ export class RoarFirekit {
     }
 
     // Call the Cloud Function
-    const createAdministrationFunction = httpsCallable(this.admin!.functions, 'createAdministration');
+    const upsertAdministrationFunction = httpsCallable(this.admin!.functions, 'upsertAdministration');
 
     try {
       // Pass all arguments directly to the cloud function
-      const result = await createAdministrationFunction({
+      const result = await upsertAdministrationFunction({
         name,
         publicName,
         assessments,
@@ -1875,11 +1875,11 @@ export class RoarFirekit {
         legal,
       });
       // You might want to log or use the result if the cloud function returns data
-      this.verboseLog('createAdministration cloud function called successfully:', result);
+      this.verboseLog('upsertAdministration cloud function called successfully:', result);
       // Assuming the cloud function returns the administration ID or similar relevant data
       return result.data;
     } catch (error) {
-      console.error('Error calling createAdministration cloud function', error);
+      console.error('Error calling upsertAdministration cloud function', error);
       // Re-throw the error or handle it as appropriate for the application
       throw error;
     }
