@@ -1348,26 +1348,39 @@ export class RoarFirekit {
   /**
    * Return the Firestore REST configuration for the app and admin projects.
    *
-   * If the idTokens are not available yet (e.g. before authentication), return undefined.
+   * If the idTokens are not available yet (e.g. before authentication), return
+   * undefined, unless ``allowUnauthenticated`` is set to true.
    *
+   * @param {boolean} allowUnauthenticated - A boolean determining whether to return restConfig with valid Bearer tokens
+   *   to be used in authenticated requests
    * @returns {RestConfig | undefined} - An object containing the REST configuration for the app and admin projects.
    */
-  public get restConfig(): RestConfig | undefined {
-    // N.B. We use `==` instead of `===` to catch both undefined and null values.
-    if (this._idTokens.admin == undefined || this._idTokens.app == undefined) {
-      return undefined;
+  public restConfig(allowUnauthenticated = false): RestConfig | undefined {
+    if (!allowUnauthenticated) {
+      // N.B. We use `==` instead of `===` to catch both undefined and null values.
+      if (this._idTokens.admin == undefined || this._idTokens.app == undefined) {
+        return undefined;
+      }
     }
 
-    return {
+    const restConfig: RestConfig = {
       admin: {
-        headers: { Authorization: `Bearer ${this._idTokens.admin}` },
         baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.admin.projectId}/databases/(default)/documents`,
       },
       app: {
-        headers: { Authorization: `Bearer ${this._idTokens.app}` },
         baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.app.projectId}/databases/(default)/documents`,
       },
     };
+
+    if (this._idTokens.admin) {
+      restConfig.admin.headers = { Authorization: `Bearer ${this._idTokens.admin}` };
+    }
+
+    if (this._idTokens.app) {
+      restConfig.app.headers = { Authorization: `Bearer ${this._idTokens.app}` };
+    }
+
+    return restConfig;
   }
 
   public get adminOrgs() {
