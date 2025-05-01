@@ -1818,7 +1818,7 @@ export class RoarFirekit {
    *                               provided, this method will update an
    *                               existing administration.
    */
-  async createAdministration({
+  async upsertAdministration({
     name,
     publicName,
     assessments,
@@ -1854,6 +1854,34 @@ export class RoarFirekit {
       throw new Error(
         `The end date cannot be before the start date: ${dateClose.toISOString()} < ${dateOpen.toISOString()}`,
       );
+    }
+
+    // Call the Cloud Function
+    const upsertAdministrationFunction = httpsCallable(this.admin!.functions, 'upsertAdministration');
+
+    try {
+      // Pass all arguments directly to the cloud function
+      const result = await upsertAdministrationFunction({
+        name,
+        publicName,
+        assessments,
+        dateOpen: dateOpen.toISOString(), // Convert to ISO string
+        dateClose: dateClose.toISOString(), // Convert to ISO string
+        sequential,
+        orgs,
+        tags,
+        administrationId,
+        isTestData,
+        legal,
+      });
+      // You might want to log or use the result if the cloud function returns data
+      this.verboseLog('upsertAdministration cloud function called successfully:', result);
+      // Assuming the cloud function returns the administration ID or similar relevant data
+      return result.data;
+    } catch (error) {
+      console.error('Error calling upsertAdministration cloud function', error);
+      // Re-throw the error or handle it as appropriate for the application
+      throw error;
     }
 
     // First add the administration to the database
