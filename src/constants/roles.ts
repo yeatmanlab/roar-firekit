@@ -35,7 +35,11 @@ export const roles = {
       Permissions.Reports.Student.READ,
       Permissions.Organizations.ALL,
       Permissions.Administrations.ALL,
-      Permissions.Users.ALL,
+      Permissions.Users.CREATE,
+      Permissions.Users.LIST,
+      Permissions.Users.UPDATE,
+      Permissions.Users.Credentials.UPDATE,
+      Permissions.Tasks.ALL,
     ],
   },
   [UserRoles.LAUNCH_ADMIN]: {

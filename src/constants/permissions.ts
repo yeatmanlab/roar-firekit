@@ -3,6 +3,7 @@ export const Permissions = {
     Score: {
       ALL: 'reports.score.*',
       READ: 'reports.score.read',
+      READ_COMPOSITE: 'reports.score.read_composite',
     },
     Progress: {
       ALL: 'reports.progress.*',
@@ -43,6 +44,8 @@ export const Permissions = {
     LIST: 'users.list',
     CREATE: 'users.create',
     UPDATE: 'users.update',
+    UNENROLL: 'users.unenroll',
+    SET_PID: 'users.set_pid',
     Credentials: {
       UPDATE: 'users.credentials.update',
     },
@@ -52,5 +55,8 @@ export const Permissions = {
     CREATE: 'tasks.create',
     UPDATE: 'tasks.update',
     LAUNCH: 'tasks.launch',
+  },
+  TestData: {
+    CREATE: 'data.create',
   },
 };
