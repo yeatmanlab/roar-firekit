@@ -3,6 +3,7 @@ export const Permissions = {
     Score: {
       ALL: 'reports.score.*',
       READ: 'reports.score.read',
+      READ_COMPOSITE: 'reports.score.read_composite',
     },
     Progress: {
       ALL: 'reports.progress.*',
