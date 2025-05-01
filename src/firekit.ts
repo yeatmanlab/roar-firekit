@@ -1818,7 +1818,7 @@ export class RoarFirekit {
    *                               provided, this method will update an
    *                               existing administration.
    */
-  async createAdministration({
+  async upsertAdministration({
     name,
     publicName,
     assessments,
