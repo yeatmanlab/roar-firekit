@@ -239,3 +239,12 @@ export type RoarOrg = District | School | Class | Family | Group;
 
 export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
 export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
+
+export interface CommonFirebaseConfig {
+  projectId: string;
+  apiKey: string;
+  siteKey: string;
+  debugToken?: string;
+  useEmulators?: boolean;
+  emulatorHost?: string;
+}
