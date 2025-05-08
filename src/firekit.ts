@@ -111,11 +111,11 @@ interface CreateUserInput {
   };
   username?: string;
   unenroll?: boolean;
-  schools: { id: string; abbreviation?: string } | null;
-  districts: { id: string; abbreviation?: string } | null;
-  classes: { id: string; abbreviation?: string } | null;
-  families: { id: string; abbreviation?: string } | null;
-  groups: { id: string; abbreviation?: string } | null;
+  schools: { id: string } | null;
+  districts: { id: string } | null;
+  classes: { id: string } | null;
+  families: { id: string } | null;
+  groups: { id: string } | null;
 }
 
 interface CreateParentInput {
@@ -2181,21 +2181,9 @@ export class RoarFirekit {
       } else {
         // If PID was not supplied, then construct one using an eight character
         // checksum of the email.
-        // Prefix that checksum with optional org abbreviations:
-        // 1. If the district has an abbreviation, start with that.
-        // 2. Then add the school abbreviation, if it exists.
-        // 3. If neither of those are available, use the group abbreviation.
-        // 4. Otherwise prepend nothing.
         const emailCheckSum = crc32String(email);
 
-        const districtPrefix = _get(userData, 'districts.abbreviation');
-        const schoolPrefix = _get(userData, 'schools.abbreviation');
-        const groupPrefix = _get(userData, 'groups.abbreviation');
-
         const pidParts: string[] = [];
-        if (districtPrefix) pidParts.push(districtPrefix);
-        if (schoolPrefix) pidParts.push(schoolPrefix);
-        if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
         pidParts.push(emailCheckSum);
         _set(userDocData, 'assessmentPid', pidParts.join('-'));
       }
@@ -2291,21 +2279,9 @@ export class RoarFirekit {
     } else {
       // If PID was not supplied, then construct one using an eight character
       // checksum of the email.
-      // Prefix that checksum with optional org abbreviations:
-      // 1. If the district has an abbreviation, start with that.
-      // 2. Then add the school abbreviation, if it exists.
-      // 3. If neither of those are available, use the group abbreviation.
-      // 4. Otherwise prepend nothing.
       const emailCheckSum = crc32String(email);
 
-      const districtPrefix = _get(userData, 'districts.abbreviation');
-      const schoolPrefix = _get(userData, 'schools.abbreviation');
-      const groupPrefix = _get(userData, 'groups.abbreviation');
-
       const pidParts: string[] = [];
-      if (districtPrefix) pidParts.push(districtPrefix);
-      if (schoolPrefix) pidParts.push(schoolPrefix);
-      if (pidParts.length === 0 && groupPrefix) pidParts.push(groupPrefix);
       pidParts.push(emailCheckSum);
       _set(userDocData, 'assessmentPid', pidParts.join('-'));
     }
