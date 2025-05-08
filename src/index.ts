@@ -3,6 +3,16 @@ import configService from './config';
 import { AuthPersistence } from './firestore/util';
 import { RoarConfig } from './interfaces';
 
+// Add global type declarations for window properties
+declare global {
+  interface Window {
+    FIREBASE_EMULATOR_MODE?: boolean;
+    FIREBASE_AUTH_EMULATOR_HOST?: string;
+    FIRESTORE_EMULATOR_HOST?: string;
+    FUNCTIONS_EMULATOR_HOST?: string;
+  }
+}
+
 export { RoarFirekit } from './firekit';
 export { RoarAppkit } from './firestore/app/appkit';
 export { RoarAppUser } from './firestore/app/user';
@@ -34,20 +44,32 @@ export function createFirekit({
   customConfig?: RoarConfig | null;
 } = {}) {
   // Force emulator configuration if useEmulators is true
-  if (useEmulators && typeof process !== 'undefined') {
-    process.env.USE_FIREBASE_EMULATORS = 'true';
-    if (emulatorHost) {
-      process.env.FIREBASE_EMULATOR_HOST = emulatorHost;
+  if (useEmulators) {
+    // Safely set process.env variables if available
+    if (typeof window !== 'undefined') {
+      // In browser environment, set window properties that firebaseInit.ts can read
+      window.FIREBASE_EMULATOR_MODE = true;
+      window.FIREBASE_AUTH_EMULATOR_HOST = `${emulatorHost}:${emulatorPorts.auth || 9099}`;
+      window.FIRESTORE_EMULATOR_HOST = `${emulatorHost}:${emulatorPorts.db || 8080}`;
+      window.FUNCTIONS_EMULATOR_HOST = `${emulatorHost}:${emulatorPorts.functions || 5001}`;
     }
-    // Set emulator port environment variables if provided
-    if (emulatorPorts.db) {
-      process.env.FIREBASE_FIRESTORE_EMULATOR_PORT = emulatorPorts.db.toString();
-    }
-    if (emulatorPorts.auth) {
-      process.env.FIREBASE_AUTH_EMULATOR_PORT = emulatorPorts.auth.toString();
-    }
-    if (emulatorPorts.functions) {
-      process.env.FIREBASE_FUNCTIONS_EMULATOR_PORT = emulatorPorts.functions.toString();
+    
+    // Set Node.js environment variables if we're in a Node.js environment
+    if (typeof process !== 'undefined' && typeof process.env !== 'undefined') {
+      process.env.USE_FIREBASE_EMULATORS = 'true';
+      if (emulatorHost) {
+        process.env.FIREBASE_EMULATOR_HOST = emulatorHost;
+      }
+      // Set emulator port environment variables if provided
+      if (emulatorPorts.db) {
+        process.env.FIREBASE_FIRESTORE_EMULATOR_PORT = emulatorPorts.db.toString();
+      }
+      if (emulatorPorts.auth) {
+        process.env.FIREBASE_AUTH_EMULATOR_PORT = emulatorPorts.auth.toString();
+      }
+      if (emulatorPorts.functions) {
+        process.env.FIREBASE_FUNCTIONS_EMULATOR_PORT = emulatorPorts.functions.toString();
+      }
     }
   }
 
