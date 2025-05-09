@@ -211,7 +211,6 @@ export interface District extends DocumentData {
 
 export interface School extends DocumentData {
   name: string;
-  abbreviation: string;
   districtId: string;
   classes: string[];
   [x: string]: unknown;
