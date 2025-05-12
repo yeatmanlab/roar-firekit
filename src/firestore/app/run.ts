@@ -203,10 +203,6 @@ export class RoarRun {
 
     // Grab the testData and demoData flags from the user document.
     const { testData: isTestUser, demoData: isDemoUser } = userDocSnap.data();
-    const isTestTask = this.task.testData.task;
-    const isDemoTask = this.task.demoData.task;
-    const isTestVariant = this.task.testData.variant;
-    const isDemoVariant = this.task.demoData.variant;
 
     // Update testData and demoData for this instance based on the test/demo
     // flags for the user and task.
@@ -217,8 +213,8 @@ export class RoarRun {
     // Likewise for the test and demo flags for the task.
     // We also want to update the internal state because we will use it later in
     // the `writeTrial` method.
-    if (isTestUser || isTestTask || isTestVariant) this.testData = true;
-    if (isDemoUser || isDemoTask || isDemoVariant) this.demoData = true;
+    if (isTestUser) this.testData = true;
+    if (isDemoUser) this.demoData = true;
 
     const runData = {
       ...additionalRunMetadata,

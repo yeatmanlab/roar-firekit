@@ -30,7 +30,6 @@ import {
   unlink,
 } from 'firebase/auth';
 import {
-  DocumentData,
   DocumentReference,
   Transaction,
   Unsubscribe,
@@ -56,7 +55,6 @@ import {
   emptyOrg,
   emptyOrgList,
   initializeFirebaseProject,
-  pluralizeFirestoreCollection,
 } from './firestore/util';
 import {
   Administration,
@@ -65,7 +63,6 @@ import {
   ExternalUserData,
   FirebaseProject,
   Name,
-  RoarOrg,
   OrgLists,
   RoarConfig,
   StudentData,
@@ -77,8 +74,7 @@ import {
 } from './interfaces';
 import { UserInput } from './firestore/app/user';
 import { RoarAppkit } from './firestore/app/appkit';
-import { getTaskAndVariant } from './firestore/query-assessment';
-import { TaskVariantInfo, RoarTaskVariant, FirestoreVariantData, FirestoreTaskData } from './firestore/app/task';
+import { RoarTaskVariant, FirestoreVariantData, FirestoreTaskData, TaskVariantBase } from './firestore/app/task';
 
 enum AuthProviderType {
   CLEVER = 'clever',
@@ -1596,12 +1592,12 @@ export class RoarFirekit {
     taskId: string,
     updates: { [x: string]: unknown },
     transaction: Transaction,
-    targetUid?: string,
+    targetUid?: string
   ) {
     this._verifyAuthentication();
 
-    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-    const assignmentDocRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
+    const uid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+    const assignmentDocRef = collection(this.admin!.db, 'users', uid!, 'assignments');
     const docRef = doc(assignmentDocRef, administrationId);
     const docSnap = await transaction.get(docRef);
     if (docSnap.exists()) {
@@ -1614,6 +1610,7 @@ export class RoarFirekit {
       };
       assessments[assessmentIdx] = newAssessmentInfo;
       return transaction.update(docRef, { assessments });
+
     } else {
       return transaction;
     }
@@ -1622,14 +1619,17 @@ export class RoarFirekit {
   async startAssessment(administrationId: string, taskId: string, taskVersion: string, targetUid?: string) {
     this._verifyAuthentication();
 
-    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+    const uid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+
+    if (!uid) {
+      throw new Error('Could not determine user ID');
+    }
 
     const appKit = await runTransaction(this.admin!.db, async (transaction) => {
       // Check the assignment to see if none of the assessments have been
       // started yet. If not, start the assignment
-      const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
-      const assignmentDocRef = doc(userAssignmentsRef, administrationId);
-      const assignmentDocSnap = await transaction.get(assignmentDocRef);
+      const assignmentDocSnap = await this.getAssignmentDoc(uid, administrationId, transaction);
+
       if (assignmentDocSnap.exists()) {
         // First grab the assessments from the assignment document
         const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
@@ -1639,17 +1639,17 @@ export class RoarFirekit {
         // Grab this assessment (task), and get the params
         let assessmentParams: { [x: string]: unknown } = {};
         const thisAssessment = assignedAssessments.find((a) => a.taskId === taskId);
+
         if (thisAssessment) {
           assessmentParams = thisAssessment.params;
         } else {
           throw new Error(
-            `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${roarUid}`,
+            `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${uid}`,
           );
         }
 
-        // Append runId to `allRunIds` for this assessment
-        // in the userId/assignments collection
-        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, targetUid);
+        // Append runId to `allRunIds` for this assessment in the userId/assignments collection
+        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, uid);
 
         if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
           await this.startAssignment(administrationId, transaction, targetUid);
@@ -1665,48 +1665,16 @@ export class RoarFirekit {
 
         const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
         const readOrgs = assignmentDocSnap.data().readOrgs;
-        const taskAndVariant = await getTaskAndVariant({
-          db: this.app!.db,
-          taskId,
-          variantParams: assessmentParams,
-        });
-        if (taskAndVariant.task === undefined) {
-          throw new Error(`Could not find task ${taskId}`);
-        }
 
-        if (taskAndVariant.variant === undefined) {
-          throw new Error(
-            `Could not find a variant of task ${taskId} with the params: ${JSON.stringify(assessmentParams)}`,
-          );
-        }
-
-        const taskName = taskAndVariant.task.name;
-        const taskDescription = taskAndVariant.task.description;
-        const variantName = taskAndVariant.variant.name;
-        const variantDescription = taskAndVariant.variant.description;
-
-        const { testData: isAssignmentTest, demoData: isAssignmentDemo } = assignmentDocSnap.data();
-        const { testData: isUserTest, demoData: isUserDemo } = this.roarAppUserInfo!;
-        const { testData: isTaskTest, demoData: isTaskDemo } = taskAndVariant.task;
-        const { testData: isVariantTest, demoData: isVariantDemo } = taskAndVariant.variant;
 
         const taskInfo = {
           db: this.app!.db,
           taskId,
-          taskName,
-          taskDescription,
+          taskName: thisAssessment.taskName as string,
           taskVersion,
-          variantName,
-          variantDescription,
+          variantName: thisAssessment.variantName as string,
           variantParams: assessmentParams,
-          testData: {
-            task: isTaskTest ?? false,
-            variant: isVariantTest ?? false,
-          },
-          demoData: {
-            task: isTaskDemo ?? false,
-            variant: isVariantDemo ?? false,
-          },
+          variantId: thisAssessment.variantId as string,
         };
 
         return new RoarAppkit({
@@ -1716,21 +1684,9 @@ export class RoarFirekit {
           readOrgs,
           assignmentId: administrationId,
           taskInfo,
-          testData: {
-            user: isUserTest,
-            task: isTaskTest,
-            variant: isVariantTest,
-            run: isAssignmentTest || isUserTest || isTaskTest || isVariantTest,
-          },
-          demoData: {
-            user: isUserDemo,
-            task: isTaskDemo,
-            variant: isVariantDemo,
-            run: isAssignmentDemo || isUserDemo || isTaskDemo || isVariantDemo,
-          },
         });
       } else {
-        throw new Error(`Could not find assignment for user ${roarUid} with administration id ${administrationId}`);
+        throw new Error(`Could not find assignment for user ${uid} with administration id ${administrationId}`);
       }
     });
 
@@ -1766,10 +1722,15 @@ export class RoarFirekit {
   /**
    * Gets the assignment document for a user
    */
-  private async getAssignmentDoc(roarUid: string, administrationId: string, transaction: Transaction) {
+  private async getAssignmentDoc(roarUid: string, administrationId: string, transaction?: Transaction) {
     const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
     const docRef = doc(userAssignmentsRef, administrationId);
-    return await transaction.get(docRef);
+    // If a transaction is provided, use it to get the document
+    if (transaction) {
+      return await transaction.get(docRef);
+    }
+    // Otherwise, perform a regular read
+    return await getDoc(docRef);
   }
 
   /**
@@ -2498,12 +2459,9 @@ export class RoarFirekit {
     taskURL,
     gameConfig,
     variantName,
-    variantDescription,
     variantParams = {},
     registered,
-    testData = { task: false, variant: false },
-    demoData = { task: false, variant: false },
-  }: TaskVariantInfo) {
+  }: TaskVariantBase) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
@@ -2516,11 +2474,8 @@ export class RoarFirekit {
       taskURL,
       gameConfig,
       variantName,
-      variantDescription,
       variantParams,
       registered,
-      testData,
-      demoData,
     });
 
     await task.toFirestore();
