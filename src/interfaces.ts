@@ -148,6 +148,8 @@ export type Condition = FieldCondition | CompositeCondition | SelectAllCondition
 export interface Assessment extends DocumentData {
   taskId: string;
   params: { [x: string]: unknown };
+  variantId: string;
+  variantName: string;
   conditions?: {
     optional?: Condition;
     assigned?: Condition;

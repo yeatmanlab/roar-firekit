@@ -3,31 +3,23 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun } from './run';
-import { TaskVariantInfo, RoarTaskVariant } from './task';
+import { TaskVariantForAssessment, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
 
-interface DataFlags {
-  user?: boolean;
-  task?: boolean;
-  variant?: boolean;
-  run?: boolean;
-}
 
 export interface AppkitInput {
   firebaseProject?: FirebaseProject;
   firebaseConfig?: FirebaseConfig;
   userInfo: UserInfo;
-  taskInfo: TaskVariantInfo;
+  taskInfo: TaskVariantForAssessment;
   assigningOrgs?: OrgLists;
   readOrgs?: OrgLists;
   assignmentId?: string;
   runId?: string;
-  testData?: DataFlags;
-  demoData?: DataFlags;
 }
 
 /**
@@ -41,10 +33,8 @@ export class RoarAppkit {
   run?: RoarRun;
   task?: RoarTaskVariant;
   user?: RoarAppUser;
-  testData: DataFlags;
-  demoData: DataFlags;
   private _userInfo: UserInfo;
-  private _taskInfo: TaskVariantInfo;
+  private _taskInfo: TaskVariantForAssessment;
   private _assigningOrgs?: OrgLists;
   private _readOrgs?: OrgLists;
   private _assignmentId?: string;
@@ -57,13 +47,11 @@ export class RoarAppkit {
    *
    * @param {AppkitInput} input
    * @param {UserInfo} input.userInfo - The user input object
-   * @param {TaskVariantInfo} input.taskInfo - The task input object
+   * @param {TaskVariantForAssessment} input.taskInfo - The task input object
    * @param {OrgLists} input.assigningOrgs - The IDs of the orgs to which this run belongs
    * @param {OrgLists} input.readOrgs - The IDs of the orgs that can read this run
    * @param {string} input.assignmentId - The ID of the assignment this run belongs to
    * @param {string} input.runId - The ID of the run. If undefined, a new run will be created.
-   * @param {DataFlags} input.testData - Boolean flags indicating whether the user, task, or run are test data
-   * @param {DataFlags} input.demoData - Boolean flags indicating whether the user, task, or run are demo data
    */
   constructor({
     firebaseProject,
@@ -74,8 +62,6 @@ export class RoarAppkit {
     readOrgs,
     assignmentId,
     runId,
-    testData,
-    demoData,
   }: AppkitInput) {
     if (!firebaseProject && !firebaseConfig) {
       throw new Error('You must provide either a firebaseProjectKit or firebaseConfig');
@@ -95,9 +81,6 @@ export class RoarAppkit {
     this._assignmentId = assignmentId;
     this._runId = runId;
 
-    this.testData = testData ?? { user: false, task: false, run: false };
-    this.demoData = demoData ?? { user: false, task: false, run: false };
-
     this._authenticated = false;
     this._initialized = false;
     this._started = false;
@@ -115,23 +98,8 @@ export class RoarAppkit {
     this.user = new RoarAppUser({
       ...this._userInfo,
       db: this.firebaseProject!.db,
-      // Use conditional spreading here to prevent overwriting testData or
-      // demoData from this._taskInfo. Only if the below values are true do we
-      // want to overwrite.
-      ...(this.testData.user && { testData: true }),
-      ...(this.demoData.user && { demoData: true }),
     });
     this.task = new RoarTaskVariant({
-      // Define testData and demoData first so that spreading this._taskInfo can
-      // overwrite them.
-      testData: {
-        task: this.testData.task,
-        variant: this.testData.variant,
-      },
-      demoData: {
-        task: this.demoData.task,
-        variant: this.demoData.variant,
-      },
       ...this._taskInfo,
       db: this.firebaseProject!.db,
     });
@@ -142,8 +110,6 @@ export class RoarAppkit {
       readOrgs: this._readOrgs,
       assignmentId: this._assignmentId,
       runId: this._runId,
-      testData: this.testData.run,
-      demoData: this.demoData.run,
     });
     await this.user.init();
     this._initialized = true;
