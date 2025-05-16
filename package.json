@@ -1,6 +1,6 @@
 {
   "name": "@levante-framework/firekit",
-  "version": "9.2.13",
+  "version": "9.2.14",
   "description": "A library to facilitate Firebase authentication and Cloud Firestore interaction for LEVANTE apps",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
