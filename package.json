@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yeatmanlab/roar-firekit.git"
+    "url": "git+https://github.com/richford/roar-firekit.git"
   },
   "keywords": [
     "firebase",
@@ -35,12 +35,12 @@
     "literacy",
     "dyslexia"
   ],
-  "author": "Adam Richie-Halford <adamrh@stanford.edu>",
+  "author": "Adam Richie-Halford <richiehalford@gmail.com> (https://richiehalford.org/)",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/yeatmanlab/roar-firekit/issues"
+    "url": "https://github.com/richford/roar-firekit/issues"
   },
-  "homepage": "https://github.com/yeatmanlab/roar-firekit#readme",
+  "homepage": "https://github.com/richford/roar-firekit#readme",
   "devDependencies": {
     "@faker-js/faker": "^7.6.0",
     "@firebase/rules-unit-testing": "^2.0.2",
