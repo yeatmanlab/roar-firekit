@@ -1,7 +1,7 @@
 {
   "name": "@levante-framework/firekit",
   "version": "9.2.14",
-  "description": "A library to facilitate Firebase authentication and Cloud Firestore interaction for LEVANTE apps",
+  "description": "A library to facilitate Firebase authentication and Firestore interaction for LEVANTE apps",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richford/roar-firekit.git"
+    "url": "git+https://github.com/levante-framework/levante-firekit.git"
   },
   "keywords": [
     "firebase",
@@ -35,12 +35,24 @@
     "literacy",
     "dyslexia"
   ],
-  "author": "Adam Richie-Halford <richiehalford@gmail.com> (https://richiehalford.org/)",
+  "authors": [
+    {
+      "name": "Philip Ziolkowski"
+    },
+    {
+      "name": "David Cardinal"
+    },
+    {
+      "name": "Adam Richie-Halford",
+      "email": "richiehalford@gmail.com",
+      "url": "https://richiehalford.org/"
+    }
+  ],
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/richford/roar-firekit/issues"
+    "url": "https://github.com/levante-framework/levante-firekit/issues"
   },
-  "homepage": "https://github.com/richford/roar-firekit#readme",
+  "homepage": "https://github.com/levante-framework/levante-firekit#readme",
   "devDependencies": {
     "@faker-js/faker": "^7.6.0",
     "@firebase/rules-unit-testing": "^2.0.2",
