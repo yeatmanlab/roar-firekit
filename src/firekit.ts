@@ -1681,6 +1681,20 @@ export class RoarFirekit {
     return appKit;
   }
 
+  async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
+    this._verifyAuthentication();
+
+    const cloudCompleteTask = httpsCallable(this.admin!.functions, 'completeTask');
+
+    const userId = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+    if (!userId) {
+      throw new Error('Could not determine user ID');
+    }
+
+    const result = await cloudCompleteTask({ administrationId, taskId, userId });
+    return result;
+  }
+
   /**
    * Gets the assignment document for a user
    */
