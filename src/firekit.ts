@@ -1376,6 +1376,7 @@ export class RoarFirekit {
     }
   }
 
+  // Not used, but could be used for task dictionary query in dashboard
   public async getTasksDictionary() {
     this._verifyAuthentication();
     const taskDocs = await getDocs(this.dbRefs!.app.tasks);
@@ -1574,19 +1575,6 @@ export class RoarFirekit {
     }
   }
 
-  async completeAssignment(administrationId: string, transaction?: Transaction) {
-    this._verifyAuthentication();
-    const roarUid = this.roarUid ?? (await this.getRoarUid());
-    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
-    const assignmentDocRef = doc(userAssignmentsRef, administrationId);
-
-    if (transaction) {
-      return transaction.update(assignmentDocRef, { completed: true });
-    } else {
-      return updateDoc(assignmentDocRef, { completed: true });
-    }
-  }
-
   private async _updateAssignedAssessment(
     administrationId: string,
     taskId: string,
@@ -1696,27 +1684,15 @@ export class RoarFirekit {
   async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
     this._verifyAuthentication();
 
-    try {
-      await runTransaction(this.admin!.db, async (transaction) => {
-        // Get the user's assignment document
-        const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-        if (!roarUid) {
-          throw new Error('Could not determine user ID');
-        }
+    const cloudCompleteTask = httpsCallable(this.admin!.functions, 'completeTask');
 
-        const assignmentDoc = await this.getAssignmentDoc(roarUid, administrationId, transaction);
-
-        // Update this assessment's `completedOn` timestamp
-        await this._updateAssignedAssessment(administrationId, taskId, { completedOn: new Date() }, transaction);
-
-        // Check if all assessments are now completed
-        if (assignmentDoc.exists()) {
-          this.checkAndCompleteAssignment(assignmentDoc, taskId, administrationId, transaction);
-        }
-      });
-    } catch (error) {
-      throw new Error(`Failed to complete assessment: ${error instanceof Error ? error.message : String(error)}`);
+    const userId = targetUid ?? this.roarUid ?? (await this.getRoarUid());
+    if (!userId) {
+      throw new Error('Could not determine user ID');
     }
+
+    const result = await cloudCompleteTask({ administrationId, taskId, userId });
+    return result;
   }
 
   /**
@@ -1733,27 +1709,6 @@ export class RoarFirekit {
     return await getDoc(docRef);
   }
 
-  /**
-   * Checks if all assessments in an assignment are completed and marks the assignment as complete if so
-   *
-   * Note: When checking if all assessments are completed, we need to consider the current task
-   * as already completed, even though its completedOn timestamp was just set in the transaction
-   * and won't be reflected in the document snapshot we're examining.
-   */
-  private checkAndCompleteAssignment(
-    docSnap: DocumentSnapshot,
-    currentTaskId: string,
-    administrationId: string,
-    transaction: Transaction,
-  ) {
-    const allAssessmentsCompleted = docSnap.data()?.assessments.every((a: AssignedAssessment) => {
-      return Boolean(a.completedOn) || a.optional || a.taskId === currentTaskId;
-    });
-
-    if (allAssessmentsCompleted) {
-      this.completeAssignment(administrationId, transaction);
-    }
-  }
 
   async updateAssessmentRewardShown(administrationId: string, taskId: string) {
     this._verifyAuthentication();
@@ -1844,60 +1799,6 @@ export class RoarFirekit {
       // Re-throw the error or handle it as appropriate for the application
       throw error;
     }
-
-    // First add the administration to the database
-    const administrationData: Administration = {
-      name,
-      publicName: publicName ?? name,
-      createdBy: this.roarUid!,
-      groups: orgs.groups ?? [],
-      families: orgs.families ?? [],
-      classes: orgs.classes ?? [],
-      schools: orgs.schools ?? [],
-      districts: orgs.districts ?? [],
-      dateCreated: new Date(),
-      dateOpened: dateOpen,
-      dateClosed: dateClose,
-      assessments: assessments,
-      sequential: sequential,
-      tags: tags,
-      legal: legal,
-      testData: isTestData ?? false,
-    };
-
-    await runTransaction(this.admin!.db, async (transaction) => {
-      let administrationDocRef: DocumentReference;
-      if (administrationId !== undefined) {
-        // Set the doc ref to the existing administration
-        administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
-
-        // Get the existing administration to make sure update is allowed.
-        const docSnap = await transaction.get(administrationDocRef);
-        if (!docSnap.exists()) {
-          throw new Error(`Could not find administration with id ${administrationId}`);
-        }
-      } else {
-        // Create a new administration doc ref
-        administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
-      }
-
-      // Create the administration doc in the admin Firestore,
-      transaction.set(administrationDocRef, administrationData, { merge: true });
-
-      // Then add the ID to the admin's list of administrationsCreated
-      const userDocRef = this.dbRefs!.admin.user;
-      transaction.update(userDocRef, {
-        'adminData.administrationsCreated': arrayUnion(administrationDocRef.id),
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }).catch((error: any) => {
-      console.error('Error creating administration', error.message);
-      if (error?.message) {
-        throw error;
-      } else {
-        throw new Error('Error creating administration');
-      }
-    });
   }
 
   /**
@@ -1934,59 +1835,6 @@ export class RoarFirekit {
     });
   }
 
-  async assignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-    const docRef = doc(this.admin!.db, 'administrations', administrationId);
-
-    await updateDoc(docRef, {
-      districts: arrayUnion(...orgs.districts),
-      schools: arrayUnion(...orgs.schools),
-      classes: arrayUnion(...orgs.classes),
-      groups: arrayUnion(...orgs.groups),
-      families: arrayUnion(...orgs.families),
-    });
-  }
-
-  async unassignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const docRef = doc(this.admin!.db, 'administrations', administrationId);
-
-    await updateDoc(docRef, {
-      districts: arrayRemove(...orgs.districts),
-      schools: arrayRemove(...orgs.schools),
-      classes: arrayRemove(...orgs.classes),
-      groups: arrayRemove(...orgs.groups),
-      families: arrayRemove(...orgs.families),
-    });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async updateUserExternalData(uid: string, externalResourceId: string, externalData: ExternalUserData) {
-    throw new Error('Method not currently implemented.');
-    // this._verifyAuthentication();
-    // this._verifyAdmin();
-
-    // const docRef = doc(this.admin!.db, 'users', uid, 'externalData', externalResourceId);
-    // const docSnap = await getDoc(docRef);
-    // if (docSnap.exists()) {
-    //   // We use the dot-object module to transform the potentially nested external data to
-    //   // dot notation. This prevents overwriting extisting external data.
-    //   // See the note about dot notation in https://firebase.google.com/docs/firestore/manage-data/add-data#update_fields_in_nested_objects
-    //   await updateDoc(
-    //     docRef,
-    //     removeNull(
-    //       dot.dot({
-    //         [externalResourceId]: externalData,
-    //       }),
-    //     ),
-    //   );
-    // } else {
-    //   await setDoc(docRef, removeNull(externalData));
-    // }
-  }
 
   async updateUserData(
     id: string,
