@@ -578,47 +578,6 @@ export class RoarFirekit {
     return result;
   }
 
-  /**
-   * Synchronizes Education Single Sign-On (SSO) user data.
-   *
-   * This method is responsible for synchronizing user data between the
-   * Education SSO platform (Clever or ClassLink) and the ROAR (Readiness
-   * Outcomes Assessment Reporting) system. It uses the provided OAuth
-   * access token to authenticate with the Education SSO platform and
-   * calls the appropriate cloud function to sync the user data.
-   *
-   * @param {string} oAuthAccessToken - The OAuth access token obtained from the Education SSO platform.
-   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (Clever or ClassLink).
-   * @throws {Error} - If the required parameters are missing or invalid.
-   * @returns {Promise<void>} - A promise that resolves when the synchronization is complete.
-   */
-  private async _syncEduSSOUser(oAuthAccessToken?: string, authProvider?: AuthProviderType) {
-    this.verboseLog('Entry point for syncEduSSOUser');
-    if (authProvider === AuthProviderType.CLASSLINK) {
-      this.verboseLog('Calling syncEduSSOUser cloud function [ClassLink]');
-      if (oAuthAccessToken === undefined) {
-        this.verboseLog('Not OAuth token provided.');
-        throw new Error('No OAuth access token provided.');
-      }
-      this._verifyAuthentication();
-      this.verboseLog('Calling syncClassLinkUser cloud function');
-      const syncClassLinkUser = httpsCallable(this.admin!.functions, 'syncClassLinkUser');
-      const adminResult = await syncClassLinkUser({
-        assessmentUid: this.app!.user!.uid,
-        accessToken: oAuthAccessToken,
-      });
-      this.verboseLog('syncClassLinkUser cloud function returned with result', adminResult);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (_get(adminResult.data as any, 'status') !== 'ok') {
-        this.verboseLog(
-          'There was an error with the cloud function syncClassLinkUser cloud function',
-          adminResult.data,
-        );
-        throw new Error('Failed to sync ClassLink and ROAR data.');
-      }
-    }
-  }
 
   /**
    * Checks if the given username is available for a new user registration.
@@ -954,11 +913,6 @@ export class RoarFirekit {
           return this._setUidCustomClaims(claimsParams);
         }
       })
-      .then((setClaimsResult) => {
-        if (setClaimsResult) {
-          this._syncEduSSOUser(oAuthAccessToken, provider);
-        }
-      });
   }
 
   /**
@@ -1050,11 +1004,6 @@ export class RoarFirekit {
           return this._setUidCustomClaims(claimsParams);
         }
       })
-      .then((setClaimsResult) => {
-        if (setClaimsResult) {
-          this._syncEduSSOUser(oAuthAccessToken, provider);
-        }
-      });
   }
 
   /**
@@ -1233,12 +1182,6 @@ export class RoarFirekit {
         return null;
       })
       .then((setClaimsResult) => {
-        this.verboseLog('Claim result is', setClaimsResult);
-        if (setClaimsResult) {
-          this.verboseLog('Calling syncEduSSOUser with oAuthAccessToken', oAuthAccessToken);
-          this._syncEduSSOUser(oAuthAccessToken, authProvider);
-          return { status: 'ok' };
-        }
         return null;
       });
   }
@@ -1523,20 +1466,6 @@ export class RoarFirekit {
     }
   }
 
-  async updateVideoMetadata(administrationId: string, taskId: string, status: string) {
-    this._verifyAuthentication();
-    // Update this assignment's `videoWatched` timestamp
-    if (status === 'started') {
-      await runTransaction(this.admin!.db, async (transaction) => {
-        await this._updateAssignedAssessment(administrationId, taskId, { videoStartedOn: new Date() }, transaction);
-      });
-    } else if (status === 'completed') {
-      await runTransaction(this.admin!.db, async (transaction) => {
-        await this._updateAssignedAssessment(administrationId, taskId, { videoCompletedOn: new Date() }, transaction);
-      });
-    }
-  }
-
   public get roarUid() {
     return this._roarUid;
   }
@@ -1710,13 +1639,6 @@ export class RoarFirekit {
   }
 
 
-  async updateAssessmentRewardShown(administrationId: string, taskId: string) {
-    this._verifyAuthentication();
-    await runTransaction(this.admin!.db, async (transaction) => {
-      this._updateAssignedAssessment(administrationId, taskId, { rewardShown: true }, transaction);
-    });
-  }
-
   // These are all methods that will be important for admins, but not necessary for students
   /**
    * Create or update an administration
@@ -1836,120 +1758,6 @@ export class RoarFirekit {
   }
 
 
-  async updateUserData(
-    id: string,
-    userData: { name: Name; studentData: StudentData; userType: UserType; [x: string]: unknown },
-  ) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    // Validate data
-    // Check that date is not in the future
-    if (userData?.studentData?.dob) {
-      const dob = new Date(userData.studentData.dob);
-      if (dob.getTime() > Date.now()) {
-        throw new Error('Date of Birth cannot be in the future.');
-      }
-    } else if (userData.userType === UserType.student) {
-      throw new Error('Date of Birth cannot be empty.');
-    }
-    // Check that grade is valid (a number, between 1 - 13, or k/prek/tk)
-    if (userData?.studentData?.grade) {
-      const grade = userData.studentData.grade as string;
-      if (
-        !['k', 'pk', 'tk', 'kindergarten'].includes(grade.toLowerCase()) &&
-        (parseInt(grade) < 1 || parseInt(grade) > 13)
-      ) {
-        throw new Error('Grade must be a number between 1 and 13, or PK/TK/K.');
-      }
-    } else if (userData.userType === UserType.student) {
-      throw new Error('Grade cannot be empty.');
-    }
-
-    await runTransaction(this.admin!.db, async (transaction) => {
-      if (id !== undefined) {
-        const userDocRef = doc(this.admin!.db, 'users', id);
-        const docSnap = await transaction.get(userDocRef);
-        if (!docSnap.exists()) {
-          throw new Error(`Could not find user with id ${id}`);
-        } else {
-          transaction.set(userDocRef, userData, { merge: true });
-        }
-      } else {
-        throw new Error('No id supplied to updateUserData.');
-      }
-    });
-
-    // Pull out fields appropriate for the assessment database.
-    const appUserData = {};
-
-    if (userData?.studentData?.grade) {
-      _set(appUserData, 'grade', userData.studentData.grade);
-    }
-
-    if (userData?.studentData?.dob) {
-      _set(appUserData, 'birthMonth', new Date(userData.studentData.dob).getMonth());
-      _set(appUserData, 'birthYear', new Date(userData.studentData.dob).getFullYear());
-    }
-
-    if (!_isEmpty(appUserData)) {
-      await runTransaction(this.app!.db, async (transaction) => {
-        if (id !== undefined) {
-          const userDocRef = doc(this.app!.db, 'users', id);
-          const docSnap = await transaction.get(userDocRef);
-          if (!docSnap.exists()) {
-            throw new Error(`Could not find user with id ${id}`);
-          } else {
-            transaction.set(userDocRef, appUserData, { merge: true });
-          }
-        } else {
-          throw new Error('No id supplied to updateUserData.');
-        }
-      });
-    }
-
-    // If password is supplied, update the user's password.
-    if (userData?.password) {
-      await this.updateUserRecord(id, { password: userData.password as string });
-    }
-
-    return {
-      status: 'ok',
-    };
-  }
-
-  async updateUserRecord(uid: string, userRecord: UserRecord) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    // Filter out any fields that are null or undefined.
-    const record = Object.fromEntries(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      Object.entries(userRecord).filter(([_, v]) => {
-        return v && v !== null && v !== undefined;
-      }),
-    );
-
-    // Validate fields
-    if (record.password) {
-      if (record.password.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
-      }
-    }
-
-    console.log('Updating user record for user', uid, 'with', record);
-
-    const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
-    const updateResponse = (await cloudUpdateUserRecord({ uid, userRecord })) as HttpsCallableResult<{
-      status: string;
-      data?: unknown;
-    }>;
-
-    if (_get(updateResponse.data, 'status') !== 'ok') {
-      throw new Error('Failed to update user record.');
-    }
-  }
-
   /**
    * Send a password reset email to the specified user's email address.
    *
@@ -1964,225 +1772,6 @@ export class RoarFirekit {
     return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
       this.verboseLog('Password reset email sent to', email);
     });
-  }
-
-  async createUpdateUsers(users: { email: string; password: string; userData: CreateUserInput }[]) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const sendUsers: UserDataInAdminDb[] = [];
-    for (const userItem of users) {
-      const userDocData: UserDataInAdminDb = {
-        userType: UserType.student,
-        studentData: {} as StudentData,
-        districts: emptyOrg(),
-        schools: emptyOrg(),
-        classes: emptyOrg(),
-        families: emptyOrg(),
-        groups: emptyOrg(),
-        archived: false,
-      };
-      const { email, password, userData } = userItem;
-
-      // Check for PID. If not supplied, generate one.
-      if (_get(userData, 'pid')) {
-        _set(userDocData, 'assessmentPid', userData.pid);
-      } else {
-        // If PID was not supplied, then construct one using an eight character
-        // checksum of the email.
-        const emailCheckSum = crc32String(email);
-
-        const pidParts: string[] = [];
-        pidParts.push(emailCheckSum);
-        _set(userDocData, 'assessmentPid', pidParts.join('-'));
-      }
-
-      // TODO: this can probably be optimized.
-      if (email) _set(userDocData, 'email', email);
-      if (password) _set(userDocData, 'password', password);
-      if (_get(userData, 'username') != undefined) {
-        _set(userDocData, 'username', userData.username);
-      }
-      if (_get(userData, 'name') != undefined) {
-        _set(userDocData, 'name', userData.name);
-      }
-      if (_get(userData, 'dob') != undefined) {
-        _set(userDocData, 'studentData.dob', userData.dob);
-      }
-      if (_get(userData, 'gender') != undefined) {
-        _set(userDocData, 'studentData.gender', userData.gender);
-      }
-      if (_get(userData, 'grade') != undefined) {
-        _set(userDocData, 'studentData.grade', userData.grade);
-      }
-      if (_get(userData, 'state_id') != undefined) {
-        _set(userDocData, 'studentData.state_id', userData.state_id);
-      }
-      if (_get(userData, 'hispanic_ethnicity') != undefined) {
-        _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
-      }
-      if (_get(userData, 'ell_status') != undefined) {
-        _set(userDocData, 'studentData.ell_status', userData.ell_status);
-      }
-      if (_get(userData, 'iep_status') != undefined) {
-        _set(userDocData, 'studentData.iep_status', userData.iep_status);
-      }
-      if (_get(userData, 'frl_status') != undefined) {
-        _set(userDocData, 'studentData.frl_status', userData.frl_status);
-      }
-      if (_get(userData, 'race') != undefined) {
-        _set(userDocData, 'studentData.race', userData.race);
-      }
-      if (_get(userData, 'home_language') != undefined) {
-        _set(userDocData, 'studentData.home_language', userData.home_language);
-      }
-      if (_get(userData, 'unenroll') != undefined) {
-        _set(userDocData, 'unenroll', userData.unenroll);
-      }
-
-      if (_get(userData, 'districts') != undefined) {
-        _set(userDocData, 'orgIds.districts', [userData.districts!.id]);
-      }
-      if (_get(userData, 'schools') != undefined) {
-        _set(userDocData, 'orgIds.schools', [userData.schools!.id]);
-      }
-      if (_get(userData, 'classes') != undefined) {
-        _set(userDocData, 'orgIds.classes', [userData.classes!.id]);
-      }
-      if (_get(userData, 'groups') != undefined) {
-        _set(userDocData, 'orgIds.groups', [userData.groups!.id]);
-      }
-      if (_get(userData, 'families') != undefined) {
-        _set(userDocData, 'orgIds.families', [userData.families!.id]);
-      }
-
-      sendUsers.push(userDocData);
-    }
-
-    // After constructing sendUsers array, send them to the sorting function.
-    const cloudImportUpdateUsers = httpsCallable(this.admin!.functions, 'batchImportUpdate');
-    return await cloudImportUpdateUsers({ users: sendUsers });
-  }
-
-  async createStudentWithEmailPassword(email: string, password: string, userData: CreateUserInput) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    if (!_get(userData, 'dob')) {
-      throw new Error('Student date of birth must be supplied.');
-    }
-
-    const userDocData: UserDataInAdminDb = {
-      userType: UserType.student,
-      studentData: {} as StudentData,
-      districts: emptyOrg(),
-      schools: emptyOrg(),
-      classes: emptyOrg(),
-      families: emptyOrg(),
-      groups: emptyOrg(),
-      archived: false,
-    };
-
-    if (_get(userData, 'pid')) {
-      _set(userDocData, 'assessmentPid', userData.pid);
-    } else {
-      // If PID was not supplied, then construct one using an eight character
-      // checksum of the email.
-      const emailCheckSum = crc32String(email);
-
-      const pidParts: string[] = [];
-      pidParts.push(emailCheckSum);
-      _set(userDocData, 'assessmentPid', pidParts.join('-'));
-    }
-
-    // TODO: this can probably be optimized.
-    _set(userDocData, 'email', email);
-
-    if (_get(userData, 'username')) _set(userDocData, 'username', userData.username);
-    if (_get(userData, 'name')) _set(userDocData, 'name', userData.name);
-    if (_get(userData, 'dob')) _set(userDocData, 'studentData.dob', userData.dob);
-    if (_get(userData, 'gender')) _set(userDocData, 'studentData.gender', userData.gender);
-    if (_get(userData, 'grade')) _set(userDocData, 'studentData.grade', userData.grade);
-    if (_get(userData, 'state_id')) _set(userDocData, 'studentData.state_id', userData.state_id);
-    if (_get(userData, 'hispanic_ethnicity'))
-      _set(userDocData, 'studentData.hispanic_ethnicity', userData.hispanic_ethnicity);
-    if (_get(userData, 'ell_status')) _set(userDocData, 'studentData.ell_status', userData.ell_status);
-    if (_get(userData, 'iep_status')) _set(userDocData, 'studentData.iep_status', userData.iep_status);
-    if (_get(userData, 'frl_status')) _set(userDocData, 'studentData.frl_status', userData.frl_status);
-    if (_get(userData, 'race')) _set(userDocData, 'studentData.race', userData.race);
-    if (_get(userData, 'home_language')) _set(userDocData, 'studentData.home_language', userData.home_language);
-
-    if (_get(userData, 'districts')) _set(userDocData, 'orgIds.districts', [userData.districts!.id]);
-    if (_get(userData, 'schools')) _set(userDocData, 'orgIds.schools', [userData.schools!.id]);
-    if (_get(userData, 'classes')) _set(userDocData, 'orgIds.classes', [userData.classes!.id]);
-    if (_get(userData, 'groups')) _set(userDocData, 'orgIds.groups', [userData.groups!.id]);
-    if (_get(userData, 'families')) _set(userDocData, 'orgIds.families', [userData.families!.id]);
-
-    const cloudCreateStudent = httpsCallable(this.admin!.functions, 'createStudentAccount');
-    await cloudCreateStudent({ email, password, userData: userDocData });
-  }
-
-  async createNewFamily(
-    caretakerEmail: string,
-    caretakerPassword: string,
-    caretakerUserData: CreateParentInput,
-    children: ChildData[],
-    consentData: { name: string; text: string; version: string },
-    isTestData = false,
-  ) {
-    // Format children objects
-    const formattedChildren = children.map((child) => {
-      const returnChild = {
-        email: child.email,
-        password: child.password,
-      };
-      // Create a PID for the student.
-      const emailCheckSum = crc32String(child.email!);
-      const pidParts: string[] = [];
-      pidParts.push(emailCheckSum);
-      _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
-
-      // Move attributes into the studentData object.
-      _set(returnChild, 'userData.username', child.email.split('@')[0]);
-      if (_get(child, 'userData.activationCode'))
-        _set(returnChild, 'userData.activationCode', child.userData.activationCode);
-      if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
-      if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
-      if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
-      if (_get(child, 'userData.dob')) _set(returnChild, 'userData.studentData.dob', child.userData.dob);
-      if (_get(child, 'userData.state_id')) _set(returnChild, 'userData.studentData.state_id', child.userData.state_id);
-      if (_get(child, 'userData.hispanic_ethnicity'))
-        _set(returnChild, 'userData.studentData.hispanic_ethnicity', child.userData.hispanic_ethnicity);
-      if (_get(child, 'userData.ell_status'))
-        _set(returnChild, 'userData.studentData.ell_status', child.userData.ell_status);
-      if (_get(child, 'userData.iep_status'))
-        _set(returnChild, 'userData.studentData.iep_status', child.userData.iep_status);
-      if (_get(child, 'userData.frl_status'))
-        _set(returnChild, 'userData.studentData.frl_status', child.userData.frl_status);
-      if (_get(child, 'userData.race')) _set(returnChild, 'userData.studentData.race', child.userData.race);
-      if (_get(child, 'userData.home_language'))
-        _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
-      return returnChild;
-    });
-
-    // Call cloud function
-    const cloudCreateFamily = httpsCallable(this.admin!.functions, 'createNewFamily');
-    await cloudCreateFamily({
-      caretakerEmail,
-      caretakerPassword,
-      caretakerUserData,
-      children: formattedChildren,
-      consentData,
-      isTestData,
-    });
-  }
-
-  async createStudentWithUsernamePassword(username: string, password: string, userData: CreateUserInput) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const email = `${username}@roar-auth.com`;
-    return this.createStudentWithEmailPassword(email, password, userData);
   }
 
   async createAdministrator(
@@ -2204,8 +1793,7 @@ export class RoarFirekit {
       isTestData,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (_get(adminResponse.data as any, 'status') !== 'ok') {
+    if (_get(adminResponse.data as string, 'status') !== 'ok') {
       throw new Error('Failed to create administrator user account.');
     }
   }
@@ -2386,15 +1974,7 @@ export class RoarFirekit {
     return result;
   }
 
-  async syncPasswords(users: { email: string; password: string; uid: string }[]) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    const cloudSyncPasswords = httpsCallable(this.admin!.functions, 'syncPasswords');
-    const result = await cloudSyncPasswords({ users });
-    return result;
-  }
-
+  // Needs more work. Not being used.
   async editUsers(
     users: {
       uid: string;
