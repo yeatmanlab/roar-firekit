@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import _get from 'lodash/get';
-import _set from 'lodash/set';
 import _isEmpty from 'lodash/isEmpty';
 import _nth from 'lodash/nth';
 import _union from 'lodash/union';
@@ -11,6 +10,7 @@ import {
   OAuthProvider,
   ProviderId,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   getIdToken,
   getRedirectResult,
   isSignInWithEmailLink,
@@ -30,7 +30,6 @@ import {
   unlink,
 } from 'firebase/auth';
 import {
-  DocumentReference,
   Transaction,
   Unsubscribe,
   arrayRemove,
@@ -43,21 +42,17 @@ import {
   runTransaction,
   updateDoc,
   setDoc,
-  DocumentSnapshot,
 } from 'firebase/firestore';
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 
-import { fetchEmailAuthMethods, isRoarAuthEmail, isEmailAvailable, isUsernameAvailable, roarEmail } from './auth';
 import {
   AuthPersistence,
   MarkRawConfig,
-  crc32String,
   emptyOrg,
   emptyOrgList,
   initializeFirebaseProject,
 } from './firestore/util';
 import {
-  Administration,
   Assessment,
   AssignedAssessment,
   ExternalUserData,
@@ -65,9 +60,7 @@ import {
   Name,
   OrgLists,
   RoarConfig,
-  StudentData,
   UserDataInAdminDb,
-  UserRecord,
   OrgCollectionName,
   UserType,
   Legal,
@@ -77,8 +70,6 @@ import { RoarAppkit } from './firestore/app/appkit';
 import { RoarTaskVariant, FirestoreVariantData, FirestoreTaskData, TaskVariantBase } from './firestore/app/task';
 
 enum AuthProviderType {
-  CLEVER = 'clever',
-  CLASSLINK = 'classlink',
   GOOGLE = 'google',
   EMAIL = 'email',
   USERNAME = 'username',
@@ -112,21 +103,6 @@ interface CreateUserInput {
   classes: { id: string } | null;
   families: { id: string } | null;
   groups: { id: string } | null;
-}
-
-interface CreateParentInput {
-  name: {
-    first: string;
-    last: string;
-  };
-  legal: {
-    consentType: string;
-    consentVersion: string;
-    amount: string;
-    expectedTime: string;
-    isSignedWithAdobe: boolean;
-    dateSigned: string;
-  };
 }
 
 export interface ChildData {
@@ -226,8 +202,6 @@ export class RoarFirekit {
   private _getProviderIds() {
     return {
       ...ProviderId,
-      CLEVER: 'oidc.clever',
-      CLASSLINK: 'oidc.classlink',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
     };
   }
@@ -341,53 +315,6 @@ export class RoarFirekit {
   // ----------|  Begin Authentication Methods  |----------
   //           +--------------------------------+
 
-  /**
-   * Verifies if the user is authenticated in both the admin and app Firebase projects.
-   *
-   * This method checks if the user is authenticated in both the admin and app Firebase projects.
-   * It returns a boolean value indicating whether the user is authenticated or not.
-   *
-   * @returns {boolean} - A boolean value indicating whether the user is authenticated or not.
-   * @throws {Error} - If the Firebase projects are not initialized.
-   */
-  private _isAuthenticated() {
-    this._verifyInit();
-    return !(this.admin!.user === undefined || this.app!.user === undefined);
-  }
-
-  /**
-   * Checks if the current user is an administrator.
-   *
-   * This method checks if the current user has administrative privileges in the application.
-   * It returns a boolean value indicating whether the user is an administrator or not.
-   *
-   * @returns {boolean} - A boolean value indicating whether the user is an administrator or not.
-   *
-   * @remarks
-   * - If the user is a super administrator, the method returns `true`.
-   * - If the user has no adminOrgs, the method returns `false`.
-   * - If the application is using the Levante platform, the method checks if the user is an administrator specifically for the Levante platform.
-   * - If the adminOrgs are empty, the method returns `false`.
-   * - If none of the above conditions are met, the method returns `true`.
-   */
-  isAdmin() {
-    if (this.superAdmin) return true;
-    if (this._adminOrgs === undefined) return false;
-
-    if (this.roarConfig.admin.projectId.includes('levante') || this.roarConfig.app.projectId.includes('levante')) {
-      return this._admin;
-    }
-
-    if (_isEmpty(_union(...Object.values(this._adminOrgs)))) return false;
-    return true;
-  }
-
-  private _verifyAuthentication() {
-    this._verifyInit();
-    if (!this._isAuthenticated()) {
-      throw new Error('User is not authenticated.');
-    }
-  }
 
   /**
    * Verifies if the user is authenticated in the application.
@@ -398,9 +325,16 @@ export class RoarFirekit {
    *
    * @throws {Error} - Throws an error if the user is not authenticated.
    */
+  private _verifyAuthentication() {
+    this._verifyInit();
+    if ((this.admin!.user === undefined || this.app!.user === undefined)) {
+      throw new Error('User is not authenticated.');
+    }
+    return true;
+  }
+
   private _verifyAdmin() {
-    this._verifyAuthentication();
-    if (!this.isAdmin()) {
+    if (!this.superAdmin && !this._admin) {
       throw new Error('User is not an administrator.');
     }
   }
@@ -580,22 +514,6 @@ export class RoarFirekit {
 
 
   /**
-   * Checks if the given username is available for a new user registration.
-   *
-   * This method verifies if the given username is not already associated with
-   * a user in the admin Firebase project. It returns a promise that resolves with
-   * a boolean value indicating whether the username is available or not.
-   *
-   * @param {string} username - The username to check.
-   * @returns {Promise<boolean>} - A promise that resolves with a boolean value indicating whether the username is available or not.
-   * @throws {FirebaseError} - If an error occurs while checking the username availability.
-   */
-  async isUsernameAvailable(username: string): Promise<boolean> {
-    this._verifyInit();
-    return isUsernameAvailable(this.admin!.auth, username);
-  }
-
-  /**
    * Checks if the given email address is available for a new user registration.
    *
    * This method verifies if the given email address is not already associated with
@@ -608,7 +526,8 @@ export class RoarFirekit {
    */
   async isEmailAvailable(email: string): Promise<boolean> {
     this._verifyInit();
-    return isEmailAvailable(this.admin!.auth, email);
+    const signInMethods = await fetchSignInMethodsForEmail(this.admin!.auth, email);
+    return signInMethods.length === 0;
   }
 
   /**
@@ -622,23 +541,19 @@ export class RoarFirekit {
    * @returns {Promise<string[]>} - A promise that resolves with an array of provider IDs.
    * @throws {FirebaseError} - If an error occurs while fetching the email authentication methods.
    */
-  async fetchEmailAuthMethods(email: string) {
+  async fetchEmailAuthMethods(email: string): Promise<string[]> {
     this._verifyInit();
-    return fetchEmailAuthMethods(this.admin!.auth, email);
-  }
-
-  /**
-   * Checks if the given email address belongs to a user in the ROAR authentication system.
-   *
-   * This method checks if the given email address is associated with a user in the admin Firebase project.
-   * It returns a boolean value indicating whether the email address belongs to a ROAR user or not.
-   *
-   * @param {string} email - The email address to check.
-   * @returns {boolean} - A boolean value indicating whether the email address belongs to a ROAR user or not.
-   */
-  isRoarAuthEmail(email: string) {
-    this._verifyInit();
-    return isRoarAuthEmail(email);
+    return fetchSignInMethodsForEmail(this.admin!.auth, email).then((signInMethods) => {
+      const providerMap: Record<string, string> = {
+        [EmailAuthProvider.EMAIL_PASSWORD_SIGN_IN_METHOD]: 'password',
+        [EmailAuthProvider.EMAIL_LINK_SIGN_IN_METHOD]: 'link',
+        'google.com': 'google',
+      };
+      
+      return signInMethods
+        .filter((method): method is keyof typeof providerMap => method in providerMap)
+        .map(method => providerMap[method]);
+    });
   }
 
   /**
@@ -705,23 +620,6 @@ export class RoarFirekit {
         console.error('Error signing in', error);
         throw error;
       });
-  }
-
-  /**
-   * Initiates a login process using a username and password.
-   *
-   * This method constructs an email address from the provided username using the
-   * roarEmail() function and then calls the logInWithEmailAndPassword() method with
-   * the constructed email address and the provided password.
-   *
-   * @param {object} params - The parameters for initiating the login process.
-   * @param {string} params.username - The username to use for the login process.
-   * @param {string} params.password - The password to use for the login process.
-   * @returns {Promise<void>} - A promise that resolves when the login process is complete.
-   */
-  async logInWithUsernameAndPassword({ username, password }: { username: string; password: string }) {
-    const email = roarEmail(username);
-    return this.logInWithEmailAndPassword({ email, password });
   }
 
   /**
@@ -828,28 +726,19 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
    *
    * @param {AuthProviderType} provider - The authentication provider to use. It can be one of the following:
    * - AuthProviderType.GOOGLE
-   * - AuthProviderType.CLEVER
-   * - AuthProviderType.CLASSLINK
    *
    * @returns {Promise<UserCredential | null>} - A promise that resolves with the user's credential or null.
    */
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const allowedProviders = [AuthProviderType.GOOGLE];
 
     let authProvider;
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -866,7 +755,6 @@ export class RoarFirekit {
     return signInWithPopup(this.admin!.auth, authProvider)
       .then(async (adminUserCredential) => {
         this._identityProviderType = provider;
-        const roarProviderIds = this._getProviderIds();
 
         if (provider === AuthProviderType.GOOGLE) {
           const credential = GoogleAuthProvider.credentialFromResult(adminUserCredential);
@@ -874,28 +762,6 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
-          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
-          oAuthAccessToken = credential?.accessToken;
-
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          }
-          this._identityProviderId = adminUserCredential.user.providerData.find(
-            (userInfo) => userInfo.providerId === providerId,
-          )?.uid;
-
-          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
-          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
-          const roarAdminCredential = roarAdminProvider.credential({
-            idToken: roarAdminIdToken,
-          });
-
-          return roarAdminCredential;
         }
       })
       .catch(swallowAllowedErrors)
@@ -923,8 +789,6 @@ export class RoarFirekit {
    *
    * @param {AuthProviderType} provider - The authentication provider to link with. It can be one of the following:
    * - AuthProviderType.GOOGLE
-   * - AuthProviderType.CLEVER
-   * - AuthProviderType.CLASSLINK
    *
    * @returns {Promise<void>} - A promise that resolves when the user is successfully linked with the specified authentication provider.
    *
@@ -932,16 +796,11 @@ export class RoarFirekit {
    */
   async linkAuthProviderWithPopup(provider: AuthProviderType) {
     this._verifyAuthentication();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-    const roarProviderIds = this._getProviderIds();
+    const allowedProviders = [AuthProviderType.GOOGLE];
 
     let authProvider;
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -964,29 +823,6 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
-          const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
-          oAuthAccessToken = credential?.accessToken;
-
-          const roarProviderIds = this._getProviderIds();
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          }
-          this._identityProviderId = adminUserCredential.user.providerData.find(
-            (userInfo) => userInfo.providerId === providerId,
-          )?.uid;
-
-          const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
-          const roarAdminIdToken = await getIdToken(adminUserCredential.user);
-          const roarAdminCredential = roarAdminProvider.credential({
-            idToken: roarAdminIdToken,
-          });
-
-          return roarAdminCredential;
         }
       })
       .catch(swallowAllowedErrors)
@@ -1017,7 +853,7 @@ export class RoarFirekit {
    * the new provider.
    *
    * @param {AuthProviderType} provider - The authentication provider to initiate the sign-in flow with.
-   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * It can be one of the following: AuthProviderType.GOOGLE.
    * @param {boolean} linkToAuthenticatedUser - Whether to link an authenticated user's account with the new provider.
    *
    * @returns {Promise<void>} - A promise that resolves when the redirect sign-in flow is initiated.
@@ -1031,24 +867,13 @@ export class RoarFirekit {
       this._verifyAuthentication();
     }
 
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
+    const allowedProviders = [AuthProviderType.GOOGLE];
 
     let authProvider;
     this.verboseLog('Attempting sign in with AuthProvider', provider);
     if (provider === AuthProviderType.GOOGLE) {
       authProvider = new GoogleAuthProvider();
       this.verboseLog('Google AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Clever roarProviderIds', roarProviderIds);
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-      this.verboseLog('Clever AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Classlink roarProviderIds', roarProviderIds);
-      // Use the partner-initiated flow for Classlink
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-      this.verboseLog('Classlink AuthProvider object:', authProvider);
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -1083,7 +908,6 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
    *
    * @param {() => void} enableCookiesCallback - A callback function to be invoked when the enable cookies error occurs.
    * @returns {Promise<{ status: 'ok' } | null>} - A promise that resolves with an object containing the status 'ok' if the sign-in is successful,
@@ -1127,35 +951,6 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if ([roarProviderIds.CLEVER, roarProviderIds.CLASSLINK].includes(providerId ?? 'NULL')) {
-            this.verboseLog('ProviderId is clever, calling credentialFromResult with', adminUserCredential);
-            const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-            // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
-            if (providerId === roarProviderIds.CLEVER) {
-              authProvider = AuthProviderType.CLEVER;
-            } else if (providerId === roarProviderIds.CLASSLINK) {
-              authProvider = AuthProviderType.CLASSLINK;
-            }
-
-            this._identityProviderType = authProvider;
-            this._identityProviderId = adminUserCredential.user.providerData.find(
-              (userInfo) => userInfo.providerId === providerId,
-            )?.uid;
-
-            oAuthAccessToken = credential?.accessToken;
-            this.verboseLog('authProvider is', authProvider);
-            this.verboseLog('oAuthAccesToken is', oAuthAccessToken);
-
-            const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
-            this.verboseLog('Attempting to call getIdToken with', adminUserCredential.user);
-            const roarAdminIdToken = await getIdToken(adminUserCredential.user);
-            this.verboseLog('updated token is', roarAdminIdToken);
-            const roarAdminCredential = roarAdminProvider.credential({
-              idToken: roarAdminIdToken,
-            });
-            this.verboseLog(`Using new idToken ${roarAdminIdToken}, created new admin credential`, roarAdminCredential);
-
-            return roarAdminCredential;
           }
         }
         return null;
@@ -1181,9 +976,6 @@ export class RoarFirekit {
         }
         return null;
       })
-      .then((setClaimsResult) => {
-        return null;
-      });
   }
 
   /**
@@ -1193,31 +985,19 @@ export class RoarFirekit {
    * The roarProciderIds.ROAR_ADMIN_PROJECT provider is maintained in the assessment Firebase project.
    *
    * @param {AuthProviderType} provider - The authentication provider to unlink.
-   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * It can be one of the following: AuthProviderType.GOOGLE
    * @returns {Promise<void>} - A promise that resolves when the provider is unlinked.
    * @throws {Error} - If the provided provider is not one of the allowed providers.
    */
   async unlinkAuthProvider(provider: AuthProviderType) {
     this._verifyAuthentication();
 
-    const allowedProviders = [
-      AuthProviderType.GOOGLE,
-      AuthProviderType.CLEVER,
-      AuthProviderType.CLASSLINK,
-      AuthProviderType.PASSWORD,
-    ];
+    const allowedProviders = [AuthProviderType.GOOGLE];
     const roarProviderIds = this._getProviderIds();
 
     let providerId: string;
     if (provider === AuthProviderType.GOOGLE) {
       providerId = roarProviderIds.GOOGLE;
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      providerId = roarProviderIds.CLEVER;
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      providerId = roarProviderIds.CLASSLINK;
-    } else if (provider === AuthProviderType.PASSWORD) {
-      providerId = AuthProviderType.PASSWORD;
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
@@ -1395,7 +1175,7 @@ export class RoarFirekit {
   async getMyData(targetUid?: string) {
     this.verboseLog('Entry point for getMyData');
     this._verifyInit();
-    if (!this._isAuthenticated() || !this.roarUid) {
+    if (!this._verifyAuthentication() || !this.roarUid) {
       return;
     }
 
@@ -1920,6 +1700,7 @@ export class RoarFirekit {
   }
 
   async updateTaskOrVariant(updateData: UpdateTaskVariantData) {
+    this._verifyAuthentication();
     this._verifyAdmin();
 
     let docRef;

@@ -8,16 +8,11 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from 'firebase/auth';
-// import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
-import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { FirebasePerformance, getPerformance } from 'firebase/performance';
-import _chunk from 'lodash/chunk';
 import _difference from 'lodash/difference';
-import _flatten from 'lodash/flatten';
 import _get from 'lodash/get';
-import _invert from 'lodash/invert';
 import _isEmpty from 'lodash/isEmpty';
 import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
@@ -25,7 +20,8 @@ import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
-import { OrgListKey, OrgLists } from '../interfaces';
+import { OrgLists } from '../interfaces';
+import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 
 /** Remove null attributes from an object
  * @function
@@ -33,7 +29,6 @@ import { OrgListKey, OrgLists } from '../interfaces';
  * @returns {Object} Object with null attributes removed
  */
 export const removeNull = (obj: object): object => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== null));
 };
 
@@ -43,7 +38,6 @@ export const removeNull = (obj: object): object => {
  * @returns {Object} Object with undefined attributes removed
  */
 export const removeUndefined = (obj: object): object => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined));
 };
 
@@ -110,31 +104,6 @@ export const safeInitializeApp = (config: LiveFirebaseConfig, name: string) => {
     }
   }
 };
-
-// export const initializeAppCheckWithRecaptcha = (app: FirebaseApp, siteKey: string, debugToken: string | undefined) => {
-//   const hostname = window.location.hostname;
-//
-//   // Use the DEBUG reCAPTCHA key for local development
-//   // This allows us to bypass the reCAPTCHA domain verification
-//   // Debug token is a private key passed in from a .env file and should not be exposed
-//   if (hostname === 'localhost') {
-//     try {
-//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-//       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
-//     } catch (error) {
-//       throw new Error(`Error setting App Check debug token: ${error}`);
-//     }
-//   }
-//
-//   try {
-//     return initializeAppCheck(app, {
-//       provider: new ReCaptchaEnterpriseProvider(siteKey as string),
-//       isTokenAutoRefreshEnabled: true,
-//     });
-//   } catch (error) {
-//     throw new Error(`Error initializing App Check with reCAPTCHA provider: ${error}`);
-//   }
-// };
 
 export enum AuthPersistence {
   local = 'local',
@@ -470,57 +439,4 @@ export const getTreeTableOrgs = (inputOrgs: OrgNodes) => {
   topLevelOrgs.push(...ttFamilies);
 
   return topLevelOrgs;
-};
-
-export const chunkOrgLists = ({ orgs, chunkSize = 30 }: { orgs?: OrgLists; chunkSize: number }) => {
-  if (!orgs) return [undefined];
-
-  const orgPairs = _flatten(
-    Object.entries(orgs).map(([orgType, orgIds]) => {
-      return orgIds.map((orgId: string) => [orgType, orgId]);
-    }),
-  );
-
-  if (orgPairs.length <= chunkSize) return [orgs];
-
-  const chunkedOrgs = _chunk(orgPairs, chunkSize);
-  return chunkedOrgs.map((chunk) => {
-    const orgChunk = emptyOrgList();
-    for (const [orgType, orgId] of chunk) {
-      orgChunk[orgType as OrgListKey].push(orgId);
-    }
-
-    return orgChunk;
-  });
-};
-
-const plurals = {
-  group: 'groups',
-  district: 'districts',
-  school: 'schools',
-  class: 'classes',
-  family: 'families',
-  administration: 'administrations',
-  user: 'users',
-  assignment: 'assignments',
-  run: 'runs',
-  trial: 'trials',
-};
-
-export const pluralizeFirestoreCollection = (singular: string) => {
-  if (Object.values(plurals).includes(singular)) return singular;
-
-  const plural = plurals[singular as keyof typeof plurals];
-  if (plural) return plural;
-
-  throw new Error(`There is no plural Firestore collection for the ${singular}`);
-};
-
-export const singularizeFirestoreCollection = (plural: string) => {
-  if (Object.values(_invert(plurals)).includes(plural)) return plural;
-
-  const singular = _invert(plurals)[plural];
-  if (singular) return singular;
-
-  throw new Error(`There is no Firestore collection ${plural}`);
 };
