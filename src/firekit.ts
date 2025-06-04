@@ -334,7 +334,7 @@ export class RoarFirekit {
   }
 
   private _verifyAdmin() {
-    if (!this.superAdmin || !this._admin) {
+    if (!this.superAdmin && !this._admin) {
       throw new Error('User is not an administrator.');
     }
   }
@@ -548,8 +548,6 @@ export class RoarFirekit {
         [EmailAuthProvider.EMAIL_PASSWORD_SIGN_IN_METHOD]: 'password',
         [EmailAuthProvider.EMAIL_LINK_SIGN_IN_METHOD]: 'link',
         'google.com': 'google',
-        'oidc.clever': 'clever',
-        'oidc.classlink': 'classlink'
       };
       
       return signInMethods
@@ -728,12 +726,9 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
    *
    * @param {AuthProviderType} provider - The authentication provider to use. It can be one of the following:
    * - AuthProviderType.GOOGLE
-   * - AuthProviderType.CLEVER
-   * - AuthProviderType.CLASSLINK
    *
    * @returns {Promise<UserCredential | null>} - A promise that resolves with the user's credential or null.
    */
@@ -913,7 +908,6 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
    *
    * @param {() => void} enableCookiesCallback - A callback function to be invoked when the enable cookies error occurs.
    * @returns {Promise<{ status: 'ok' } | null>} - A promise that resolves with an object containing the status 'ok' if the sign-in is successful,
@@ -991,7 +985,7 @@ export class RoarFirekit {
    * The roarProciderIds.ROAR_ADMIN_PROJECT provider is maintained in the assessment Firebase project.
    *
    * @param {AuthProviderType} provider - The authentication provider to unlink.
-   * It can be one of the following: AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK.
+   * It can be one of the following: AuthProviderType.GOOGLE
    * @returns {Promise<void>} - A promise that resolves when the provider is unlinked.
    * @throws {Error} - If the provided provider is not one of the allowed providers.
    */
