@@ -242,7 +242,6 @@ export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families'
 export interface StartTaskResult {
   success: boolean;
   taskInfo: {
-    taskName: string;
     variantName: string;
     variantParams: { [x: string]: unknown };
     variantId: string;

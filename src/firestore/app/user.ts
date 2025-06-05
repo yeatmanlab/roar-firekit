@@ -131,34 +131,36 @@ export class RoarAppUser {
   }
 
   async init() {
-    return getDoc(this.userRef).then((docSnap) => {
-      this.onFirestore = docSnap.exists();
-      if (this.onFirestore) {
-        // If so, retrieve their data.
-        this.userData = docSnap.data();
-      } else {
-        // Otherwise allow them to create their own data ONLY if they are a guest.
-        this._setUserData();
-      }
-    });
+    const docSnap = await getDoc(this.userRef);
+    this.onFirestore = docSnap.exists();
+
+    if (this.onFirestore) {
+      // If so, retrieve their data.
+      this.userData = docSnap.data();
+    } else {
+      // Otherwise allow them to create their own data ONLY if they are a guest.
+      await this._setUserData();
+    }
   }
 
   private async _setUserData() {
     if (this.userType !== UserType.guest) {
       throw new Error('Cannot set user data on a non-guest ROAR user.');
     }
+
     this.userData = removeUndefined({
       ...this.userMetadata,
       assessmentPid: this.assessmentPid,
       assessmentUid: this.assessmentUid,
       userType: this.userType,
     });
-    return setDoc(this.userRef, {
+
+    await setDoc(this.userRef, {
       ...this.userData,
       created: serverTimestamp(),
-    }).then(() => {
-      this.onFirestore = true;
     });
+
+    this.onFirestore = true;
   }
 
   async checkUserExists() {
@@ -206,7 +208,7 @@ export class RoarAppUser {
       assessmentPid,
     });
 
-    return updateDoc(this.userRef, removeUndefined(userData));
+    return await updateDoc(this.userRef, removeUndefined(userData));
   }
 
   /**

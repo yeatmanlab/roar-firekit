@@ -1198,104 +1198,6 @@ export class RoarFirekit {
     return _roarUid;
   }
 
-  async startAssignment(administrationId: string, transaction?: Transaction, targetUid?: string) {
-    this._verifyAuthentication();
-
-    const roarUid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid!, 'assignments');
-    const assignmentDocRef = doc(userAssignmentsRef, administrationId);
-
-    if (transaction) {
-      return transaction.update(assignmentDocRef, { started: true });
-    } else {
-      return updateDoc(assignmentDocRef, { started: true });
-    }
-  }
-
-  private async _updateAssignedAssessment(
-    administrationId: string,
-    taskId: string,
-    updates: { [x: string]: unknown },
-    transaction: Transaction,
-    targetUid?: string
-  ) {
-    this._verifyAuthentication();
-
-    const uid = targetUid ?? this.roarUid ?? (await this.getRoarUid());
-    const assignmentDocRef = collection(this.admin!.db, 'users', uid!, 'assignments');
-    const docRef = doc(assignmentDocRef, administrationId);
-    const docSnap = await transaction.get(docRef);
-    if (docSnap.exists()) {
-      const assessments: AssignedAssessment[] = docSnap.data().assessments;
-      const assessmentIdx = assessments.findIndex((a) => a.taskId === taskId);
-      const oldAssessmentInfo = assessments[assessmentIdx];
-      const newAssessmentInfo = {
-        ...oldAssessmentInfo,
-        ...updates,
-      };
-      assessments[assessmentIdx] = newAssessmentInfo;
-      return transaction.update(docRef, { assessments });
-
-    } else {
-      return transaction;
-    }
-  }
-
-  async getMyData(targetUid?: string) {
-    this.verboseLog('Entry point for getMyData');
-    if (!this._verifyAuthentication() || !this.roarUid) {
-      return;
-    }
-
-    const roarUid = targetUid ?? (await this.getRoarUid());
-
-    const userDocRef = doc(this.admin!.db, 'users', roarUid!);
-    const userDocSnap = await getDoc(userDocRef);
-
-    let userData: UserDataInAdminDb | undefined;
-
-    if (userDocSnap.exists()) {
-      userData = {
-        userType: UserType.guest,
-        ...userDocSnap.data(),
-      } as UserDataInAdminDb;
-
-    } else {
-      userData = {
-        userType: UserType.guest,
-        districts: emptyOrg(),
-        schools: emptyOrg(),
-        classes: emptyOrg(),
-        families: emptyOrg(),
-        groups: emptyOrg(),
-        archived: false,
-        testData: false,
-        demoData: false,
-      };
-    }
-
-    // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
-    // First determine the PID. If the user has signed in through Clever, then
-    // the PID has been set to the Clever ID in the firebase cloud function.
-    // If the user signed in through another method, the PID **may** have been
-    // set to something else. Grab it if it's there.
-    // In either case, it will then be present in this.userData.
-    let assessmentPid: string | undefined = _get(userData, 'assessmentPid');
-
-    // If the assessmentPid is undefined, set it to the local part of the user's email.
-    if (!assessmentPid) {
-      assessmentPid = _nth(this.app!.user!.email?.match(/^(.+)@/), 1);
-    }
-
-    this.roarAppUserInfo = {
-      db: this.app!.db,
-      roarUid: roarUid,
-      assessmentUid: this.app!.user!.uid,
-      assessmentPid: assessmentPid,
-      userType: userData!.userType,
-    };
-  }
-
   async startAssessment(administrationId: string, taskId: string, taskVersion: string, targetUid?: string) {
     this._verifyAuthentication();
 
@@ -1305,89 +1207,33 @@ export class RoarFirekit {
       throw new Error('Could not determine user ID');
     }
 
-    // const appKit = await runTransaction(this.admin!.db, async (transaction) => {
-    //   // Check the assignment to see if none of the assessments have been
-    //   // started yet. If not, start the assignment
-    //   const assignmentDocSnap = await this.getAssignmentDoc(uid, administrationId, transaction);
-
-    //   if (assignmentDocSnap.exists()) {
-    //     // First grab the assessments from the assignment document
-    //     const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
-    //     const assessmentUpdateData = {
-    //       startedOn: new Date(),
-    //     };
-    //     // Grab this assessment (task), and get the params
-    //     let assessmentParams: { [x: string]: unknown } = {};
-    //     const thisAssessment = assignedAssessments.find((a) => a.taskId === taskId);
-
-    //     if (thisAssessment) {
-    //       assessmentParams = thisAssessment.params;
-    //     } else {
-    //       throw new Error(
-    //         `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${uid}`,
-    //       );
-    //     }
-
-    //     // Append runId to `allRunIds` for this assessment in the userId/assignments collection
-    //     await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, uid);
-
-    //     if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
-    //       await this.startAssignment(administrationId, transaction, targetUid);
-    //     }
-    //     if (this.roarAppUserInfo === undefined) {
-    //       if (targetUid) {
-    //         // set data to target participant while assesssment is running, effectively 'spoofing' their identity
-    //         await this.getMyData(targetUid);
-    //       } else {
-    //         await this.getMyData();
-    //       }
-    //     }
-
-    //     const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-    //     const readOrgs = assignmentDocSnap.data().readOrgs;
-
-
-    //     // const taskInfo = {
-    //     //   db: this.app!.db,
-    //     //   taskId,
-    //     //   taskName: thisAssessment.taskName as string,
-    //     //   taskVersion,
-    //     //   variantName: thisAssessment.variantName as string,
-    //     //   variantParams: assessmentParams,
-    //     //   variantId: thisAssessment.variantId as string,
-    //     // };
-
-    //     // return new RoarAppkit({
-    //     //   firebaseProject: this.app,
-    //     //   userInfo: this.roarAppUserInfo!,
-    //     //   assigningOrgs,
-    //     //   readOrgs,
-    //     //   assignmentId: administrationId,
-    //     //   taskInfo,
-    //     // });
-    //   } else {
-    //     throw new Error(`Could not find assignment for user ${uid} with administration id ${administrationId}`);
-    //   }
-    // }); 
-
     try {
       const startTaskCloudFunction = httpsCallable(this.admin!.functions, 'startTask');
-
       const result = await startTaskCloudFunction({ administrationId, taskId, targetUid: uid }) as HttpsCallableResult<StartTaskResult>;
-      
-      console.log('result: ', result);
+
+      if (this.roarAppUserInfo === undefined) {
+        this.roarAppUserInfo = {
+          db: this.app!.db,
+          roarUid: uid,
+          assessmentUid: this.app!.user!.uid,
+          assessmentPid: result.data.assessmentPid,
+          userType: result.data.userData.userType,
+        };
+      }
 
       const taskInfo = {
         db: this.app!.db,
         taskId,
-        taskName: result.data.taskInfo.taskName,
+        // This is fine being hardcoded to undefined since this field does not exist on the assignment document which is where we get the task info from. 
+        // When this is defined, it actually breaks starting the task (permissions error). Can probably be removed.
+        taskName: undefined,
         taskVersion,
         variantName: result.data.taskInfo.variantName,
         variantParams: result.data.taskInfo.variantParams,
         variantId: result.data.taskInfo.variantId,
       };
-  
-      return new RoarAppkit({
+
+      const app = new RoarAppkit({
         firebaseProject: this.app,
         userInfo: this.roarAppUserInfo!,
         assigningOrgs: result.data.assigningOrgs,
@@ -1395,6 +1241,8 @@ export class RoarFirekit {
         assignmentId: administrationId,
         taskInfo,
       });
+
+      return app;
     } catch (error) {
       console.error('Error starting task: ', error);
       throw error;
@@ -1413,20 +1261,6 @@ export class RoarFirekit {
 
     const result = await cloudCompleteTask({ administrationId, taskId, userId });
     return result;
-  }
-
-  /**
-   * Gets the assignment document for a user
-   */
-  private async getAssignmentDoc(roarUid: string, administrationId: string, transaction?: Transaction) {
-    const userAssignmentsRef = collection(this.admin!.db, 'users', roarUid, 'assignments');
-    const docRef = doc(userAssignmentsRef, administrationId);
-    // If a transaction is provided, use it to get the document
-    if (transaction) {
-      return await transaction.get(docRef);
-    }
-    // Otherwise, perform a regular read
-    return await getDoc(docRef);
   }
 
 
