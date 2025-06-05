@@ -17,7 +17,7 @@ npm i @bdelab/roar-firekit
 
 Roar-firekit is agnostic about where your data comes from, but I anticipate most users will use roar-firekit with their experiments written in [jsPsych](https://www.jspsych.org/).
 
-The main entrypoint to roar-firekit's API is the [[`RoarAppkit`]] class.  Its
+The main entrypoint to roar-firekit's API is the [[`RoarAppkit`]] class. Its
 constructor expects an object with keys `userInfo`, `taskInfo`, and `config`, where
 `userInfo` is a [[`UserDataInAdminDb`]] object, `taskInfo` is a
 [[`TaskVariantInput`]] object, and `config` is a [[`AssessmentConfigData`]] object.
@@ -45,7 +45,7 @@ const fullUserInfo = {
   districtId: 'roar-district-id',
   groupId: 'roar-group-id',
   userCategory: 'student',
-}
+};
 ```
 
 #### `taskInfo`
@@ -62,11 +62,11 @@ const taskInfo = {
   blocks: [
     {
       blockNumber: 1,
-      trialMethod: "random-without-replacement",
-      corpus: "pointer-to-location-of-stimulus-corpus",
+      trialMethod: 'random-without-replacement',
+      corpus: 'pointer-to-location-of-stimulus-corpus',
     },
-  ]
-}
+  ],
+};
 ```
 
 #### `config`
@@ -76,20 +76,20 @@ The config object contains configuration information for your Firebase project. 
 <details>
   <summary>Click to expand!</summary>
 
-  ```javascript
-  export const roarConfig = {
-    "firebaseConfig": {
-      "apiKey": "insert your firebase API key here",
-      "authDomain": "insert your firebase auth domain here",
-      "projectId": "insert your firebase project ID here",
-      "storageBucket": "insert your firebase storage bucket here",
-      "messagingSenderId": "insert your firebase messaging sender ID here",
-      "appId": "insert your firebase app ID here",
-      "measurementId": "insert your firebase measurement ID here",
-    },
-    "rootDoc": ["some collection name", "some document name"],
-  }
-  ```
+```javascript
+export const roarConfig = {
+  firebaseConfig: {
+    apiKey: 'insert your firebase API key here',
+    authDomain: 'insert your firebase auth domain here',
+    projectId: 'insert your firebase project ID here',
+    storageBucket: 'insert your firebase storage bucket here',
+    messagingSenderId: 'insert your firebase messaging sender ID here',
+    appId: 'insert your firebase app ID here',
+    measurementId: 'insert your firebase measurement ID here',
+  },
+  rootDoc: ['some collection name', 'some document name'],
+};
+```
 
 </details>
 
@@ -99,7 +99,7 @@ To get the `firebaseConfig` fields, see [this article](https://support.google.co
 
 ##### `rootDoc`
 
-The `rootDoc` is an array of strings representing the document under which all ROAR data will be stored.  Note that `rootDoc` does not have to be in the actual root of your Cloud Firestore database.
+The `rootDoc` is an array of strings representing the document under which all ROAR data will be stored. Note that `rootDoc` does not have to be in the actual root of your Cloud Firestore database.
 
 ### Constructing the firekit
 
@@ -115,7 +115,7 @@ const firekit = new RoarAppkit({
   userInfo: minimalUserInfo,
   taskInfo,
   config: roarConfig,
-})
+});
 ```
 
 ## Starting a run
@@ -155,9 +155,9 @@ the `on_finish` function, like so:
 var trial = {
   type: 'image-keyboard-response',
   stimulus: 'imgA.png',
-  on_finish: function(data) {
-   firekit.writeTrial(data);
-  }
+  on_finish: function (data) {
+    firekit.writeTrial(data);
+  },
 };
 ```
 
@@ -168,18 +168,18 @@ this method based on the data. For example:
 
 ```javascript
 initJsPsych({
-  on_data_update: function(data) {
+  on_data_update: function (data) {
     if (data.saveToFirestore) {
       firekit.addTrialData(data);
     }
-  }
+  },
 });
 const timeline = [
   // A fixation trial; don't save to Firestore
   {
     type: htmlKeyboardResponse,
     stimulus: '<div style="font-size:60px;">+</div>',
-    choices: "NO_KEYS",
+    choices: 'NO_KEYS',
     trial_duration: 500,
   },
   // A stimulus and response trial; save to Firestore
@@ -187,8 +187,8 @@ const timeline = [
     type: imageKeyboardResponse,
     stimulus: 'imgA.png',
     data: { saveToFirestore: true },
-  }
-]
+  },
+];
 ```
 
 ## Finishing a run
@@ -197,9 +197,9 @@ After your experiment is over, you can mark it as completed in Firestore using t
 
 ```javascript
 initJsPsych({
-  on_finish: function(data) {
+  on_finish: function (data) {
     firekit.finishRun();
-  }
+  },
 });
 ```
 
@@ -210,116 +210,116 @@ The following is an example jsPsych experiment that implements the NoHotdog asse
 <details>
   <summary>Click to expand!</summary>
 
-  ```javascript
-  import { initJsPsych } from 'jspsych';
-  import preload from '@jspsych/plugin-preload';
-  import htmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
-  import imageButtonResponse from '@jspsych/plugin-image-button-response';
-  import { RoarAppkit } from '@bdelab/roar-firekit';
-  import { roarConfig } from "./roarConfig.js";
+```javascript
+import { initJsPsych } from 'jspsych';
+import preload from '@jspsych/plugin-preload';
+import htmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
+import imageButtonResponse from '@jspsych/plugin-image-button-response';
+import { RoarAppkit } from '@bdelab/roar-firekit';
+import { roarConfig } from './roarConfig.js';
 
-  const taskInfo = {
-    taskId: 'nhd',
-    taskName: 'Not Hotdog',
-    variantName: 'nhd-1block-random',
-    taskDescription: 'A ROAR demonstration using the hot dog / not hot dog task.',
-    variantDescription: 'One block, random order',
-    blocks: [
-      {
-        blockNumber: 1,
-        trialMethod: 'random-without-replacement',
-        corpus: 'assets',
-      },
-    ],
-  };
-
-  const minimalUserInfo = { id: 'roar-user-id' };
-
-  const firekit = new RoarAppkit({
-    userInfo: minimalUserInfo,
-    taskInfo,
-    config: roarConfig,
-  });
-
-  await firekit.startRun();
-
-  const jsPsych = initJsPsych({
-    on_data_update: function (data) {
-      if (data.saveToFirestore) {
-        firekit.writeTrial(data);
-      }
+const taskInfo = {
+  taskId: 'nhd',
+  taskName: 'Not Hotdog',
+  variantName: 'nhd-1block-random',
+  taskDescription: 'A ROAR demonstration using the hot dog / not hot dog task.',
+  variantDescription: 'One block, random order',
+  blocks: [
+    {
+      blockNumber: 1,
+      trialMethod: 'random-without-replacement',
+      corpus: 'assets',
     },
-    on_finish: function () {
-      firekit.finishRun();
+  ],
+};
+
+const minimalUserInfo = { id: 'roar-user-id' };
+
+const firekit = new RoarAppkit({
+  userInfo: minimalUserInfo,
+  taskInfo,
+  config: roarConfig,
+});
+
+await firekit.startRun();
+
+const jsPsych = initJsPsych({
+  on_data_update: function (data) {
+    if (data.saveToFirestore) {
+      firekit.writeTrial(data);
+    }
+  },
+  on_finish: function () {
+    firekit.finishRun();
+  },
+});
+
+// This example assumes that the hot dog / not hot dog images are stored in the
+// assets folder.
+const numFiles = 30;
+const hotDogFiles = Array.from(Array(numFiles), (_, i) => i + 1).map(
+  (idx) => new URL(`../assets/hotdog/${idx}.jpg`, import.meta.url),
+);
+const notHotDogFiles = Array.from(Array(numFiles), (_, i) => i + 1).map(
+  (idx) => new URL(`../assets/nothotdog/${idx}.jpg`, import.meta.url),
+);
+const allFiles = hotDogFiles.concat(notHotDogFiles);
+const allTargets = allFiles.map((url) => {
+  return { target: url, isHotDog: !url.pathname.includes('nothotdog') };
+});
+
+let timeline = [];
+
+/* preload images */
+const preloadImages = {
+  type: preload,
+  auto_preload: true,
+};
+timeline.push(preloadImages);
+
+/* define welcome message trial */
+const welcome = {
+  type: htmlKeyboardResponse,
+  stimulus: 'Welcome to ROAR-HD, a rapid online assessment of hot dog differentiating ability. Press any key to begin.',
+};
+timeline.push(welcome);
+
+const hotDogTrials = {
+  timeline: [
+    {
+      type: htmlKeyboardResponse,
+      stimulus: '<div style="font-size:60px;">+</div>',
+      choices: 'NO_KEYS',
+      trial_duration: 500,
     },
-  });
-
-  // This example assumes that the hot dog / not hot dog images are stored in the
-  // assets folder.
-  const numFiles = 30;
-  const hotDogFiles = Array.from(Array(numFiles), (_, i) => i + 1).map(
-    (idx) => new URL(`../assets/hotdog/${idx}.jpg`, import.meta.url),
-  );
-  const notHotDogFiles = Array.from(Array(numFiles), (_, i) => i + 1).map(
-    (idx) => new URL(`../assets/nothotdog/${idx}.jpg`, import.meta.url),
-  );
-  const allFiles = hotDogFiles.concat(notHotDogFiles);
-  const allTargets = allFiles.map((url) => {
-    return { target: url, isHotDog: !url.pathname.includes('nothotdog') };
-  });
-
-  let timeline = [];
-
-  /* preload images */
-  const preloadImages = {
-    type: preload,
-    auto_preload: true,
-  };
-  timeline.push(preloadImages);
-
-  /* define welcome message trial */
-  const welcome = {
-    type: htmlKeyboardResponse,
-    stimulus: 'Welcome to ROAR-HD, a rapid online assessment of hot dog differentiating ability. Press any key to begin.',
-  };
-  timeline.push(welcome);
-
-  const hotDogTrials = {
-    timeline: [
-      {
-        type: htmlKeyboardResponse,
-        stimulus: '<div style="font-size:60px;">+</div>',
-        choices: 'NO_KEYS',
-        trial_duration: 500,
+    {
+      type: imageButtonResponse,
+      stimulus: jsPsych.timelineVariable('target'),
+      choices: ['Hot Dog', 'Not a Hot Dog'],
+      prompt: 'Is this a hot dog?',
+      data: { saveToFirestore: true },
+      on_finish: function (data) {
+        data.correct = jsPsych.timelineVariable('isHotDog') == data.response;
       },
-      {
-        type: imageButtonResponse,
-        stimulus: jsPsych.timelineVariable('target'),
-        choices: ['Hot Dog', 'Not a Hot Dog'],
-        prompt: 'Is this a hot dog?',
-        data: { saveToFirestore: true },
-        on_finish: function (data) {
-          data.correct = jsPsych.timelineVariable('isHotDog') == data.response;
-        },
-      },
-    ],
-    timeline_variables: allTargets,
-    sample: {
-      type: 'without-replacement',
-      size: 20,
     },
-  };
+  ],
+  timeline_variables: allTargets,
+  sample: {
+    type: 'without-replacement',
+    size: 20,
+  },
+};
 
-  timeline.push(hotDogTrials);
+timeline.push(hotDogTrials);
 
-  const fixation = {
-    type: htmlKeyboardResponse,
-    stimulus: 'You are all done. Thanks!',
-    choices: 'NO_KEYS',
-  };
-  timeline.push(fixation);
+const fixation = {
+  type: htmlKeyboardResponse,
+  stimulus: 'You are all done. Thanks!',
+  choices: 'NO_KEYS',
+};
+timeline.push(fixation);
 
-  jsPsych.run(timeline);
-  ```
+jsPsych.run(timeline);
+```
 
 </details>
