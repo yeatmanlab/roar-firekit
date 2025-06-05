@@ -160,37 +160,6 @@ export class RoarAppkit {
   }
 
   /**
-   * Validate the task variant parameters against a given JSON schema.
-   *
-   * This method uses the AJV library to validate the `variantParams` from the task information
-   * against the provided JSON schema. If the parameters are invalid, it throws an error with
-   * detailed messages for each validation error.
-   *
-   * @param {JSONSchemaType<unknown>} parameterSchema - The JSON schema to validate the parameters against.
-   * @throws {Error} Throws an error if the parameters are invalid, including detailed validation error messages.
-   */
-  async validateParameters(parameterSchema: JSONSchemaType<unknown>) {
-    // This version of ajv is not compatible with other JSON schema versions.
-    const ajv = new Ajv2020({ allErrors: true, verbose: true });
-    ajvErrors(ajv);
-
-    const validate = ajv.compile(parameterSchema);
-    const variantParams = this._taskInfo.variantParams;
-    const valid = validate(variantParams);
-
-    if (!valid) {
-      const errorMessages = validate.errors
-        ?.map((error) => {
-          return `Error in parameter "${error.instancePath}": ${error.message}`;
-        })
-        .join('\n');
-      throw new Error(`Detected invalid game parameters. \n\n${errorMessages}`);
-    } else {
-      console.log('Parameters successfully validated.');
-    }
-  }
-
-  /**
    * Update the ROAR task's game parameters.
    * This must be called after the startRun() method.
    *

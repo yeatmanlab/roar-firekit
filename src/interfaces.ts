@@ -26,11 +26,9 @@ type Grade = number | 'K' | 'PK' | 'TK';
 
 export enum UserType {
   admin = 'admin',
-  educator = 'educator',
+  super_admin = 'super_admin',
   student = 'student',
-  caregiver = 'caregiver',
   guest = 'guest',
-  researcher = 'researcher',
 }
 
 export interface ExtraMetadata extends DocumentData {
@@ -240,3 +238,17 @@ export type RoarOrg = District | School | Class | Family | Group;
 
 export type OrgType = 'district' | 'school' | 'class' | 'family' | 'group';
 export type OrgCollectionName = 'districts' | 'schools' | 'classes' | 'families' | 'groups';
+
+export interface StartTaskResult {
+  success: boolean;
+  taskInfo: {
+    taskName: string;
+    variantName: string;
+    variantParams: { [x: string]: unknown };
+    variantId: string;
+  };
+  assigningOrgs: OrgLists;
+  readOrgs: OrgLists;
+  userData: UserDataInAdminDb;
+  assessmentPid: string;
+}

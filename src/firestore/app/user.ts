@@ -152,14 +152,6 @@ export class RoarAppUser {
       assessmentPid: this.assessmentPid,
       assessmentUid: this.assessmentUid,
       userType: this.userType,
-      // Use conditional spreading to add the testData flag only if it exists on
-      // the userDoc and is true.
-      // Explaination: We use the && operator to return the object only when
-      // condition is true. If the object is returned then it will be spread
-      // into runData.
-      ...(this.testData && { testData: true }),
-      // Same for demoData
-      ...(this.demoData && { demoData: true }),
     });
     return setDoc(this.userRef, {
       ...this.userData,

@@ -2,7 +2,6 @@
 import _get from 'lodash/get';
 import _isEmpty from 'lodash/isEmpty';
 import _nth from 'lodash/nth';
-import _union from 'lodash/union';
 import {
   AuthError,
   EmailAuthProvider,
@@ -32,7 +31,6 @@ import {
 import {
   Transaction,
   Unsubscribe,
-  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -60,8 +58,8 @@ import {
   Name,
   OrgLists,
   RoarConfig,
+  StartTaskResult,
   UserDataInAdminDb,
-  OrgCollectionName,
   UserType,
   Legal,
 } from './interfaces';
@@ -1139,81 +1137,6 @@ export class RoarFirekit {
     return response.data.data ?? [];
   }
 
-  private async _getUser(uid: string): Promise<UserDataInAdminDb | undefined> {
-    this._verifyAuthentication();
-    const userDocRef = doc(this.admin!.db, 'users', uid);
-    const userDocSnap = await getDoc(userDocRef);
-
-    if (userDocSnap.exists()) {
-      const userData = {
-        userType: UserType.guest,
-        ...userDocSnap.data(),
-      } as UserDataInAdminDb;
-
-      const externalDataSnapshot = await getDocs(collection(userDocRef, 'externalData'));
-      let externalData = {};
-      externalDataSnapshot.forEach((doc) => {
-        // doc.data() is never undefined for query doc snapshots returned by ``getDocs``
-        externalData = {
-          ...externalData,
-          [doc.id]: doc.data() as ExternalUserData,
-        };
-      });
-      userData.externalData = externalData;
-
-      return userData;
-    } else {
-      return {
-        userType: UserType.guest,
-        districts: emptyOrg(),
-        schools: emptyOrg(),
-        classes: emptyOrg(),
-        families: emptyOrg(),
-        groups: emptyOrg(),
-        archived: false,
-        testData: false,
-        demoData: false,
-      };
-    }
-  }
-
-  async getMyData(targetUid?: string) {
-    this.verboseLog('Entry point for getMyData');
-    this._verifyInit();
-    if (!this._verifyAuthentication() || !this.roarUid) {
-      return;
-    }
-
-    const roarUid = targetUid ?? (await this.getRoarUid());
-
-    this.userData = await this._getUser(roarUid!);
-
-    if (this.userData) {
-      // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
-      // First determine the PID. If the user has signed in through Clever, then
-      // the PID has been set to the Clever ID in the firebase cloud function.
-      // If the user signed in through another method, the PID **may** have been
-      // set to something else. Grab it if it's there.
-      // In either case, it will then be present in this.userData.
-      let assessmentPid: string | undefined = _get(this.userData, 'assessmentPid');
-
-      // If the assessmentPid is undefined, set it to the local part of the user's email.
-      if (!assessmentPid) {
-        assessmentPid = _nth(this.app!.user!.email?.match(/^(.+)@/), 1);
-      }
-
-      this.roarAppUserInfo = {
-        db: this.app!.db,
-        roarUid: roarUid,
-        assessmentUid: this.app!.user!.uid,
-        assessmentPid: assessmentPid,
-        userType: this.userData.userType,
-        ...(this.userData.testData && { testData: true }),
-        ...(this.userData.demoData && { demoData: true }),
-      };
-    }
-  }
-
   async getLegalDoc(docName: string) {
     const docRef = doc(this.admin!.db, 'legal', docName);
     const docSnap = await getDoc(docRef);
@@ -1318,6 +1241,61 @@ export class RoarFirekit {
     }
   }
 
+  async getMyData(targetUid?: string) {
+    this.verboseLog('Entry point for getMyData');
+    if (!this._verifyAuthentication() || !this.roarUid) {
+      return;
+    }
+
+    const roarUid = targetUid ?? (await this.getRoarUid());
+
+    const userDocRef = doc(this.admin!.db, 'users', roarUid!);
+    const userDocSnap = await getDoc(userDocRef);
+
+    let userData: UserDataInAdminDb | undefined;
+
+    if (userDocSnap.exists()) {
+      userData = {
+        userType: UserType.guest,
+        ...userDocSnap.data(),
+      } as UserDataInAdminDb;
+
+    } else {
+      userData = {
+        userType: UserType.guest,
+        districts: emptyOrg(),
+        schools: emptyOrg(),
+        classes: emptyOrg(),
+        families: emptyOrg(),
+        groups: emptyOrg(),
+        archived: false,
+        testData: false,
+        demoData: false,
+      };
+    }
+
+    // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
+    // First determine the PID. If the user has signed in through Clever, then
+    // the PID has been set to the Clever ID in the firebase cloud function.
+    // If the user signed in through another method, the PID **may** have been
+    // set to something else. Grab it if it's there.
+    // In either case, it will then be present in this.userData.
+    let assessmentPid: string | undefined = _get(userData, 'assessmentPid');
+
+    // If the assessmentPid is undefined, set it to the local part of the user's email.
+    if (!assessmentPid) {
+      assessmentPid = _nth(this.app!.user!.email?.match(/^(.+)@/), 1);
+    }
+
+    this.roarAppUserInfo = {
+      db: this.app!.db,
+      roarUid: roarUid,
+      assessmentUid: this.app!.user!.uid,
+      assessmentPid: assessmentPid,
+      userType: userData!.userType,
+    };
+  }
+
   async startAssessment(administrationId: string, taskId: string, taskVersion: string, targetUid?: string) {
     this._verifyAuthentication();
 
@@ -1327,72 +1305,100 @@ export class RoarFirekit {
       throw new Error('Could not determine user ID');
     }
 
-    const appKit = await runTransaction(this.admin!.db, async (transaction) => {
-      // Check the assignment to see if none of the assessments have been
-      // started yet. If not, start the assignment
-      const assignmentDocSnap = await this.getAssignmentDoc(uid, administrationId, transaction);
+    // const appKit = await runTransaction(this.admin!.db, async (transaction) => {
+    //   // Check the assignment to see if none of the assessments have been
+    //   // started yet. If not, start the assignment
+    //   const assignmentDocSnap = await this.getAssignmentDoc(uid, administrationId, transaction);
 
-      if (assignmentDocSnap.exists()) {
-        // First grab the assessments from the assignment document
-        const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
-        const assessmentUpdateData = {
-          startedOn: new Date(),
-        };
-        // Grab this assessment (task), and get the params
-        let assessmentParams: { [x: string]: unknown } = {};
-        const thisAssessment = assignedAssessments.find((a) => a.taskId === taskId);
+    //   if (assignmentDocSnap.exists()) {
+    //     // First grab the assessments from the assignment document
+    //     const assignedAssessments = assignmentDocSnap.data().assessments as AssignedAssessment[];
+    //     const assessmentUpdateData = {
+    //       startedOn: new Date(),
+    //     };
+    //     // Grab this assessment (task), and get the params
+    //     let assessmentParams: { [x: string]: unknown } = {};
+    //     const thisAssessment = assignedAssessments.find((a) => a.taskId === taskId);
 
-        if (thisAssessment) {
-          assessmentParams = thisAssessment.params;
-        } else {
-          throw new Error(
-            `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${uid}`,
-          );
-        }
+    //     if (thisAssessment) {
+    //       assessmentParams = thisAssessment.params;
+    //     } else {
+    //       throw new Error(
+    //         `Could not find assessment with taskId ${taskId} in user assignment ${administrationId} for user ${uid}`,
+    //       );
+    //     }
 
-        // Append runId to `allRunIds` for this assessment in the userId/assignments collection
-        await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, uid);
+    //     // Append runId to `allRunIds` for this assessment in the userId/assignments collection
+    //     await this._updateAssignedAssessment(administrationId, taskId, assessmentUpdateData, transaction, uid);
 
-        if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
-          await this.startAssignment(administrationId, transaction, targetUid);
-        }
-        if (this.roarAppUserInfo === undefined) {
-          if (targetUid) {
-            // set data to target participant while assesssment is running, effectively 'spoofing' their identity
-            await this.getMyData(targetUid);
-          } else {
-            await this.getMyData();
-          }
-        }
+    //     if (!assignedAssessments.some((a: AssignedAssessment) => Boolean(a.startedOn))) {
+    //       await this.startAssignment(administrationId, transaction, targetUid);
+    //     }
+    //     if (this.roarAppUserInfo === undefined) {
+    //       if (targetUid) {
+    //         // set data to target participant while assesssment is running, effectively 'spoofing' their identity
+    //         await this.getMyData(targetUid);
+    //       } else {
+    //         await this.getMyData();
+    //       }
+    //     }
 
-        const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
-        const readOrgs = assignmentDocSnap.data().readOrgs;
+    //     const assigningOrgs = assignmentDocSnap.data().assigningOrgs;
+    //     const readOrgs = assignmentDocSnap.data().readOrgs;
 
 
-        const taskInfo = {
-          db: this.app!.db,
-          taskId,
-          taskName: thisAssessment.taskName as string,
-          taskVersion,
-          variantName: thisAssessment.variantName as string,
-          variantParams: assessmentParams,
-          variantId: thisAssessment.variantId as string,
-        };
+    //     // const taskInfo = {
+    //     //   db: this.app!.db,
+    //     //   taskId,
+    //     //   taskName: thisAssessment.taskName as string,
+    //     //   taskVersion,
+    //     //   variantName: thisAssessment.variantName as string,
+    //     //   variantParams: assessmentParams,
+    //     //   variantId: thisAssessment.variantId as string,
+    //     // };
 
-        return new RoarAppkit({
-          firebaseProject: this.app,
-          userInfo: this.roarAppUserInfo!,
-          assigningOrgs,
-          readOrgs,
-          assignmentId: administrationId,
-          taskInfo,
-        });
-      } else {
-        throw new Error(`Could not find assignment for user ${uid} with administration id ${administrationId}`);
-      }
-    });
+    //     // return new RoarAppkit({
+    //     //   firebaseProject: this.app,
+    //     //   userInfo: this.roarAppUserInfo!,
+    //     //   assigningOrgs,
+    //     //   readOrgs,
+    //     //   assignmentId: administrationId,
+    //     //   taskInfo,
+    //     // });
+    //   } else {
+    //     throw new Error(`Could not find assignment for user ${uid} with administration id ${administrationId}`);
+    //   }
+    // }); 
 
-    return appKit;
+    try {
+      const startTaskCloudFunction = httpsCallable(this.admin!.functions, 'startTask');
+
+      const result = await startTaskCloudFunction({ administrationId, taskId, targetUid: uid }) as HttpsCallableResult<StartTaskResult>;
+      
+      console.log('result: ', result);
+
+      const taskInfo = {
+        db: this.app!.db,
+        taskId,
+        taskName: result.data.taskInfo.taskName,
+        taskVersion,
+        variantName: result.data.taskInfo.variantName,
+        variantParams: result.data.taskInfo.variantParams,
+        variantId: result.data.taskInfo.variantId,
+      };
+  
+      return new RoarAppkit({
+        firebaseProject: this.app,
+        userInfo: this.roarAppUserInfo!,
+        assigningOrgs: result.data.assigningOrgs,
+        readOrgs: result.data.readOrgs,
+        assignmentId: administrationId,
+        taskInfo,
+      });
+    } catch (error) {
+      console.error('Error starting task: ', error);
+      throw error;
+    }
   }
 
   async completeAssessment(administrationId: string, taskId: string, targetUid?: string) {
