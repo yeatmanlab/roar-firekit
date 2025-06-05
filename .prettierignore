@@ -1,0 +1,6 @@
+# Ignore artifacts:
+**/lib
+
+# Ignore node modules
+**/node_modules
+

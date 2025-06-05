@@ -2,10 +2,7 @@
   "collectCoverage": true,
   "coverageDirectory": "coverage",
   "coverageProvider": "v8",
-  "coveragePathIgnorePatterns": [
-    "/node_modules/",
-    "/__tests__/"
-  ],
+  "coveragePathIgnorePatterns": ["/node_modules/", "/__tests__/"],
   "transform": {
     "^.+\\.ts?$": "ts-jest",
     "^.+\\.(js|jsx)$": "babel-jest"

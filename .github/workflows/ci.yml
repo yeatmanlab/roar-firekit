@@ -38,4 +38,3 @@ jobs:
 
       - name: Check format
         run: npm run format:check
-        
