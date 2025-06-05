@@ -659,7 +659,13 @@ export class RoarFirekit {
       url: redirectUrl,
       handleCodeInApp: true,
     };
-    return sendSignInLinkToEmail(this.admin!.auth, email, actionCodeSettings);
+
+    try {
+      await sendSignInLinkToEmail(this.admin!.auth, email, actionCodeSettings);
+    } catch (error) {
+      console.error('Error sending sign in link:', error);
+      throw error;
+    }
   }
 
   /**
@@ -688,7 +694,6 @@ export class RoarFirekit {
         const roarAdminCredential = roarAdminProvider.credential({
           idToken: roarAdminIdToken,
         });
-
         return roarAdminCredential;
       })
       .then((credential) => {
@@ -1510,31 +1515,13 @@ export class RoarFirekit {
    */
   async deleteAdministration(administrationId: string) {
     this._verifyAuthentication();
-    this._verifyAdmin();
     if (!this._superAdmin) {
       throw new Error('You must be a super admin to delete an administration.');
     }
 
-    await runTransaction(this.admin!.db, async (transaction) => {
-      const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
-      const subcollections = ['stats', 'assigningOrgs', 'readOrgs'];
-      for (const subcollection of subcollections) {
-        const subcollectionRef = collection(this.admin!.db, 'administrations', administrationId, subcollection);
-        const subcollectionSnapshot = await getDocs(subcollectionRef);
-
-        subcollectionSnapshot.forEach((doc) => {
-          if (doc.exists()) {
-            transaction.delete(doc.ref);
-          }
-        });
-      }
-
-      const docSnap = await transaction.get(administrationDocRef);
-      if (docSnap.exists()) {
-        // Delete the administration doc
-        transaction.delete(administrationDocRef);
-      }
-    });
+    const cloudDeleteAdministration = httpsCallable(this.admin!.functions, 'deleteAdministration');
+    const result = await cloudDeleteAdministration({ administrationId });
+    return result;
   }
 
 
@@ -1594,77 +1581,6 @@ export class RoarFirekit {
 
     const cloudUpsertOrg = httpsCallable(this.admin!.functions, 'upsertOrg');
     return await cloudUpsertOrg({ orgData });
-  }
-
-  /**
-   * Delete an organization.
-   *
-   * @param recursive
-   * @param orgsCollection The type of organization to create or update.
-   * @param orgId The ID of the organization to delete.
-   * @param recursive if true, recursively delete all children of this org.
-   *                  Default is true.
-   */
-  async deleteOrg(orgsCollection: OrgCollectionName, orgId: string, recursive = true) {
-    this._verifyAuthentication();
-    this._verifyAdmin();
-
-    if (!this._superAdmin) {
-      throw new Error('You must be a super admin to delete an organization.');
-    }
-
-    // Loop over the admin and assessment databases
-    runTransaction(this.admin!.db, async (transaction) => {
-      const orgDocRef = doc(this.admin!.db, orgsCollection, orgId);
-      const docSnap = await transaction.get(orgDocRef);
-      if (docSnap.exists()) {
-        const orgData = docSnap.data();
-
-        // Save the dependent schools and classes for recursive deletion
-        // later. Why are we doing this here? Because all transaction reads
-        // have to take place before any writes, updates, or deletions.  We
-        // are potentially reading school docs to get all of the classes.
-        const { schools = [], classes = [], groups: subGroups = [] } = orgData;
-        if (recursive) {
-          for (const school of schools) {
-            const schoolRef = doc(this.admin!.db, 'schools', school);
-            const schoolDocSnap = await transaction.get(schoolRef);
-            if (schoolDocSnap.exists()) {
-              const schoolData = schoolDocSnap.data();
-              classes.push(...(schoolData.classes ?? []));
-              subGroups.push(...(schoolData.subGroups ?? []));
-            }
-          }
-        }
-
-        // Remove this org from the parent's list of child orgs.
-        const { schoolId, districtId } = orgData;
-        if (schoolId !== undefined) {
-          const schoolRef = doc(this.admin!.db, 'schools', schoolId);
-          transaction.update(schoolRef, { classes: arrayRemove(orgId) });
-        } else if (districtId !== undefined) {
-          const districtRef = doc(this.admin!.db, 'districts', districtId);
-          transaction.update(districtRef, { schools: arrayRemove(orgId) });
-        }
-
-        transaction.delete(orgDocRef);
-
-        // Remove children orgs if recursive is true
-        if (recursive) {
-          for (const _class of classes) {
-            const classRef = doc(this.admin!.db, 'classes', _class);
-            transaction.delete(classRef);
-          }
-
-          for (const school of schools) {
-            const schoolRef = doc(this.admin!.db, 'schools', school);
-            transaction.delete(schoolRef);
-          }
-        }
-      } else {
-        throw new Error(`Could not find an organization with ID ${orgId} in the ROAR database.`);
-      }
-    });
   }
 
   async registerTaskVariant({
