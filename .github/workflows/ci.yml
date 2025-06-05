@@ -35,3 +35,7 @@ jobs:
           ROAR_FIREBASE_STORAGE_BUCKET: ${{ secrets.ROAR_FIREBASE_STORAGE_BUCKET }}
       - name: Lint
         run: npm run lint
+
+      - name: Check format
+        run: npm run format:check
+        
