@@ -278,11 +278,11 @@ export class RoarRun {
     if (!this.aborted) {
       // In cases that the run is non-block-scoped and should only have the reliable attribute stored
       if (reliableByBlock === undefined) {
-        return updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable });
+        return await updateDoc(this.runRef, { engagementFlags: engagementObj, reliable: markAsReliable });
       }
       // In cases we want to store reliability by block, we need to store the reliable attribute as well as the reliableByBlock attribute
       else {
-        return updateDoc(this.runRef, {
+        return await updateDoc(this.runRef, {
           engagementFlags: engagementObj,
           reliable: markAsReliable,
           reliableByBlock: reliableByBlock,
@@ -313,7 +313,7 @@ export class RoarRun {
         timeFinished: serverTimestamp(),
       };
 
-      return updateDoc(this.runRef, finishingData)
+      return await updateDoc(this.runRef, finishingData)
         .then(() => this.user.updateFirestoreTimestamp())
         .then(() => (this.completed = true));
     }

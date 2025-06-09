@@ -143,7 +143,18 @@ export class RoarTaskVariant {
       lastUpdated: serverTimestamp(),
     };
 
-    await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
+    try {
+      await setDoc(this.taskRef, removeUndefined(taskData), { merge: true });
+    } catch (error) {
+      console.error('RoarTaskVariant toFirestore: error saving task to firestore', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorCode: (error as any)?.code,
+        taskId: this.taskId,
+        taskRefPath: this.taskRef?.path,
+      });
+      throw error;
+    }
 
     // Check to see if variant exists already by querying for a match on the params.
     const q = query(

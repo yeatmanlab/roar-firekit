@@ -7,8 +7,6 @@ import { TaskVariantForAssessment, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
-import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
-import ajvErrors from 'ajv-errors';
 
 
 export interface AppkitInput {
@@ -138,7 +136,7 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to update their own data.');
     }
 
-    return this.user!.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
+    return await this.user!.updateUser({ tasks, variants, assessmentPid, ...userMetadata });
   }
 
   /**
@@ -156,38 +154,7 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to start a run.');
     }
 
-    return this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
-  }
-
-  /**
-   * Validate the task variant parameters against a given JSON schema.
-   *
-   * This method uses the AJV library to validate the `variantParams` from the task information
-   * against the provided JSON schema. If the parameters are invalid, it throws an error with
-   * detailed messages for each validation error.
-   *
-   * @param {JSONSchemaType<unknown>} parameterSchema - The JSON schema to validate the parameters against.
-   * @throws {Error} Throws an error if the parameters are invalid, including detailed validation error messages.
-   */
-  async validateParameters(parameterSchema: JSONSchemaType<unknown>) {
-    // This version of ajv is not compatible with other JSON schema versions.
-    const ajv = new Ajv2020({ allErrors: true, verbose: true });
-    ajvErrors(ajv);
-
-    const validate = ajv.compile(parameterSchema);
-    const variantParams = this._taskInfo.variantParams;
-    const valid = validate(variantParams);
-
-    if (!valid) {
-      const errorMessages = validate.errors
-        ?.map((error) => {
-          return `Error in parameter "${error.instancePath}": ${error.message}`;
-        })
-        .join('\n');
-      throw new Error(`Detected invalid game parameters. \n\n${errorMessages}`);
-    } else {
-      console.log('Parameters successfully validated.');
-    }
+    return await this.run!.startRun(additionalRunMetadata).then(() => (this._started = true));
   }
 
   /**
@@ -200,7 +167,7 @@ export class RoarAppkit {
   async updateTaskParams(newParams: { [key: string]: unknown }) {
     if (this._started) {
       const oldVariantId = this.task!.variantId;
-      return this.task!.updateTaskParams(newParams)
+      return await this.task!.updateTaskParams(newParams)
         .then(() => {
           return updateDoc(this.user!.userRef, { variants: arrayRemove(oldVariantId) });
         })
@@ -228,7 +195,7 @@ export class RoarAppkit {
    */
   async updateEngagementFlags(flagNames: string[], markAsReliable = false, reliableByBlock = undefined) {
     if (this._started) {
-      return this.run!.addEngagementFlags(flagNames, markAsReliable, reliableByBlock);
+      return await this.run!.addEngagementFlags(flagNames, markAsReliable, reliableByBlock);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
@@ -254,7 +221,7 @@ export class RoarAppkit {
    */
   async finishRun(finishingMetaData: { [key: string]: unknown } = {}) {
     if (this._started) {
-      return this.run!.finishRun(finishingMetaData);
+      return await this.run!.finishRun(finishingMetaData);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
@@ -335,7 +302,7 @@ export class RoarAppkit {
     computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
   ) {
     if (this._started) {
-      return this.run!.writeTrial(trialData, computedScoreCallback);
+      return await this.run!.writeTrial(trialData, computedScoreCallback);
     } else {
       throw new Error('This run has not started. Use the startRun method first.');
     }
