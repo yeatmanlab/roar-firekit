@@ -1,32 +1,22 @@
 {
-    "compilerOptions": {
-        "target": "es2015",
-        "module": "commonjs",
-        "declaration": true,
-        "outDir": "./lib",
-        "strict": true,
-        "esModuleInterop": true,
-        "resolveJsonModule": true,
-        "moduleResolution": "Node",
-    },
-    "include": [
-        "src",
-    ],
-    "exclude": [
-        "node_modules",
-        "**/__tests__/*"
-    ],
-    "typedocOptions": {
-        "entryPoints": [
-            "src"
-        ],
-        "entryPointStrategy": "expand",
-        "exclude": [
-            "**/*+(spec|test).+(ts|js)",
-            "**/__tests__/**/*.+(ts|js)"
-        ],
-        "out": "docs",
-        "includeVersion": true,
-        "readme": "README.md"
-    },
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "declaration": true,
+    "outDir": "./lib",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "Node"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "**/__tests__/*"],
+  "typedocOptions": {
+    "entryPoints": ["src"],
+    "entryPointStrategy": "expand",
+    "exclude": ["**/*+(spec|test).+(ts|js)", "**/__tests__/**/*.+(ts|js)"],
+    "out": "docs",
+    "includeVersion": true,
+    "readme": "README.md"
+  }
 }
