@@ -86,7 +86,7 @@ export class RoarAppkit {
 
   private async _init() {
     if (this.firebaseConfig) {
-      this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
+      this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'admin');
     }
 
     onAuthStateChanged(this.firebaseProject!.auth, (user) => {
