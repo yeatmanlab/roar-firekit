@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import _get from 'lodash/get';
 import _isEmpty from 'lodash/isEmpty';
-import _nth from 'lodash/nth';
 import {
   AuthError,
   EmailAuthProvider,
@@ -20,7 +19,6 @@ import {
   onIdTokenChanged,
   sendPasswordResetEmail,
   sendSignInLinkToEmail,
-  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithEmailLink,
   signInWithPopup,
@@ -29,7 +27,6 @@ import {
   unlink,
 } from 'firebase/auth';
 import {
-  Transaction,
   Unsubscribe,
   arrayUnion,
   collection,
@@ -37,7 +34,6 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  runTransaction,
   updateDoc,
   setDoc,
 } from 'firebase/firestore';
@@ -46,21 +42,17 @@ import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 import {
   AuthPersistence,
   MarkRawConfig,
-  emptyOrg,
   emptyOrgList,
   initializeFirebaseProject,
 } from './firestore/util';
 import {
   Assessment,
-  AssignedAssessment,
-  ExternalUserData,
   FirebaseProject,
   Name,
   OrgLists,
   RoarConfig,
   StartTaskResult,
   UserDataInAdminDb,
-  UserType,
   Legal,
 } from './interfaces';
 import { UserInput } from './firestore/app/user';
@@ -145,7 +137,6 @@ interface UpdateTaskVariantData {
 
 export class RoarFirekit {
   admin?: FirebaseProject;
-  app?: FirebaseProject;
   currentAssignments?: CurrentAssignments;
   oAuthAccessToken?: string;
   roarAppUserInfo?: UserInput;
@@ -156,7 +147,6 @@ export class RoarFirekit {
   private _adminClaimsListener?: Unsubscribe;
   private _adminOrgs?: Record<string, string[]>;
   private _adminTokenListener?: Unsubscribe;
-  private _appTokenListener?: Unsubscribe;
   private _authPersistence: AuthPersistence;
   private _identityProviderType?: AuthProviderType;
   private _identityProviderId?: string;
@@ -213,13 +203,10 @@ export class RoarFirekit {
     this.oAuthAccessToken = undefined;
     this._adminClaimsListener = undefined;
     this._adminTokenListener = undefined;
-    this._appTokenListener = undefined;
     this._idTokens = {};
   }
 
   async init() {
-    this.app = await initializeFirebaseProject(this.roarConfig.app, 'app', this._authPersistence, this._markRawConfig);
-
     this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
@@ -256,32 +243,6 @@ export class RoarFirekit {
       this.listenerUpdateCallback();
     });
 
-    onAuthStateChanged(this.app.auth, (user) => {
-      this.verboseLog('onAuthStateChanged triggered for assessment auth');
-      if (this.app) {
-        if (user) {
-          this.verboseLog('assessment firebase instance and user are defiend');
-          this.app.user = user;
-          this._appTokenListener = this._listenToTokenChange(this.app, 'app');
-          this.verboseLog('appTokenListener instance set up using listenToTokenChange');
-          this.verboseLog(
-            '[app] Attempting to fire user.getIdToken() from app , existing token is',
-            this._idTokens.app,
-          );
-          user.getIdToken().then((idToken) => {
-            this.verboseLog('in .then() for user.getItToken() with new token', idToken);
-            this._idTokens.app = idToken;
-            this.verboseLog('Updated internal app token to', idToken);
-          });
-        } else {
-          this.verboseLog('User for app is undefined');
-          this.app.user = undefined;
-        }
-      }
-      this.verboseLog('[app] Call this.listenerUpdateCallback()');
-      this.listenerUpdateCallback();
-    });
-
     return this;
   }
 
@@ -302,6 +263,7 @@ export class RoarFirekit {
    * If the instance has not been initialized, it throws an error with a descriptive message.
    *
    * @throws {Error} - If the RoarFirekit instance has not been initialized.
+   * 
    */
   private _verifyInit() {
     if (!this._initialized) {
@@ -325,7 +287,7 @@ export class RoarFirekit {
    */
   private _verifyAuthentication() {
     this._verifyInit();
-    if ((this.admin!.user === undefined || this.app!.user === undefined)) {
+    if (this.admin!.user === undefined) {
       throw new Error('User is not authenticated.');
     }
     return true;
@@ -366,14 +328,10 @@ export class RoarFirekit {
             this._adminOrgs = data?.claims?.adminOrgs;
             this._superAdmin = data?.claims?.super_admin;
 
-            if (
-              this.roarConfig.admin.projectId.includes('levante') ||
-              this.roarConfig.app.projectId.includes('levante')
-            ) {
+            if ( this.roarConfig.admin.projectId.includes('levante') ) {
               this._admin = data?.claims?.admin || false;
             }
 
-            this.verboseLog('data, adminOrgs, superAdmin are retrieved from doc.data()');
             this.verboseLog('about to check for existance of data.lastUpdated');
             if (data?.lastUpdated) {
               this.verboseLog('lastUpdate exists.');
@@ -409,10 +367,10 @@ export class RoarFirekit {
   }
 
   /**
-   * Forces a refresh of the ID token for the admin and app Firebase users.
+   * Forces a refresh of the ID token for the admin Firebase user.
    *
-   * This method retrieves the ID tokens for the admin and app Firebase users
-   * and refreshes them. It ensures that the tokens are up-to-date and valid.
+   * This method retrieves the ID token for the admin Firebase user
+   * and refreshes it. It ensures that the token is up-to-date and valid.
    *
    * @returns {Promise<void>} - A promise that resolves when the ID tokens are refreshed successfully.
    * @throws {FirebaseError} - If an error occurs while refreshing the ID tokens.
@@ -421,26 +379,25 @@ export class RoarFirekit {
     this.verboseLog('Entry point for forceIdTokenRefresh');
     this._verifyAuthentication();
     await getIdToken(this.admin!.user!, true);
-    await getIdToken(this.app!.user!, true);
   }
 
   /**
    * Listens for changes in the ID token of the specified Firebase project and updates the corresponding token.
    *
-   * This method sets up a listener to track changes in the ID token of the specified Firebase project (either admin or app).
+   * This method sets up a listener to track changes in the ID token of the specified Firebase project (admin).
    * When the ID token changes, it retrieves the new ID token and updates the corresponding token in the `_idTokens` object.
    * It also calls the `listenerUpdateCallback` function to notify any listeners of the token update.
    *
    * @param {FirebaseProject} firekit - The Firebase project to listen for token changes.
-   * @param {'admin' | 'app'} _type - The type of Firebase project ('admin' or 'app').
+   * @param {'admin'} _type - The type of Firebase project ('admin').
    * @returns {firebase.Unsubscribe} - A function to unsubscribe from the listener.
    * @private
    */
-  private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin' | 'app') {
+  private _listenToTokenChange(firekit: FirebaseProject, _type: 'admin') {
     this.verboseLog('Entry point for listenToTokenChange, called with', _type);
     this._verifyInit();
     this.verboseLog('Checking for existance of tokenListener with type', _type);
-    if ((!this._adminTokenListener && _type === 'admin') || (!this._appTokenListener && _type === 'app')) {
+    if ((!this._adminTokenListener && _type === 'admin')) {
       this.verboseLog('Token listener does not exist, create now.');
       return onIdTokenChanged(firekit.auth, async (user) => {
         this.verboseLog('onIdTokenChanged body');
@@ -458,12 +415,8 @@ export class RoarFirekit {
         this.verboseLog('Calling listenerUpdateCallback from listenToTokenChange', _type);
         this.listenerUpdateCallback();
       });
-    } else if (_type === 'admin') {
-      this.verboseLog('Type is admin, invoking _adminTokenListener');
-      return this._adminTokenListener;
-    }
-    this.verboseLog('Type is app, invoking _appTokenListener');
-    return this._appTokenListener;
+    } 
+    return this._adminTokenListener;
   }
 
   /**
@@ -492,7 +445,6 @@ export class RoarFirekit {
     this.verboseLog('Calling cloud function for setUidClaims');
     const setUidClaims = httpsCallable(this.admin!.functions, 'setUidClaims');
     const result = await setUidClaims({
-      assessmentUid: this.app!.user!.uid,
       identityProviderId,
       identityProviderType,
     });
@@ -570,18 +522,16 @@ export class RoarFirekit {
   async registerWithEmailAndPassword({ email, password }: { email: string; password: string }) {
     this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
+      .then(() => {
+        this._identityProviderType = AuthProviderType.EMAIL;
+        return this._setUidCustomClaims();
+      })
       .catch((error: AuthError) => {
         console.log('Error creating user', error);
         console.log(error.code);
         console.log(error.message);
         throw error;
       })
-      .then(() => {
-        this._identityProviderType = AuthProviderType.EMAIL;
-        return createUserWithEmailAndPassword(this.app!.auth, email, password).then(() => {
-          return this._setUidCustomClaims();
-        });
-      });
   }
 
   /**
@@ -602,14 +552,6 @@ export class RoarFirekit {
     return signInWithEmailAndPassword(this.admin!.auth, email, password)
       .then(async (adminUserCredential) => {
         this._identityProviderType = AuthProviderType.EMAIL;
-        const roarProviderIds = this._getProviderIds();
-        const roarAdminProvider = new OAuthProvider(roarProviderIds.ROAR_ADMIN_PROJECT);
-        const roarAdminIdToken = await getIdToken(adminUserCredential.user);
-        const roarAdminCredential = roarAdminProvider.credential({
-          idToken: roarAdminIdToken,
-        });
-
-        return signInWithCredential(this.app!.auth, roarAdminCredential);
       })
       .then(() => {
         return this._setUidCustomClaims();
@@ -634,9 +576,11 @@ export class RoarFirekit {
     this._verifyAuthentication();
 
     const emailCredential = EmailAuthProvider.credential(email, password);
-    return linkWithCredential(this.admin!.auth!.currentUser!, emailCredential).then(() => {
-      return linkWithCredential(this.app!.auth!.currentUser!, emailCredential);
-    });
+    return linkWithCredential(this.admin!.auth!.currentUser!, emailCredential)
+      .catch((error: AuthError) => {
+        console.error('Error linking email and password', error);
+        throw error;
+      });
   }
 
   /**
@@ -693,11 +637,6 @@ export class RoarFirekit {
           idToken: roarAdminIdToken,
         });
         return roarAdminCredential;
-      })
-      .then((credential) => {
-        if (credential) {
-          return signInWithCredential(this.app!.auth, credential);
-        }
       })
       .then((credential) => {
         if (credential) {
@@ -770,11 +709,6 @@ export class RoarFirekit {
       .catch(swallowAllowedErrors)
       .then((credential) => {
         if (credential) {
-          return signInWithCredential(this.app!.auth, credential).catch(swallowAllowedErrors);
-        }
-      })
-      .then((credential) => {
-        if (credential) {
           const claimsParams = {
             identityProviderId: this._identityProviderId,
             identityProviderType: this._identityProviderType,
@@ -829,11 +763,6 @@ export class RoarFirekit {
         }
       })
       .catch(swallowAllowedErrors)
-      .then((credential) => {
-        if (credential) {
-          return linkWithCredential(this.app!.auth!.currentUser!, credential).catch(swallowAllowedErrors);
-        }
-      })
       .then((credential) => {
         if (credential) {
           const claimsParams = {
@@ -960,14 +889,6 @@ export class RoarFirekit {
       })
       .catch(catchEnableCookiesError)
       .then((credential) => {
-        this.verboseLog('Attempting sign in using credential', credential);
-        if (credential) {
-          this.verboseLog('Calling signInWithCredential with creds', credential);
-          return signInWithCredential(this.app!.auth, credential);
-        }
-        return null;
-      })
-      .then((credential) => {
         this.verboseLog('Attempting to set uid custom claims using credential', credential);
         if (credential) {
           this.verboseLog('Calling setUidCustomClaims with creds', credential);
@@ -1009,31 +930,6 @@ export class RoarFirekit {
   }
 
   /**
-   * Sign out the current user from the assessment (aka app) Firebase project.
-   *
-   * This method clears the authentication properties and signs out the user from the app (aka assessment) Firebase projects.
-   *
-   * @returns {Promise<void>} - A promise that resolves when the user is successfully signed out.
-   */
-  private async _signOutApp() {
-    this._scrubAuthProperties();
-    await signOut(this.app!.auth);
-  }
-
-  /**
-   * Sign out the current user from the admin Firebase project.
-   *
-   * This method clears the authentication properties and signs out the user from the admin Firebase project.
-   *
-   * @returns {Promise<void>} - A promise that resolves when the user is successfully signed out.
-   */
-  private async _signOutAdmin() {
-    if (this._adminClaimsListener) this._adminClaimsListener();
-    if (this._adminTokenListener) this._adminTokenListener();
-    this._scrubAuthProperties();
-    await signOut(this.admin!.auth);
-  }
-  /**
    * Sign out the current user from both the assessment (aka app) Firebase project and the admin Firebase project.
    *
    * This method clears the authentication properties and signs out the user from both the app (aka assessment) and admin Firebase projects.
@@ -1042,8 +938,10 @@ export class RoarFirekit {
    */
   async signOut() {
     this._verifyAuthentication();
-    await this._signOutApp();
-    await this._signOutAdmin();
+    if (this._adminClaimsListener) this._adminClaimsListener();
+    if (this._adminTokenListener) this._adminTokenListener();
+    this._scrubAuthProperties();
+    await signOut(this.admin!.auth);
   }
 
   //           +--------------------------------+
@@ -1073,10 +971,6 @@ export class RoarFirekit {
         headers: { Authorization: `Bearer ${this._idTokens.admin}` },
         baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.admin.projectId}/databases/(default)/documents`,
       },
-      app: {
-        headers: { Authorization: `Bearer ${this._idTokens.app}` },
-        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.app.projectId}/databases/(default)/documents`,
-      },
     };
   }
 
@@ -1085,16 +979,13 @@ export class RoarFirekit {
   }
 
   public get dbRefs() {
-    if (this.admin?.user && this.app?.user) {
+    if (this.admin?.user) {
       return {
         admin: {
           user: doc(this.admin.db, 'users', this.roarUid!),
           assignments: collection(this.admin.db, 'users', this.roarUid!, 'assignments'),
-        },
-        app: {
-          user: doc(this.app.db, 'users', this.roarUid!),
-          runs: collection(this.app.db, 'users', this.roarUid!, 'runs'),
-          tasks: collection(this.app.db, 'tasks'),
+          runs: collection(this.admin.db, 'users', this.roarUid!, 'runs'),
+          tasks: collection(this.admin.db, 'tasks'),
         },
       };
     } else {
@@ -1105,7 +996,7 @@ export class RoarFirekit {
   // Not used, but could be used for task dictionary query in dashboard
   public async getTasksDictionary() {
     this._verifyAuthentication();
-    const taskDocs = await getDocs(this.dbRefs!.app.tasks);
+    const taskDocs = await getDocs(this.dbRefs!.admin.tasks);
 
     // Create a map with document IDs as keys and document data as values
     const taskMap = taskDocs.docs.reduce((acc, doc) => {
@@ -1213,16 +1104,16 @@ export class RoarFirekit {
 
       if (this.roarAppUserInfo === undefined) {
         this.roarAppUserInfo = {
-          db: this.app!.db,
+          db: this.admin!.db,
           roarUid: uid,
-          assessmentUid: this.app!.user!.uid,
+          assessmentUid: this.admin!.user!.uid,
           assessmentPid: result.data.assessmentPid,
           userType: result.data.userData.userType,
         };
       }
 
       const taskInfo = {
-        db: this.app!.db,
+        db: this.admin!.db,
         taskId,
         // This is fine being hardcoded to undefined since this field does not exist on the assignment document which is where we get the task info from. 
         // When this is defined, it actually breaks starting the task (permissions error). Can probably be removed.
@@ -1234,7 +1125,7 @@ export class RoarFirekit {
       };
 
       const app = new RoarAppkit({
-        firebaseProject: this.app,
+        firebaseProject: this.admin,
         userInfo: this.roarAppUserInfo!,
         assigningOrgs: result.data.assigningOrgs,
         readOrgs: result.data.readOrgs,
@@ -1438,7 +1329,7 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     const task = new RoarTaskVariant({
-      db: this.app!.db,
+      db: this.admin!.db,
       taskId,
       taskName,
       taskDescription,
@@ -1464,10 +1355,10 @@ export class RoarFirekit {
     const { data } = updateData;
 
     if (updateData.variantId) {
-      docRef = doc(this.app!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
+      docRef = doc(this.admin!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
       dataType = 'variant';
     } else {
-      docRef = doc(this.app!.db, 'tasks', updateData.taskId);
+      docRef = doc(this.admin!.db, 'tasks', updateData.taskId);
       dataType = 'task';
     }
 
