@@ -16,13 +16,23 @@ jobs:
         with:
           node-version: '17.x'
           registry-url: 'https://registry.npmjs.org'
+      - name: Ensure tag is on main
+        run: |
+          git fetch origin main --tags
+          tag_commit=$(git rev-parse $GITHUB_REF) 
+          if git rev-list --first-parent origin/main | grep -q $tag_commit; then
+            echo "Tag $GITHUB_REF (SHA: $tag_commit) is on main"
+          else
+            echo "Tag $GITHUB_REF (SHA: $tag_commit) is not on main"
+            exit 1
+          fi
       - name: Install and Build 🔧
         run: |
           npm ci
           npm run build
           npm run format
       - name: Publish 🚀
-        run: npm publish
+        run: npm publish --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           ROAR_CI_USER_EMAIL: ${{ secrets.ROAR_CI_USER_EMAIL }}
