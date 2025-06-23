@@ -32,7 +32,7 @@ jobs:
           npm run build
           npm run format
       - name: Publish 🚀
-        run: npm publish --dry-run
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           ROAR_CI_USER_EMAIL: ${{ secrets.ROAR_CI_USER_EMAIL }}
