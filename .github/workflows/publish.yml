@@ -19,7 +19,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Ensure tag is on main
         run: |
-          git fetch origin temp/update-publish-config-test -tags
+          git fetch origin temp/update-publish-config-test --tags
           tag_commit=$(git rev-parse $GITHUB_REF) 
           if git rev-list --first-parent origin/temp/update-publish-config-test | grep -q $tag_commit; then
             echo "Tag $GITHUB_REF (SHA: $tag_commit) is on temp/update-publish-config-test"
