@@ -5,6 +5,7 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+      - 'dry-test-run'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,21 +27,24 @@ jobs:
             echo "Tag $GITHUB_REF (SHA: $tag_commit) is not on main"
             exit 1
           fi
-      - name: Install and Build 🔧
+      - name: Debug step
         run: |
-          npm ci
-          npm run build
-          npm run format
-      - name: Publish 🚀
-        run: npm publish --dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          ROAR_CI_USER_EMAIL: ${{ secrets.ROAR_CI_USER_EMAIL }}
-          ROAR_CI_USER_PASSWORD: ${{ secrets.ROAR_CI_USER_PASSWORD }}
-          ROAR_FIREBASE_API_KEY: ${{ secrets.ROAR_FIREBASE_API_KEY }}
-          ROAR_FIREBASE_APP_ID: ${{ secrets.ROAR_FIREBASE_APP_ID }}
-          ROAR_FIREBASE_MEASUREMENT_ID: ${{ secrets.ROAR_FIREBASE_MEASUREMENT_ID }}
-          ROAR_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.ROAR_FIREBASE_MESSAGING_SENDER_ID }}
-          ROAR_FIREBASE_AUTH_DOMAIN: ${{ secrets.ROAR_FIREBASE_AUTH_DOMAIN }}
-          ROAR_FIREBASE_PROJECT_ID: ${{ secrets.ROAR_FIREBASE_PROJECT_ID }}
-          ROAR_FIREBASE_STORAGE_BUCKET: ${{ secrets.ROAR_FIREBASE_STORAGE_BUCKET }}
+          echo "Successful mock publish step"
+      #- name: Install and Build 🔧
+      #  run: |
+      #    npm ci
+      #    npm run build
+      #    npm run format
+      #- name: Publish 🚀
+      #  run: npm publish --dry-run
+      #  env:
+      #    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #    ROAR_CI_USER_EMAIL: ${{ secrets.ROAR_CI_USER_EMAIL }}
+      #    ROAR_CI_USER_PASSWORD: ${{ secrets.ROAR_CI_USER_PASSWORD }}
+      #    ROAR_FIREBASE_API_KEY: ${{ secrets.ROAR_FIREBASE_API_KEY }}
+      #    ROAR_FIREBASE_APP_ID: ${{ secrets.ROAR_FIREBASE_APP_ID }}
+      #    ROAR_FIREBASE_MEASUREMENT_ID: ${{ secrets.ROAR_FIREBASE_MEASUREMENT_ID }}
+      #    ROAR_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.ROAR_FIREBASE_MESSAGING_SENDER_ID }}
+      #    ROAR_FIREBASE_AUTH_DOMAIN: ${{ secrets.ROAR_FIREBASE_AUTH_DOMAIN }}
+      #    ROAR_FIREBASE_PROJECT_ID: ${{ secrets.ROAR_FIREBASE_PROJECT_ID }}
+      #    ROAR_FIREBASE_STORAGE_BUCKET: ${{ secrets.ROAR_FIREBASE_STORAGE_BUCKET }}
