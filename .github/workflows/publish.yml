@@ -19,17 +19,17 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Ensure tag is on main
         run: |
-          git fetch origin main --tags
+          git fetch origin temp/update-publish-config-test -tags
           tag_commit=$(git rev-parse $GITHUB_REF) 
-          if git rev-list --first-parent origin/main | grep -q $tag_commit; then
-            echo "Tag $GITHUB_REF (SHA: $tag_commit) is on main"
+          if git rev-list --first-parent origin/temp/update-publish-config-test | grep -q $tag_commit; then
+            echo "Tag $GITHUB_REF (SHA: $tag_commit) is on temp/update-publish-config-test"
           else
-            echo "Tag $GITHUB_REF (SHA: $tag_commit) is not on main"
+            echo "Tag $GITHUB_REF (SHA: $tag_commit) is not on temp/update-publish-config-test"
             exit 1
           fi
       - name: Debug step
         run: |
-          echo "Successful mock publish step"
+          echo "Successful mock publish step for $GITHUB_REF (SHA: $tag_commit)"
       #- name: Install and Build 🔧
       #  run: |
       #    npm ci
