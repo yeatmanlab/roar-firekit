@@ -20,16 +20,16 @@ jobs:
       - name: Ensure tag is on main
         run: |
           git fetch origin temp/update-publish-config-test --tags
-          tag_commit=$(git rev-parse $GITHUB_REF) 
-          if git rev-list --first-parent origin/temp/update-publish-config-test | grep -q $tag_commit; then
-            echo "Tag $GITHUB_REF (SHA: $tag_commit) is on temp/update-publish-config-test"
+          tag_sha=$GITHUB_SHA
+          if git rev-list --first-parent origin/temp/update-publish-config-test | grep -q $tag_sha; then
+            echo "Tag SHA: $tag_sha is on temp/update-publish-config-test"
           else
-            echo "Tag $GITHUB_REF (SHA: $tag_commit) is not on temp/update-publish-config-test"
+            echo "Tag SHA: $tag_sha is not on temp/update-publish-config-test"
             exit 1
           fi
       - name: Debug step
         run: |
-          echo "Successful mock publish step for $GITHUB_REF (SHA: $tag_commit)"
+          echo "Successful mock publish step for $GITHUB_SHA"
       #- name: Install and Build 🔧
       #  run: |
       #    npm ci
