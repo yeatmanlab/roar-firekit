@@ -22,6 +22,7 @@ import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
 import { OrgLists } from '../interfaces';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
+import { type Emulators } from '../firekit';
 
 /** Remove null attributes from an object
  * @function
@@ -122,6 +123,7 @@ type FirebaseProduct = Auth | Firestore | Functions | FirebaseStorage;
 export const initializeFirebaseProject = async (
   config: FirebaseConfig,
   name: string,
+  emulatorConfig?: Emulators | undefined,
   authPersistence = AuthPersistence.session,
   markRawConfig: MarkRawConfig = {},
 ) => {
@@ -133,21 +135,21 @@ export const initializeFirebaseProject = async (
     }
   };
 
-  if ((config as EmulatorFirebaseConfig).emulatorPorts) {
+  if (emulatorConfig) {
+    console.log('Initializing Firebase emulator', emulatorConfig);
     const app = initializeApp({ projectId: config.projectId, apiKey: config.apiKey }, name);
-    const ports = (config as EmulatorFirebaseConfig).emulatorPorts;
     const auth = optionallyMarkRaw('auth', getAuth(app));
     const db = optionallyMarkRaw('db', getFirestore(app));
     const functions = optionallyMarkRaw('functions', getFunctions(app));
     const storage = optionallyMarkRaw('storage', getStorage(app));
 
-    connectFirestoreEmulator(db, '127.0.0.1', ports.db);
-    connectFunctionsEmulator(functions, '127.0.0.1', ports.functions);
+    connectFirestoreEmulator(db, emulatorConfig.firestore.host, emulatorConfig.firestore.port);
+    connectFunctionsEmulator(functions, emulatorConfig.functions.host, emulatorConfig.functions.port);
 
     const originalInfo = console.info;
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     console.info = () => {};
-    connectAuthEmulator(auth, `http://127.0.0.1:${ports.auth}`);
+    connectAuthEmulator(auth, `http://${emulatorConfig.auth.host}:${emulatorConfig.auth.port}`);
     console.info = originalInfo;
 
     return {

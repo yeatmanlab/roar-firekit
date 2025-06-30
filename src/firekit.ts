@@ -135,12 +135,40 @@ interface UpdateTaskVariantData {
   variantId?: string;
 }
 
+export interface Emulators {
+  auth: {
+    host: string;
+    port: number;
+  };
+  firestore: {
+    host: string;
+    port: number;
+  };
+  functions: {
+    host: string;
+    port: number;
+  };
+  ui: {
+    host: string;
+    port: number;
+  };
+  hub: {
+    host: string;
+    port: number;
+  };
+  logging: {
+    host: string;
+    port: number;
+  };
+}
+
 export class RoarFirekit {
   admin?: FirebaseProject;
   currentAssignments?: CurrentAssignments;
   oAuthAccessToken?: string;
   roarAppUserInfo?: UserInput;
   roarConfig: RoarConfig;
+  emulatorConfig?: Emulators;
   userData?: UserDataInAdminDb;
   listenerUpdateCallback: (...args: unknown[]) => void;
   private _admin?: boolean;
@@ -169,8 +197,10 @@ export class RoarFirekit {
     authPersistence = AuthPersistence.session,
     markRawConfig = {},
     listenerUpdateCallback,
+    emulatorConfig,
   }: {
     roarConfig: RoarConfig;
+    emulatorConfig?: Emulators;
     dbPersistence: boolean;
     authPersistence?: AuthPersistence;
     markRawConfig?: MarkRawConfig;
@@ -178,6 +208,7 @@ export class RoarFirekit {
     listenerUpdateCallback?: (...args: unknown[]) => void;
   }) {
     this.roarConfig = roarConfig;
+    this.emulatorConfig = emulatorConfig;
     this._verboseLogging = verboseLogging;
     this._authPersistence = authPersistence;
     this._markRawConfig = markRawConfig;
@@ -210,6 +241,7 @@ export class RoarFirekit {
     this.admin = await initializeFirebaseProject(
       this.roarConfig.admin,
       'admin',
+      this.emulatorConfig,
       this._authPersistence,
       this._markRawConfig,
     );
@@ -968,8 +1000,7 @@ export class RoarFirekit {
   public get restConfig() {
     return {
       admin: {
-        headers: { Authorization: `Bearer ${this._idTokens.admin}` },
-        baseURL: `https://firestore.googleapis.com/v1/projects/${this.roarConfig.admin.projectId}/databases/(default)/documents`,
+        headers: { Authorization: `Bearer ${this._idTokens.admin}` }
       },
     };
   }
