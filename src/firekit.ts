@@ -1445,7 +1445,7 @@ export class RoarFirekit {
     const response = (await getTaskBundlesCallable()) as HttpsCallableResult<{ status: string; data?: string }>;
 
     if (_get(response.data, 'status') !== 'ok') {
-      throw new Error('Failed to retrieve administration IDs.');
+      throw new Error('Failed to retrieve task bundles.');
     }
 
     return response.data.data ?? [];
