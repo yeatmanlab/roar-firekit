@@ -1439,6 +1439,18 @@ export class RoarFirekit {
     return response.data.data ?? [];
   }
 
+  public async getTaskBundles() {
+    this._verifyAuthentication();
+    const getTaskBundlesCallable = httpsCallable(this.app!.functions, 'getTaskBundles');
+    const response = (await getTaskBundlesCallable()) as HttpsCallableResult<{ status: string; data?: string }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to retrieve task bundles.');
+    }
+
+    return response.data.data ?? [];
+  }
+
   public async verifyParentRegistration() {
     this._verifyAuthentication();
     const verifyRegistrationCallable = httpsCallable(this.admin!.functions, 'verifyParentRegistration');
