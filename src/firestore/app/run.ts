@@ -367,6 +367,9 @@ export class RoarRun {
         ...(this.testData && { testData: true }),
         ...(this.demoData && { demoData: true }),
         serverTimestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        // Trial documents are never updated, but for standardization, adding this field. 
+        updatedAt: serverTimestamp(),
       })
         .then(async () => {
           // Only update scores if the trial was a test or a practice response.

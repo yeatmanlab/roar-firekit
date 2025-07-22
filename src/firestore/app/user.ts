@@ -157,7 +157,9 @@ export class RoarAppUser {
 
     await setDoc(this.userRef, {
       ...this.userData,
-      created: serverTimestamp(),
+      created: serverTimestamp(), // TODO: Check we are not using this field
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     this.onFirestore = true;

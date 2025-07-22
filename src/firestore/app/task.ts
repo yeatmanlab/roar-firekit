@@ -12,6 +12,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  getDoc,
 } from 'firebase/firestore';
 import { mergeGameParams, removeUndefined, replaceValues } from '../util';
 
@@ -46,6 +47,8 @@ export interface FirestoreTaskData {
   registered?: boolean;
   testData?: boolean;
   demoData?: boolean;
+  createdAt?: ReturnType<typeof serverTimestamp>;
+  updatedAt: ReturnType<typeof serverTimestamp>;
 }
 
 export interface TaskData extends FirestoreTaskData {
@@ -60,6 +63,8 @@ export interface FirestoreVariantData {
   params: { [key: string]: unknown };
   lastUpdated: ReturnType<typeof serverTimestamp>;
   registered?: boolean;
+  createdAt?: ReturnType<typeof serverTimestamp>;
+  updatedAt: ReturnType<typeof serverTimestamp>;
 }
 
 
@@ -131,6 +136,10 @@ export class RoarTaskVariant {
    * @async
    */
   async toFirestore() {
+    // Check if task document exists to determine if we should set createdAt
+    const taskDocSnap = await getDoc(this.taskRef);
+    const taskExists = taskDocSnap.exists();
+
     // Push/update the task using the user provided task ID
     const taskData: FirestoreTaskData = {
       name: this.taskName,
@@ -141,6 +150,9 @@ export class RoarTaskVariant {
       registered: this.registered,
       external: this.external,
       lastUpdated: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      // Only set createdAt if this is a new document
+      ...((!taskExists) && { createdAt: serverTimestamp() }),
     };
 
     try {
@@ -160,7 +172,7 @@ export class RoarTaskVariant {
     const q = query(
       this.variantsCollectionRef,
       where('params', '==', this.variantParams),
-      orderBy('lastUpdated', 'desc'),
+      orderBy('updatedAt', 'desc'),
       limit(1),
     );
     const querySnapshot = await getDocs(q);
@@ -178,20 +190,24 @@ export class RoarTaskVariant {
         this.variantRef,
         removeUndefined({
           lastUpdated: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         }),
       );
     });
 
-    const variantData: FirestoreVariantData = {
-      name: this.variantName,
-      taskURL: this.taskURL,
-      registered: this.registered,
-      external: this.external,
-      params: this.variantParams,
-      lastUpdated: serverTimestamp(),
-    };
-
     if (!foundVariantWithCurrentParams) {
+      // Create new variant with both createdAt and updatedAt
+      const variantData: FirestoreVariantData = {
+        name: this.variantName,
+        taskURL: this.taskURL,
+        registered: this.registered,
+        external: this.external,
+        params: this.variantParams,
+        lastUpdated: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
       this.variantRef = doc(this.variantsCollectionRef);
       await setDoc(this.variantRef, removeUndefined(variantData));
       this.variantId = this.variantRef.id;

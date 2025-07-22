@@ -36,6 +36,7 @@ import {
   onSnapshot,
   updateDoc,
   setDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 
@@ -1393,7 +1394,7 @@ export class RoarFirekit {
       dataType = 'task';
     }
 
-    await setDoc(docRef, { ...data }).then(() => {
+    await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }).then(() => {
       console.log(`Successfully updated ${dataType} data.`);
     });
   }
