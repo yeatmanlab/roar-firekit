@@ -18,7 +18,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Ensure tag is on main
         run: |
-          git fetch origin main --tags
+          git fetch origin main
           tag_sha=$GITHUB_SHA
           if git rev-list --first-parent origin/main | grep -q $tag_sha; then
             echo "Tag SHA: $tag_sha is on main"
