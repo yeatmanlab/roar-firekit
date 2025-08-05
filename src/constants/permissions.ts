@@ -56,6 +56,11 @@ export const Permissions = {
     UPDATE: 'tasks.update',
     LAUNCH: 'tasks.launch',
   },
+  Runs: {
+    ALL: 'runs.*',
+    DELETE: 'runs.delete',
+    MARK_INELIGIBLE_SCORE: 'runs.mark_ineligible_for_scoring',
+  },
   TestData: {
     CREATE: 'data.create',
   },
