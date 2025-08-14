@@ -59,7 +59,9 @@ export const Permissions = {
   Runs: {
     ALL: 'runs.*',
     DELETE: 'runs.delete',
-    MARK_INELIGIBLE_SCORE: 'runs.mark_ineligible_for_scoring',
+    Scores: {
+      MARK_INELIGIBLE: 'runs.scores.mark_ineligble',
+    },
   },
   TestData: {
     CREATE: 'data.create',
