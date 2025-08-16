@@ -40,6 +40,7 @@ export const roles = {
       Permissions.Users.UPDATE,
       Permissions.Users.Credentials.UPDATE,
       Permissions.Tasks.ALL,
+      Permissions.Runs.Scores.MARK_INELIGIBLE,
     ],
   },
   [UserRoles.LAUNCH_ADMIN]: {
