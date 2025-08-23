@@ -2,7 +2,7 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { ComputedScores, RawScores, RoarRun, InteractionEvent } from './run';
+import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
@@ -393,10 +393,7 @@ export class RoarAppkit {
    * @async
    * @param {*} trialData - An object containing trial data.
    */
-  async writeTrial(
-    trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
-  ) {
+  async writeTrial(trialData: TrialData, computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>) {
     if (this._started) {
       return this.run!.writeTrial(trialData, computedScoreCallback);
     } else {
