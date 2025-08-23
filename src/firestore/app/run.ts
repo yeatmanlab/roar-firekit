@@ -99,7 +99,8 @@ const castToTheta = (value: ThetaValue) => {
 };
 
 type Event = 'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit';
-interface TrialData {
+
+export interface TrialData {
   assessment_stage: string;
   correct: boolean;
   subtask?: string;
