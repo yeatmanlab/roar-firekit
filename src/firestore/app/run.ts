@@ -99,6 +99,20 @@ const castToTheta = (value: ThetaValue) => {
 };
 
 type Event = 'blur' | 'focus' | 'fullscreenenter' | 'fullscreenexit';
+interface TrialData {
+  assessment_stage: string;
+  correct: boolean;
+  subtask?: string;
+  thetaEstimate?: number | null;
+  thetaSE?: number | null;
+  thetas?: {
+    [key: string]: number | null;
+  };
+  thetaSEs?: {
+    [key: string]: number | null;
+  };
+  [key: string]: unknown;
+}
 
 export interface InteractionEvent {
   event: Event;
@@ -177,8 +191,8 @@ export class RoarRun {
     this.aborted = false;
 
     this.scores = {
-      raw: {},
-      computed: {},
+      raw: {} as RawScores,
+      computed: {} as ComputedScores,
     };
 
     this.trialInteractions = {
@@ -460,10 +474,7 @@ export class RoarRun {
    * @async
    * @param {*} trialData - An object containing trial data.
    */
-  async writeTrial(
-    trialData: Record<string, unknown>,
-    computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>,
-  ) {
+  async writeTrial(trialData: TrialData, computedScoreCallback?: (rawScores: RawScores) => Promise<ComputedScores>) {
     if (!this.started) {
       throw new Error('Run has not been started yet. Use the startRun method first.');
     }
@@ -532,8 +543,8 @@ export class RoarRun {
                   // For the next two, use the unary + operator to convert the boolean value to 0 or 1.
                   numCorrect: (this.scores.raw[defaultSubtask][stage]?.numCorrect || 0) + +Boolean(trialData.correct),
                   numIncorrect: (this.scores.raw[defaultSubtask][stage]?.numIncorrect || 0) + +!trialData.correct,
-                  thetaEstimate: null,
-                  thetaSE: null,
+                  thetaEstimate: castToTheta(trialData.thetas?.[defaultSubtask] as ThetaValue),
+                  thetaSE: castToTheta(trialData.thetaSEs?.[defaultSubtask] as ThetaValue),
                 };
 
                 scoreUpdate = {
@@ -541,6 +552,12 @@ export class RoarRun {
                   [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
                   [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
                   [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
+                  [`scores.raw.${defaultSubtask}.${stage}.thetaEstimate`]: castToTheta(
+                    trialData.thetas?.[defaultSubtask] as ThetaValue,
+                  ),
+                  [`scores.raw.${defaultSubtask}.${stage}.thetaSE`]: castToTheta(
+                    trialData.thetaSEs?.[defaultSubtask] as ThetaValue,
+                  ),
                 };
               }
             } else {
@@ -568,8 +585,8 @@ export class RoarRun {
                   numAttempted: 1,
                   numCorrect: trialData.correct ? 1 : 0,
                   numIncorrect: trialData.correct ? 0 : 1,
-                  thetaEstimate: null,
-                  thetaSE: null,
+                  thetaEstimate: castToTheta(trialData.thetas?.[defaultSubtask] as ThetaValue),
+                  thetaSE: castToTheta(trialData.thetaSEs?.[defaultSubtask] as ThetaValue),
                 });
 
                 scoreUpdate = {
@@ -577,6 +594,12 @@ export class RoarRun {
                   [`scores.raw.${defaultSubtask}.${stage}.numAttempted`]: increment(1),
                   [`scores.raw.${defaultSubtask}.${stage}.numCorrect`]: trialData.correct ? increment(1) : undefined,
                   [`scores.raw.${defaultSubtask}.${stage}.numIncorrect`]: trialData.correct ? undefined : increment(1),
+                  [`scores.raw.${defaultSubtask}.${stage}.thetaEstimate`]: castToTheta(
+                    (trialData.thetas ?? {})[defaultSubtask] as ThetaValue,
+                  ),
+                  [`scores.raw.${defaultSubtask}.${stage}.thetaSE`]: castToTheta(
+                    trialData.thetaSEs?.[defaultSubtask] as ThetaValue,
+                  ),
                 };
               }
             }
