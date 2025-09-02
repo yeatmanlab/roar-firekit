@@ -84,10 +84,20 @@ enum AuthProviderType {
   CLEVER = 'clever',
   CLASSLINK = 'classlink',
   GOOGLE = 'google',
+  IBMVERIFY = 'ibmverify',
   EMAIL = 'email',
   USERNAME = 'username',
   PASSWORD = 'password',
 }
+
+const ALLOWED_POPUP_REDIRECT_PROVIDERS = [
+  AuthProviderType.GOOGLE,
+  AuthProviderType.CLEVER,
+  AuthProviderType.CLASSLINK,
+  AuthProviderType.IBMVERIFY,
+];
+
+const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.IBMVERIFY];
 
 interface CreateUserInput {
   email: string;
@@ -233,6 +243,7 @@ export class RoarFirekit {
       CLEVER: 'oidc.clever',
       CLASSLINK: 'oidc.classlink',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
+      IBMVERIFY: 'oidc.ibmverify',
     };
   }
 
@@ -586,9 +597,8 @@ export class RoarFirekit {
    * Synchronizes Education Single Sign-On (SSO) user data.
    *
    * This method is responsible for synchronizing user data between the
-   * Education SSO platform (Clever or ClassLink) and the ROAR (Readiness
-   * Outcomes Assessment Reporting) system. It uses the provided OAuth
-   * access token to authenticate with the Education SSO platform and
+   * SSO providers and the ROAR system. It uses the provided OAuth
+   * access token to authenticate with the SSO provider and
    * calls the appropriate cloud function to sync the user data.
    *
    * @param {string} oAuthAccessToken - The OAuth access token obtained from the Education SSO platform.
@@ -850,6 +860,29 @@ export class RoarFirekit {
       });
   }
 
+  private _getAuthProviderFromProviderType(provider: AuthProviderType) {
+    if (provider === AuthProviderType.GOOGLE) {
+      return new GoogleAuthProvider();
+    }
+
+    const roarProviderIds = this._getProviderIds();
+    if (provider === AuthProviderType.CLEVER) {
+      return new OAuthProvider(roarProviderIds.CLEVER);
+    }
+
+    if (provider === AuthProviderType.CLASSLINK) {
+      return new OAuthProvider(roarProviderIds.CLASSLINK);
+    }
+
+    if (provider === AuthProviderType.IBMVERIFY) {
+      return new OAuthProvider(roarProviderIds.IBMVERIFY);
+    }
+
+    throw new Error(
+      `provider must be one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS.join(', ')}. Received ${provider} instead.`,
+    );
+  }
+
   /**
    * Handle the sign-in process in a popup window.
    *
@@ -884,20 +917,8 @@ export class RoarFirekit {
    */
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
-    let authProvider;
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
     const swallowAllowedErrors = (error: AuthError) => {
@@ -919,7 +940,7 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+        } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
           oAuthAccessToken = credential?.accessToken;
@@ -929,6 +950,8 @@ export class RoarFirekit {
             providerId = roarProviderIds.CLEVER;
           } else if (provider === AuthProviderType.CLASSLINK) {
             providerId = roarProviderIds.CLASSLINK;
+          } else if (provider === AuthProviderType.IBMVERIFY) {
+            providerId = roarProviderIds.IBMVERIFY;
           }
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
@@ -982,19 +1005,8 @@ export class RoarFirekit {
    */
   async linkAuthProviderWithPopup(provider: AuthProviderType) {
     this._verifyAuthentication();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-    const roarProviderIds = this._getProviderIds();
 
-    let authProvider;
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
     const swallowAllowedErrors = (error: AuthError) => {
@@ -1014,7 +1026,7 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+        } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
           // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
           oAuthAccessToken = credential?.accessToken;
@@ -1025,6 +1037,8 @@ export class RoarFirekit {
             providerId = roarProviderIds.CLEVER;
           } else if (provider === AuthProviderType.CLASSLINK) {
             providerId = roarProviderIds.CLASSLINK;
+          } else if (provider === AuthProviderType.IBMVERIFY) {
+            providerId = roarProviderIds.IBMVERIFY;
           }
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
@@ -1086,27 +1100,7 @@ export class RoarFirekit {
       this._verifyAuthentication();
     }
 
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-
-    let authProvider;
-    this.verboseLog('Attempting sign in with AuthProvider', provider);
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-      this.verboseLog('Google AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Clever roarProviderIds', roarProviderIds);
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-      this.verboseLog('Clever AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Classlink roarProviderIds', roarProviderIds);
-      // Use the partner-initiated flow for Classlink
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-      this.verboseLog('Classlink AuthProvider object:', authProvider);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
     if (linkToAuthenticatedUser) {
@@ -1182,14 +1176,19 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if ([roarProviderIds.CLEVER, roarProviderIds.CLASSLINK].includes(providerId ?? 'NULL')) {
-            this.verboseLog('ProviderId is clever, calling credentialFromResult with', adminUserCredential);
+          } else if (EDU_SSO_PROVIDERS.includes((providerId ?? 'NULL') as AuthProviderType)) {
+            this.verboseLog(
+              'ProviderId is an edu SSO provider, calling credentialFromResult with',
+              adminUserCredential,
+            );
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
             // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
             if (providerId === roarProviderIds.CLEVER) {
               authProvider = AuthProviderType.CLEVER;
             } else if (providerId === roarProviderIds.CLASSLINK) {
               authProvider = AuthProviderType.CLASSLINK;
+            } else if (providerId === roarProviderIds.IBMVERIFY) {
+              authProvider = AuthProviderType.IBMVERIFY;
             }
 
             this._identityProviderType = authProvider;
@@ -1261,24 +1260,20 @@ export class RoarFirekit {
   async unlinkAuthProvider(provider: AuthProviderType) {
     this._verifyAuthentication();
 
-    const allowedProviders = [
-      AuthProviderType.GOOGLE,
-      AuthProviderType.CLEVER,
-      AuthProviderType.CLASSLINK,
-      AuthProviderType.PASSWORD,
-    ];
+    const allowedProviders = [...ALLOWED_POPUP_REDIRECT_PROVIDERS, AuthProviderType.PASSWORD];
     const roarProviderIds = this._getProviderIds();
 
     let providerId: string;
     if (provider === AuthProviderType.GOOGLE) {
       providerId = roarProviderIds.GOOGLE;
     } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
       providerId = roarProviderIds.CLEVER;
     } else if (provider === AuthProviderType.CLASSLINK) {
       providerId = roarProviderIds.CLASSLINK;
     } else if (provider === AuthProviderType.PASSWORD) {
       providerId = AuthProviderType.PASSWORD;
+    } else if (provider === AuthProviderType.IBMVERIFY) {
+      providerId = roarProviderIds.IBMVERIFY;
     } else {
       throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
     }
