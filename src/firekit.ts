@@ -84,7 +84,7 @@ enum AuthProviderType {
   CLEVER = 'clever',
   CLASSLINK = 'classlink',
   GOOGLE = 'google',
-  IBMVERIFY = 'ibmverify',
+  NYCPS = 'nycps',
   EMAIL = 'email',
   USERNAME = 'username',
   PASSWORD = 'password',
@@ -94,10 +94,10 @@ const ALLOWED_POPUP_REDIRECT_PROVIDERS = [
   AuthProviderType.GOOGLE,
   AuthProviderType.CLEVER,
   AuthProviderType.CLASSLINK,
-  AuthProviderType.IBMVERIFY,
+  AuthProviderType.NYCPS,
 ];
 
-const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.IBMVERIFY];
+const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.NYCPS];
 
 interface CreateUserInput {
   email: string;
@@ -243,7 +243,7 @@ export class RoarFirekit {
       CLEVER: 'oidc.clever',
       CLASSLINK: 'oidc.classlink',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
-      IBMVERIFY: 'oidc.ibmverify',
+      NYCPS: 'oidc.nycps',
     };
   }
 
@@ -874,13 +874,37 @@ export class RoarFirekit {
       return new OAuthProvider(roarProviderIds.CLASSLINK);
     }
 
-    if (provider === AuthProviderType.IBMVERIFY) {
-      return new OAuthProvider(roarProviderIds.IBMVERIFY);
+    if (provider === AuthProviderType.NYCPS) {
+      return new OAuthProvider(roarProviderIds.NYCPS);
     }
 
     throw new Error(
       `provider must be one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS.join(', ')}. Received ${provider} instead.`,
     );
+  }
+
+  private _getAuthProviderIdFromProviderType(provider: AuthProviderType, allowedProviders: AuthProviderType[]) {
+    if (!allowedProviders.includes(provider)) {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    const roarProviderIds = this._getProviderIds();
+    let providerId: string;
+    if (provider === AuthProviderType.GOOGLE) {
+      providerId = roarProviderIds.GOOGLE;
+    } else if (provider === AuthProviderType.CLEVER) {
+      providerId = roarProviderIds.CLEVER;
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      providerId = roarProviderIds.CLASSLINK;
+    } else if (provider === AuthProviderType.PASSWORD) {
+      providerId = AuthProviderType.PASSWORD;
+    } else if (provider === AuthProviderType.NYCPS) {
+      providerId = roarProviderIds.NYCPS;
+    } else {
+      throw new Error(`Unknown provider ${provider}.`);
+    }
+
+    return providerId;
   }
 
   /**
@@ -945,14 +969,8 @@ export class RoarFirekit {
           // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
           oAuthAccessToken = credential?.accessToken;
 
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          } else if (provider === AuthProviderType.IBMVERIFY) {
-            providerId = roarProviderIds.IBMVERIFY;
-          }
+          const providerId = this._getAuthProviderIdFromProviderType(provider, EDU_SSO_PROVIDERS);
+
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
           )?.uid;
@@ -1032,14 +1050,8 @@ export class RoarFirekit {
           oAuthAccessToken = credential?.accessToken;
 
           const roarProviderIds = this._getProviderIds();
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          } else if (provider === AuthProviderType.IBMVERIFY) {
-            providerId = roarProviderIds.IBMVERIFY;
-          }
+          const providerId = this._getAuthProviderIdFromProviderType(provider, EDU_SSO_PROVIDERS);
+
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
           )?.uid;
@@ -1093,6 +1105,10 @@ export class RoarFirekit {
    * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
    */
   async initiateRedirect(provider: AuthProviderType, linkToAuthenticatedUser = false) {
+    console.log('initiateRedirect', {
+      provider,
+      linkToAuthenticatedUser,
+    });
     this.verboseLog('Entry point for initiateRedirect');
     this._verifyInit();
 
@@ -1101,6 +1117,7 @@ export class RoarFirekit {
     }
 
     const authProvider = this._getAuthProviderFromProviderType(provider);
+    console.log('authProvider', authProvider);
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
     if (linkToAuthenticatedUser) {
@@ -1187,8 +1204,8 @@ export class RoarFirekit {
               authProvider = AuthProviderType.CLEVER;
             } else if (providerId === roarProviderIds.CLASSLINK) {
               authProvider = AuthProviderType.CLASSLINK;
-            } else if (providerId === roarProviderIds.IBMVERIFY) {
-              authProvider = AuthProviderType.IBMVERIFY;
+            } else if (providerId === roarProviderIds.NYCPS) {
+              authProvider = AuthProviderType.NYCPS;
             }
 
             this._identityProviderType = authProvider;
@@ -1261,22 +1278,7 @@ export class RoarFirekit {
     this._verifyAuthentication();
 
     const allowedProviders = [...ALLOWED_POPUP_REDIRECT_PROVIDERS, AuthProviderType.PASSWORD];
-    const roarProviderIds = this._getProviderIds();
-
-    let providerId: string;
-    if (provider === AuthProviderType.GOOGLE) {
-      providerId = roarProviderIds.GOOGLE;
-    } else if (provider === AuthProviderType.CLEVER) {
-      providerId = roarProviderIds.CLEVER;
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      providerId = roarProviderIds.CLASSLINK;
-    } else if (provider === AuthProviderType.PASSWORD) {
-      providerId = AuthProviderType.PASSWORD;
-    } else if (provider === AuthProviderType.IBMVERIFY) {
-      providerId = roarProviderIds.IBMVERIFY;
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const providerId = this._getAuthProviderIdFromProviderType(provider, allowedProviders);
 
     return unlink(this.admin!.auth!.currentUser!, providerId);
   }
