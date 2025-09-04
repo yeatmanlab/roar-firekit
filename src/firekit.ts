@@ -90,14 +90,8 @@ enum AuthProviderType {
   PASSWORD = 'password',
 }
 
-const ALLOWED_POPUP_REDIRECT_PROVIDERS = [
-  AuthProviderType.GOOGLE,
-  AuthProviderType.CLEVER,
-  AuthProviderType.CLASSLINK,
-  AuthProviderType.NYCPS,
-];
-
 const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.NYCPS];
+const ALLOWED_POPUP_REDIRECT_PROVIDERS = [...EDU_SSO_PROVIDERS, AuthProviderType.GOOGLE];
 
 interface CreateUserInput {
   email: string;
@@ -1174,6 +1168,13 @@ export class RoarFirekit {
         if (adminUserCredential !== null) {
           this.verboseLog('adminUserCredential is not null');
           const providerId = adminUserCredential.providerId;
+
+          if (!ALLOWED_POPUP_REDIRECT_PROVIDERS.includes((providerId ?? '') as AuthProviderType)) {
+            throw new Error(
+              `ProviderId ${providerId} is not allowed. Expected one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS}`,
+            );
+          }
+
           const roarProviderIds = this._getProviderIds();
           this.verboseLog('providerId is', providerId);
           this.verboseLog('roarProviderIds are', roarProviderIds);
