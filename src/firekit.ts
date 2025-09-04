@@ -84,10 +84,14 @@ enum AuthProviderType {
   CLEVER = 'clever',
   CLASSLINK = 'classlink',
   GOOGLE = 'google',
+  NYCPS = 'nycps',
   EMAIL = 'email',
   USERNAME = 'username',
   PASSWORD = 'password',
 }
+
+const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.NYCPS];
+const ALLOWED_POPUP_REDIRECT_PROVIDERS = [...EDU_SSO_PROVIDERS, AuthProviderType.GOOGLE];
 
 interface CreateUserInput {
   email: string;
@@ -233,6 +237,7 @@ export class RoarFirekit {
       CLEVER: 'oidc.clever',
       CLASSLINK: 'oidc.classlink',
       ROAR_ADMIN_PROJECT: `oidc.${this.roarConfig.admin.projectId}`,
+      NYCPS: 'oidc.nycps',
     };
   }
 
@@ -586,13 +591,12 @@ export class RoarFirekit {
    * Synchronizes Education Single Sign-On (SSO) user data.
    *
    * This method is responsible for synchronizing user data between the
-   * Education SSO platform (Clever or ClassLink) and the ROAR (Readiness
-   * Outcomes Assessment Reporting) system. It uses the provided OAuth
-   * access token to authenticate with the Education SSO platform and
+   * SSO providers and the ROAR system. It uses the provided OAuth
+   * access token to authenticate with the SSO provider and
    * calls the appropriate cloud function to sync the user data.
    *
    * @param {string} oAuthAccessToken - The OAuth access token obtained from the Education SSO platform.
-   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (Clever or ClassLink).
+   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (e.g. Clever, ClassLink, NYCPS).
    * @throws {Error} - If the required parameters are missing or invalid.
    * @returns {Promise<void>} - A promise that resolves when the synchronization is complete.
    */
@@ -703,9 +707,9 @@ export class RoarFirekit {
     this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
       .catch((error: AuthError) => {
-        console.log('Error creating user', error);
-        console.log(error.code);
-        console.log(error.message);
+        console.error('Error creating user', error);
+        console.error(error.code);
+        console.error(error.message);
         throw error;
       })
       .then(() => {
@@ -850,6 +854,53 @@ export class RoarFirekit {
       });
   }
 
+  private _getAuthProviderFromProviderType(provider: AuthProviderType) {
+    if (provider === AuthProviderType.GOOGLE) {
+      return new GoogleAuthProvider();
+    }
+
+    const roarProviderIds = this._getProviderIds();
+    if (provider === AuthProviderType.CLEVER) {
+      return new OAuthProvider(roarProviderIds.CLEVER);
+    }
+
+    if (provider === AuthProviderType.CLASSLINK) {
+      return new OAuthProvider(roarProviderIds.CLASSLINK);
+    }
+
+    if (provider === AuthProviderType.NYCPS) {
+      return new OAuthProvider(roarProviderIds.NYCPS);
+    }
+
+    throw new Error(
+      `provider must be one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS.join(', ')}. Received ${provider} instead.`,
+    );
+  }
+
+  private _getAuthProviderIdFromProviderType(provider: AuthProviderType, allowedProviders: AuthProviderType[]) {
+    if (!allowedProviders.includes(provider)) {
+      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
+    }
+
+    const roarProviderIds = this._getProviderIds();
+    let providerId: string;
+    if (provider === AuthProviderType.GOOGLE) {
+      providerId = roarProviderIds.GOOGLE;
+    } else if (provider === AuthProviderType.CLEVER) {
+      providerId = roarProviderIds.CLEVER;
+    } else if (provider === AuthProviderType.CLASSLINK) {
+      providerId = roarProviderIds.CLASSLINK;
+    } else if (provider === AuthProviderType.PASSWORD) {
+      providerId = AuthProviderType.PASSWORD;
+    } else if (provider === AuthProviderType.NYCPS) {
+      providerId = roarProviderIds.NYCPS;
+    } else {
+      throw new Error(`Unknown provider ${provider}.`);
+    }
+
+    return providerId;
+  }
+
   /**
    * Handle the sign-in process in a popup window.
    *
@@ -873,7 +924,7 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   * 7. Sync SSO user data by calling syncEduSSOUser().
    *
    * @param {AuthProviderType} provider - The authentication provider to use. It can be one of the following:
    * - AuthProviderType.GOOGLE
@@ -884,20 +935,8 @@ export class RoarFirekit {
    */
   async signInWithPopup(provider: AuthProviderType) {
     this._verifyInit();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
 
-    let authProvider;
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
     const swallowAllowedErrors = (error: AuthError) => {
@@ -919,17 +958,13 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+        } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          // This gives you an Access Token. You can use it to access SSO provider APIs.
           oAuthAccessToken = credential?.accessToken;
 
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          }
+          const providerId = this._getAuthProviderIdFromProviderType(provider, EDU_SSO_PROVIDERS);
+
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
           )?.uid;
@@ -982,19 +1017,8 @@ export class RoarFirekit {
    */
   async linkAuthProviderWithPopup(provider: AuthProviderType) {
     this._verifyAuthentication();
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-    const roarProviderIds = this._getProviderIds();
 
-    let authProvider;
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-    } else if (provider === AuthProviderType.CLEVER) {
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     const allowedErrors = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'];
     const swallowAllowedErrors = (error: AuthError) => {
@@ -1014,18 +1038,14 @@ export class RoarFirekit {
           // TODO: Find a way to put this in the onAuthStateChanged handler
           oAuthAccessToken = credential?.accessToken;
           return credential;
-        } else if ([AuthProviderType.CLEVER, AuthProviderType.CLASSLINK].includes(provider)) {
+        } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          // This gives you an Access Token. You can use it to access SSO provider APIs.
           oAuthAccessToken = credential?.accessToken;
 
           const roarProviderIds = this._getProviderIds();
-          let providerId: string;
-          if (provider === AuthProviderType.CLEVER) {
-            providerId = roarProviderIds.CLEVER;
-          } else if (provider === AuthProviderType.CLASSLINK) {
-            providerId = roarProviderIds.CLASSLINK;
-          }
+          const providerId = this._getAuthProviderIdFromProviderType(provider, EDU_SSO_PROVIDERS);
+
           this._identityProviderId = adminUserCredential.user.providerData.find(
             (userInfo) => userInfo.providerId === providerId,
           )?.uid;
@@ -1086,27 +1106,7 @@ export class RoarFirekit {
       this._verifyAuthentication();
     }
 
-    const allowedProviders = [AuthProviderType.GOOGLE, AuthProviderType.CLEVER, AuthProviderType.CLASSLINK];
-
-    let authProvider;
-    this.verboseLog('Attempting sign in with AuthProvider', provider);
-    if (provider === AuthProviderType.GOOGLE) {
-      authProvider = new GoogleAuthProvider();
-      this.verboseLog('Google AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Clever roarProviderIds', roarProviderIds);
-      authProvider = new OAuthProvider(roarProviderIds.CLEVER);
-      this.verboseLog('Clever AuthProvider object:', authProvider);
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      const roarProviderIds = this._getProviderIds();
-      this.verboseLog('Classlink roarProviderIds', roarProviderIds);
-      // Use the partner-initiated flow for Classlink
-      authProvider = new OAuthProvider(roarProviderIds.CLASSLINK);
-      this.verboseLog('Classlink AuthProvider object:', authProvider);
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const authProvider = this._getAuthProviderFromProviderType(provider);
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
     if (linkToAuthenticatedUser) {
@@ -1138,7 +1138,7 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   * 7. Sync SSO user data by calling syncEduSSOUser().
    *
    * @param {() => void} enableCookiesCallback - A callback function to be invoked when the enable cookies error occurs.
    * @returns {Promise<{ status: 'ok' } | null>} - A promise that resolves with an object containing the status 'ok' if the sign-in is successful,
@@ -1168,6 +1168,13 @@ export class RoarFirekit {
         if (adminUserCredential !== null) {
           this.verboseLog('adminUserCredential is not null');
           const providerId = adminUserCredential.providerId;
+
+          if (!ALLOWED_POPUP_REDIRECT_PROVIDERS.includes((providerId ?? '') as AuthProviderType)) {
+            throw new Error(
+              `ProviderId ${providerId} is not allowed. Expected one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS}`,
+            );
+          }
+
           const roarProviderIds = this._getProviderIds();
           this.verboseLog('providerId is', providerId);
           this.verboseLog('roarProviderIds are', roarProviderIds);
@@ -1182,14 +1189,19 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if ([roarProviderIds.CLEVER, roarProviderIds.CLASSLINK].includes(providerId ?? 'NULL')) {
-            this.verboseLog('ProviderId is clever, calling credentialFromResult with', adminUserCredential);
+          } else if (EDU_SSO_PROVIDERS.includes((providerId ?? 'NULL') as AuthProviderType)) {
+            this.verboseLog(
+              'ProviderId is an edu SSO provider, calling credentialFromResult with',
+              adminUserCredential,
+            );
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-            // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+            // This gives you an Access Token. You can use it to access SSO provider APIs.
             if (providerId === roarProviderIds.CLEVER) {
               authProvider = AuthProviderType.CLEVER;
             } else if (providerId === roarProviderIds.CLASSLINK) {
               authProvider = AuthProviderType.CLASSLINK;
+            } else if (providerId === roarProviderIds.NYCPS) {
+              authProvider = AuthProviderType.NYCPS;
             }
 
             this._identityProviderType = authProvider;
@@ -1261,27 +1273,8 @@ export class RoarFirekit {
   async unlinkAuthProvider(provider: AuthProviderType) {
     this._verifyAuthentication();
 
-    const allowedProviders = [
-      AuthProviderType.GOOGLE,
-      AuthProviderType.CLEVER,
-      AuthProviderType.CLASSLINK,
-      AuthProviderType.PASSWORD,
-    ];
-    const roarProviderIds = this._getProviderIds();
-
-    let providerId: string;
-    if (provider === AuthProviderType.GOOGLE) {
-      providerId = roarProviderIds.GOOGLE;
-    } else if (provider === AuthProviderType.CLEVER) {
-      const roarProviderIds = this._getProviderIds();
-      providerId = roarProviderIds.CLEVER;
-    } else if (provider === AuthProviderType.CLASSLINK) {
-      providerId = roarProviderIds.CLASSLINK;
-    } else if (provider === AuthProviderType.PASSWORD) {
-      providerId = AuthProviderType.PASSWORD;
-    } else {
-      throw new Error(`provider must be one of ${allowedProviders.join(', ')}. Received ${provider} instead.`);
-    }
+    const allowedProviders = [...ALLOWED_POPUP_REDIRECT_PROVIDERS, AuthProviderType.PASSWORD];
+    const providerId = this._getAuthProviderIdFromProviderType(provider, allowedProviders);
 
     return unlink(this.admin!.auth!.currentUser!, providerId);
   }
@@ -1514,8 +1507,8 @@ export class RoarFirekit {
 
     if (this.userData) {
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
-      // First determine the PID. If the user has signed in through Clever, then
-      // the PID has been set to the Clever ID in the firebase cloud function.
+      // First determine the PID. If the user has signed in through an SSO provider, then
+      // the PID has been automatically generated in on the backend.
       // If the user signed in through another method, the PID **may** have been
       // set to something else. Grab it if it's there.
       // In either case, it will then be present in this.userData.
@@ -1563,7 +1556,6 @@ export class RoarFirekit {
   }
 
   async updateConsentStatus(docName: string, consentVersion: string, params = {}) {
-    console.log(`Updating consent status for ${this.dbRefs!.admin.user.path}.`);
     if (!_isEmpty(params) && _get(params, 'dateSigned')) {
       return await updateDoc(this.dbRefs!.admin.user, {
         [`legal.${docName}.${consentVersion}`]: arrayUnion(params),
@@ -2124,8 +2116,6 @@ export class RoarFirekit {
         throw new Error('Password must be at least 6 characters.');
       }
     }
-
-    console.log('Updating user record for user', uid, 'with', record);
 
     const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
     const updateResponse = (await cloudUpdateUserRecord({ uid, userRecord })) as HttpsCallableResult<{
@@ -2691,20 +2681,15 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     let docRef;
-    let dataType: string;
     const { data } = updateData;
 
     if (updateData.variantId) {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
-      dataType = 'variant';
     } else {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId);
-      dataType = 'task';
     }
 
-    await setDoc(docRef, { ...data }).then(() => {
-      console.log(`Successfully updated ${dataType} data.`);
-    });
+    await setDoc(docRef, { ...data });
   }
 
   /**
