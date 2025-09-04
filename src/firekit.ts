@@ -2387,19 +2387,28 @@ export class RoarFirekit {
     return this.createStudentWithEmailPassword(email, password, userData);
   }
 
-  async createAdministrator(
-    email: string,
-    name: Name,
-    targetOrgs: OrgLists,
-    targetAdminOrgs: OrgLists,
+  async createAdministrator({
+    email,
+    password,
+    name,
+    targetOrgs,
+    targetAdminOrgs,
     isTestData = false,
-  ) {
+  }: {
+    email: string;
+    password?: string;
+    name: Name;
+    targetOrgs: OrgLists;
+    targetAdminOrgs: OrgLists;
+    isTestData?: boolean;
+  }) {
     this._verifyAuthentication();
     this._verifyAdmin();
 
     const cloudCreateAdministrator = httpsCallable(this.admin!.functions, 'createAdministratorAccount');
     const adminResponse = await cloudCreateAdministrator({
       email,
+      password,
       name,
       orgs: targetOrgs,
       adminOrgs: targetAdminOrgs,
