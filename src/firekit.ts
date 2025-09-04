@@ -602,7 +602,7 @@ export class RoarFirekit {
    * calls the appropriate cloud function to sync the user data.
    *
    * @param {string} oAuthAccessToken - The OAuth access token obtained from the Education SSO platform.
-   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (Clever or ClassLink).
+   * @param {AuthProviderType} authProvider - The type of the Education SSO platform (e.g. Clever, ClassLink, NYCPS).
    * @throws {Error} - If the required parameters are missing or invalid.
    * @returns {Promise<void>} - A promise that resolves when the synchronization is complete.
    */
@@ -930,7 +930,7 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   * 7. Sync SSO user data by calling syncEduSSOUser().
    *
    * @param {AuthProviderType} provider - The authentication provider to use. It can be one of the following:
    * - AuthProviderType.GOOGLE
@@ -966,7 +966,7 @@ export class RoarFirekit {
           return credential;
         } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          // This gives you an Access Token. You can use it to access SSO provider APIs.
           oAuthAccessToken = credential?.accessToken;
 
           const providerId = this._getAuthProviderIdFromProviderType(provider, EDU_SSO_PROVIDERS);
@@ -1046,7 +1046,7 @@ export class RoarFirekit {
           return credential;
         } else if (EDU_SSO_PROVIDERS.includes(provider)) {
           const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-          // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+          // This gives you an Access Token. You can use it to access SSO provider APIs.
           oAuthAccessToken = credential?.accessToken;
 
           const roarProviderIds = this._getProviderIds();
@@ -1144,7 +1144,7 @@ export class RoarFirekit {
    * 4. Generate a new "external" credential from the admin Firebase project.
    * 5. Authenticate into the assessment Firebase project with the admin project's "external" credential.
    * 6. Set UID custom claims by calling setUidCustomClaims().
-   * 7. Sync Clever/Classlink user data by calling syncEduSSOUser().
+   * 7. Sync SSO user data by calling syncEduSSOUser().
    *
    * @param {() => void} enableCookiesCallback - A callback function to be invoked when the enable cookies error occurs.
    * @returns {Promise<{ status: 'ok' } | null>} - A promise that resolves with an object containing the status 'ok' if the sign-in is successful,
@@ -1194,7 +1194,7 @@ export class RoarFirekit {
               adminUserCredential,
             );
             const credential = OAuthProvider.credentialFromResult(adminUserCredential);
-            // This gives you a Clever/Classlink Access Token. You can use it to access Clever/Classlink APIs.
+            // This gives you an Access Token. You can use it to access SSO provider APIs.
             if (providerId === roarProviderIds.CLEVER) {
               authProvider = AuthProviderType.CLEVER;
             } else if (providerId === roarProviderIds.CLASSLINK) {
@@ -1506,8 +1506,8 @@ export class RoarFirekit {
 
     if (this.userData) {
       // Create a RoarAppUserInfo for later ingestion into a RoarAppkit
-      // First determine the PID. If the user has signed in through Clever, then
-      // the PID has been set to the Clever ID in the firebase cloud function.
+      // First determine the PID. If the user has signed in through an SSO provider, then
+      // the PID has been automatically generated in on the backend.
       // If the user signed in through another method, the PID **may** have been
       // set to something else. Grab it if it's there.
       // In either case, it will then be present in this.userData.
