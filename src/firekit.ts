@@ -713,9 +713,9 @@ export class RoarFirekit {
     this._verifyInit();
     return createUserWithEmailAndPassword(this.admin!.auth, email, password)
       .catch((error: AuthError) => {
-        console.log('Error creating user', error);
-        console.log(error.code);
-        console.log(error.message);
+        console.error('Error creating user', error);
+        console.error(error.code);
+        console.error(error.message);
         throw error;
       })
       .then(() => {
@@ -1105,10 +1105,6 @@ export class RoarFirekit {
    * @throws {Error} - If the specified provider is not one of the allowed providers, an error is thrown.
    */
   async initiateRedirect(provider: AuthProviderType, linkToAuthenticatedUser = false) {
-    console.log('initiateRedirect', {
-      provider,
-      linkToAuthenticatedUser,
-    });
     this.verboseLog('Entry point for initiateRedirect');
     this._verifyInit();
 
@@ -1117,7 +1113,6 @@ export class RoarFirekit {
     }
 
     const authProvider = this._getAuthProviderFromProviderType(provider);
-    console.log('authProvider', authProvider);
 
     this.verboseLog('Calling signInWithRedirect from initiateRedirect with provider', authProvider);
     if (linkToAuthenticatedUser) {
@@ -1560,7 +1555,6 @@ export class RoarFirekit {
   }
 
   async updateConsentStatus(docName: string, consentVersion: string, params = {}) {
-    console.log(`Updating consent status for ${this.dbRefs!.admin.user.path}.`);
     if (!_isEmpty(params) && _get(params, 'dateSigned')) {
       return await updateDoc(this.dbRefs!.admin.user, {
         [`legal.${docName}.${consentVersion}`]: arrayUnion(params),
@@ -2121,8 +2115,6 @@ export class RoarFirekit {
         throw new Error('Password must be at least 6 characters.');
       }
     }
-
-    console.log('Updating user record for user', uid, 'with', record);
 
     const cloudUpdateUserRecord = httpsCallable(this.admin!.functions, 'updateUserRecord');
     const updateResponse = (await cloudUpdateUserRecord({ uid, userRecord })) as HttpsCallableResult<{
@@ -2688,20 +2680,15 @@ export class RoarFirekit {
     this._verifyAdmin();
 
     let docRef;
-    let dataType: string;
     const { data } = updateData;
 
     if (updateData.variantId) {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId, 'variants', updateData.variantId);
-      dataType = 'variant';
     } else {
       docRef = doc(this.app!.db, 'tasks', updateData.taskId);
-      dataType = 'task';
     }
 
-    await setDoc(docRef, { ...data }).then(() => {
-      console.log(`Successfully updated ${dataType} data.`);
-    });
+    await setDoc(docRef, { ...data });
   }
 
   /**
