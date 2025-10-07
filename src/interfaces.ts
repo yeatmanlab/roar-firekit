@@ -174,7 +174,9 @@ export interface Administration extends OrgLists {
   assessments: Assessment[];
   tags?: string[];
   readOrgs?: OrgLists;
+  minimalOrgs?: OrgLists;
   legal?: Legal;
+  formatVersion?: number;
 }
 
 export interface AssignedAssessment extends DocumentData {

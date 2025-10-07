@@ -1887,16 +1887,12 @@ export class RoarFirekit {
       );
     }
 
-    // First add the administration to the database
-    const administrationData: Administration = {
+    // Create administration using minimalOrgs as ground truth
+    // Cloud functions will compute assignedOrgs and readOrgs from minimalOrgs
+    const administrationData: Omit<Administration, 'districts' | 'schools' | 'classes' | 'groups' | 'families'> = {
       name,
       publicName: publicName ?? name,
       createdBy: this.roarUid!,
-      groups: orgs.groups ?? [],
-      families: orgs.families ?? [],
-      classes: orgs.classes ?? [],
-      schools: orgs.schools ?? [],
-      districts: orgs.districts ?? [],
       dateCreated: new Date(),
       dateOpened: dateOpen,
       dateClosed: dateClose,
@@ -1905,6 +1901,14 @@ export class RoarFirekit {
       tags: tags,
       legal: legal,
       testData: isTestData ?? false,
+      formatVersion: 2, // New format with minimalOrgs as ground truth
+      minimalOrgs: {
+        districts: orgs.districts ?? [],
+        schools: orgs.schools ?? [],
+        classes: orgs.classes ?? [],
+        groups: orgs.groups ?? [],
+        families: orgs.families ?? [],
+      },
     };
 
     await runTransaction(this.admin!.db, async (transaction) => {
@@ -1923,7 +1927,12 @@ export class RoarFirekit {
         administrationDocRef = doc(collection(this.admin!.db, 'administrations'));
       }
 
-      // Create the administration doc in the admin Firestore,
+      // Create the administration doc with minimalOrgs
+      // Cloud functions will automatically:
+      // 1. Validate that minimalOrgs are truly minimal
+      // 2. Compute exhaustive assignedOrgs from minimalOrgs
+      // 3. Compute readOrgs from assignedOrgs
+      // 4. Write computed orgs to subcollections
       transaction.set(administrationDocRef, administrationData, { merge: true });
 
       // Then add the ID to the admin's list of administrationsCreated
