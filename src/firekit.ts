@@ -90,8 +90,22 @@ enum AuthProviderType {
   PASSWORD = 'password',
 }
 
+const PROVIDER_TYPE_TO_PROVIDER_ID_MAP: Record<AuthProviderType, string> = {
+  [AuthProviderType.CLEVER]: 'oidc.clever',
+  [AuthProviderType.CLASSLINK]: 'oidc.classlink',
+  [AuthProviderType.NYCPS]: 'oidc.nycps',
+  [AuthProviderType.GOOGLE]: 'google.com',
+  [AuthProviderType.EMAIL]: 'password',
+  [AuthProviderType.USERNAME]: 'password',
+  [AuthProviderType.PASSWORD]: 'password',
+};
+
 const EDU_SSO_PROVIDERS = [AuthProviderType.CLEVER, AuthProviderType.CLASSLINK, AuthProviderType.NYCPS];
+const EDU_SSO_PROVIDER_IDS = EDU_SSO_PROVIDERS.map((providerType) => PROVIDER_TYPE_TO_PROVIDER_ID_MAP[providerType]);
 const ALLOWED_POPUP_REDIRECT_PROVIDERS = [...EDU_SSO_PROVIDERS, AuthProviderType.GOOGLE];
+const ALLOWED_POPUP_REDIRECT_PROVIDER_IDS = ALLOWED_POPUP_REDIRECT_PROVIDERS.map(
+  (providerType) => PROVIDER_TYPE_TO_PROVIDER_ID_MAP[providerType] ?? null,
+);
 
 interface CreateUserInput {
   email: string;
@@ -1169,9 +1183,9 @@ export class RoarFirekit {
           this.verboseLog('adminUserCredential is not null');
           const providerId = adminUserCredential.providerId;
 
-          if (!ALLOWED_POPUP_REDIRECT_PROVIDERS.includes((providerId ?? '') as AuthProviderType)) {
+          if (!ALLOWED_POPUP_REDIRECT_PROVIDER_IDS.includes(providerId ?? '')) {
             throw new Error(
-              `ProviderId ${providerId} is not allowed. Expected one of ${ALLOWED_POPUP_REDIRECT_PROVIDERS}`,
+              `ProviderId ${providerId} is not allowed. Expected one of ${ALLOWED_POPUP_REDIRECT_PROVIDER_IDS}`,
             );
           }
 
@@ -1189,7 +1203,7 @@ export class RoarFirekit {
             this.verboseLog('oAuthAccessToken = ', oAuthAccessToken);
             this.verboseLog('returning credential from first .then() ->', credential);
             return credential;
-          } else if (EDU_SSO_PROVIDERS.includes((providerId ?? 'NULL') as AuthProviderType)) {
+          } else if (EDU_SSO_PROVIDER_IDS.includes(providerId ?? '')) {
             this.verboseLog(
               'ProviderId is an edu SSO provider, calling credentialFromResult with',
               adminUserCredential,
