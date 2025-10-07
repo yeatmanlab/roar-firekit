@@ -1875,10 +1875,7 @@ export class RoarFirekit {
 
     // Create administration using minimalOrgs as ground truth
     // Cloud functions will compute assignedOrgs and readOrgs from minimalOrgs
-    const administrationData: Omit<Administration, 'districts' | 'schools' | 'classes' | 'groups' | 'families'> & {
-      formatVersion: number;
-      minimalOrgs: OrgLists;
-    } = {
+    const administrationData: Omit<Administration, 'districts' | 'schools' | 'classes' | 'groups' | 'families'> = {
       name,
       publicName: publicName ?? name,
       createdBy: this.roarUid!,
