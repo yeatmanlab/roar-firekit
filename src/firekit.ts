@@ -1458,6 +1458,51 @@ export class RoarFirekit {
     return response.data.data ?? [];
   }
 
+  /**
+   * Deletes a run.
+   *
+   * @param targetUserId - The roarUid of the user who created the run.
+   * @param runId - The id of the run to delete.
+   * @returns
+   */
+  public async deleteRun(targetUserId: string, runId: string) {
+    this._verifyAuthentication();
+    const deleteRunCallable = httpsCallable(this.app!.functions, 'deleteRun');
+    const response = (await deleteRunCallable({ targetUserId, runId })) as HttpsCallableResult<{
+      status: string;
+      data?: string;
+    }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to delete run');
+    }
+
+    return response.data.status;
+  }
+
+  /**
+   * Invalidates a run. This function will set the run's reliability to false, and
+   * will add the engagement flag `manualReviewByAdmin`.
+   *
+   * @param targetUserId - The roarUid of the user who created the run.
+   * @param runId - The id of the run to invalidate.
+   * @returns
+   */
+  public async invalidateRun(targetUserId: string, runId: string) {
+    this._verifyAuthentication();
+    const invalidateRunCallable = httpsCallable(this.app!.functions, 'invalidateRun');
+    const response = (await invalidateRunCallable({ targetUserId, runId })) as HttpsCallableResult<{
+      status: string;
+      data?: string;
+    }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to invalidate run');
+    }
+
+    return response.data.status;
+  }
+
   public async verifyParentRegistration() {
     this._verifyAuthentication();
     const verifyRegistrationCallable = httpsCallable(this.admin!.functions, 'verifyParentRegistration');
