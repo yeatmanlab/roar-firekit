@@ -1460,10 +1460,13 @@ export class RoarFirekit {
 
   public async aggregateSupportCategories(districtId: string, assignmentId: string) {
     const aggregateSupportCategoriesCallable = httpsCallable(this.admin!.functions, 'aggregateSupportLevelCategories');
+    console.log('aggregateSupportCategoriesCallable from firekit', aggregateSupportCategoriesCallable);
     const response = (await aggregateSupportCategoriesCallable({
       districtId,
       assignmentId,
     })) as HttpsCallableResult<{ status: string; data?: unknown }>;
+
+    console.log('aggregateSupportCategories response from firekit', response.data.data);
 
     if (_get(response.data, 'status') !== 'ok') {
       throw new Error('Failed to aggregate support categories.');
