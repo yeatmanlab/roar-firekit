@@ -1459,8 +1459,7 @@ export class RoarFirekit {
   }
 
   public async aggregateSupportCategories(districtId: string, assignmentId: string) {
-    this._verifyAuthentication();
-    const aggregateSupportCategoriesCallable = httpsCallable(this.admin!.functions, 'aggregateSupportCategories');
+    const aggregateSupportCategoriesCallable = httpsCallable(this.admin!.functions, 'aggregateSupportLevelCategories');
     const response = (await aggregateSupportCategoriesCallable({
       districtId,
       assignmentId,
