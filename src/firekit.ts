@@ -1465,7 +1465,7 @@ export class RoarFirekit {
       assignmentId,
     })) as HttpsCallableResult<{ status: string; data?: unknown }>;
 
-    if (_get(response.data, 'status') !== 'success') {
+    if (_get(response.data, 'status') !== 'ok') {
       throw new Error('Failed to aggregate support categories.');
     }
 
