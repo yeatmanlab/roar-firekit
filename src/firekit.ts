@@ -1985,6 +1985,32 @@ export class RoarFirekit {
     });
   }
 
+  /**
+   * For a given administration, return the minimal orgs and stats for each org.
+   * If parentOrgId and parentOrgType are provided, return only the orgs that are children of the parent org.
+   *
+   * @param administrationId - The ID of the administration
+   * @param parentOrgId - The ID of the parent org. Optional
+   * @param parentOrgType - The type of the parent org. Optional
+   */
+  async getAdministrationOrgsAndStats(administrationId: string, parentOrgId?: string, parentOrgType?: string) {
+    const cloudGetAdminOrgsAndStats = httpsCallable(this.admin!.functions, 'getAdministrationOrgsAndStats');
+    const response = (await cloudGetAdminOrgsAndStats({
+      administrationId,
+      parentOrgId,
+      parentOrgType,
+    })) as HttpsCallableResult<{
+      status: string;
+      data?: unknown;
+    }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error(`Failed to retrieve children orgs and stats for administration ${administrationId}.`);
+    }
+
+    return response.data;
+  }
+
   async assignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verifyAdmin();
