@@ -2025,6 +2025,27 @@ export class RoarFirekit {
     return response.data;
   }
 
+  /**
+   * Get assignment stats by calling the cloud function getAssignmentStats.
+   *
+   * @param assignmentId - The ID of the assignment
+   */
+  async getAssignmentStats(assignmentId: string) {
+    const cloudGetAssignmentStats = httpsCallable(this.admin!.functions, 'getAssignmentStats');
+    const response = (await cloudGetAssignmentStats({
+      assignmentId,
+    })) as HttpsCallableResult<{
+      status: string;
+      data?: unknown;
+    }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error(`Failed to retrieve assignment stats for assignment ${assignmentId}.`);
+    }
+
+    return response.data;
+  }
+
   async assignAdministrationToOrgs(administrationId: string, orgs: OrgLists = emptyOrgList()) {
     this._verifyAuthentication();
     this._verifyAdmin();
