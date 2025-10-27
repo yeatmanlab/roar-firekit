@@ -1458,6 +1458,20 @@ export class RoarFirekit {
     return response.data.data ?? [];
   }
 
+  public async aggregateSupportCategories(districtId: string, assignmentId: string) {
+    const aggregateSupportCategoriesCallable = httpsCallable(this.admin!.functions, 'aggregateSupportLevelCategories');
+    const response = (await aggregateSupportCategoriesCallable({
+      districtId,
+      assignmentId,
+    })) as HttpsCallableResult<{ status: string; data?: unknown }>;
+
+    if (_get(response.data, 'status') !== 'ok') {
+      throw new Error('Failed to aggregate support categories.');
+    }
+
+    return response.data.data ?? [];
+  }
+
   public async verifyParentRegistration() {
     this._verifyAuthentication();
     const verifyRegistrationCallable = httpsCallable(this.admin!.functions, 'verifyParentRegistration');
