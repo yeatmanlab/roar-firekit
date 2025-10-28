@@ -66,6 +66,7 @@ import {
   Name,
   RoarOrg,
   OrgLists,
+  OrgType,
   RoarConfig,
   StudentData,
   UserDataInAdminDb,
@@ -2028,12 +2029,32 @@ export class RoarFirekit {
   /**
    * Get assignment stats by calling the cloud function getAssignmentStats.
    *
-   * @param assignmentId - The ID of the assignment
+   * @param administrationIds - Array of administration IDs to get stats for (supports single or multiple administrations)
+   * @param orgId - Optional organization ID to filter by (null for total stats)
+   * @param orgType - Optional organization type when orgId is provided (singular form)
+   * @param taskIds - Optional array of task IDs to get task-specific stats (null for assignment-level stats)
+   * @param fetchAllTaskIds - If true, fetch all taskIds from each administration's assessments field (ignores taskIds parameter)
    */
-  async getAssignmentStats(assignmentId: string) {
+  async getAssignmentStats({
+    administrationIds,
+    orgId = null,
+    orgType,
+    taskIds = null,
+    fetchAllTaskIds = false,
+  }: {
+    administrationIds: string[];
+    orgId?: string | null;
+    orgType?: OrgType;
+    taskIds?: string[] | null;
+    fetchAllTaskIds?: boolean;
+  }) {
     const cloudGetAssignmentStats = httpsCallable(this.admin!.functions, 'getAssignmentStats');
     const response = (await cloudGetAssignmentStats({
-      assignmentId,
+      administrationIds,
+      orgId,
+      orgType,
+      taskIds,
+      fetchAllTaskIds,
     })) as HttpsCallableResult<{
       status: string;
       data?: unknown;
