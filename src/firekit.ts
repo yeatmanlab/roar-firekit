@@ -2061,7 +2061,7 @@ export class RoarFirekit {
     }>;
 
     if (_get(response.data, 'status') !== 'ok') {
-      throw new Error(`Failed to retrieve assignment stats for assignment ${assignmentId}.`);
+      throw new Error(`Failed to retrieve assignment stats for administrations ${administrationIds}.`);
     }
 
     return response.data;
