@@ -820,6 +820,11 @@ export class RoarFirekit {
    * @returns {Promise<void>} - A promise that resolves when the sign-in link is sent successfully.
    */
   async initiateLoginWithEmailLink({ email, redirectUrl }: { email: string; redirectUrl: string }) {
+    const emailAvailable = await isEmailAvailable(this.admin!.auth, email);
+    // If the email is available, we don't have a user with that email, but to prevent enumeration we mimic the behavior of sendSignInLinkToEmail
+    if (emailAvailable) {
+      return Promise.resolve(void 0);
+    }
     this._verifyInit();
     const actionCodeSettings = {
       url: redirectUrl,
@@ -2244,6 +2249,11 @@ export class RoarFirekit {
    * @returns A promise that resolves when the password reset email is sent.
    */
   async sendPasswordResetEmail(email: string) {
+    const emailAvailable = await isEmailAvailable(this.admin!.auth, email);
+    // If the email is available, we don't have a user with that email, but to prevent enumeration we mimic the behavior of sendPasswordResetEmail
+    if (emailAvailable) {
+      return Promise.resolve(void 0);
+    }
     return sendPasswordResetEmail(this.admin!.auth, email).then(() => {
       this.verboseLog('Password reset email sent to', email);
     });
