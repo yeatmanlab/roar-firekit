@@ -46,6 +46,9 @@ export const fetchEmailAuthMethods = async (auth: Auth, email: string) => {
     if (signInMethods.indexOf('oidc.classlink') != -1) {
       methods.push('classlink');
     }
+    if (signInMethods.indexOf('oidc.nycps') != -1) {
+      methods.push('nycps');
+    }
     return methods;
   });
 };
