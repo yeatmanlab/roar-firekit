@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
@@ -408,5 +408,13 @@ export class RoarAppkit {
 
     const storageRef = ref(this.firebaseProject!.storage, filePath);
     return getDownloadURL(storageRef);
+  }
+
+  async uploadFileOrBlobToStorage(filePath: string, fileOrBlob: File | Blob) {
+    if (!this._initialized) {
+      await this._init();
+    }
+    const storageRef = ref(this.firebaseProject!.storage, filePath);
+    return uploadBytes(storageRef, fileOrBlob);
   }
 }
