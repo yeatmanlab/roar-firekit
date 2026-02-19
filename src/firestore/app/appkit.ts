@@ -412,21 +412,7 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  generateFilePath({
-    taskId,
-    fileName,
-    assessmentPid,
-    fullFilePath,
-  }: {
-    taskId: string;
-    fileName: string;
-    assessmentPid?: string;
-    fullFilePath?: string;
-  }) {
-    if (fullFilePath && fullFilePath.length > 0) {
-      return fullFilePath;
-    }
-
+  generateFilePath({ taskId, fileName, assessmentPid }: { taskId: string; fileName: string; assessmentPid?: string }) {
     const runId = this.run?.runRef?.id;
     const uid = this.user?.assessmentUid;
     const adminId = this._assignmentId;
