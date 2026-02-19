@@ -413,23 +413,45 @@ export class RoarAppkit {
   }
 
   generateFilePath({ taskId, fileName, assessmentPid }: { taskId: string; fileName: string; assessmentPid?: string }) {
-    const runId = this.run?.runRef?.id;
-    const uid = this.user?.assessmentUid;
-    const adminId = this._assignmentId;
-    let pid = '';
-
-    if (assessmentPid && assessmentPid.length > 0) {
-      pid = assessmentPid;
-    } else {
-      pid = (this.user?.userType === UserType.guest ? uid : this.user?.assessmentPid) ?? '';
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to generate file path.');
     }
 
-    return `${taskId}/${uid}/${pid ? `${pid}/` : ''}${adminId ? `${adminId}/` : ''}${runId}/${fileName}`;
+    const runId = this.run?.runRef?.id;
+    const uid = this.user!.assessmentUid;
+    const administrationId = this._assignmentId;
+    let pid = '';
+
+    if (this.user?.assessmentPid) {
+      pid = this.user.assessmentPid;
+    } else if (assessmentPid && assessmentPid.length > 0) {
+      pid = assessmentPid;
+    } else {
+      pid = uid;
+    }
+
+    return `${taskId}/${uid}/${pid}/${
+      administrationId ? `${administrationId}` : 'guest-administration'
+    }/${runId}/${fileName}`;
   }
 
-  async uploadFileOrBlobToStorage({ filePath, fileOrBlob }: { filePath: string; fileOrBlob: File | Blob }) {
+  async uploadFileOrBlobToStorage({
+    taskId,
+    fileName,
+    assessmentPid,
+    fileOrBlob,
+  }: {
+    taskId: string;
+    fileName: string;
+    assessmentPid?: string;
+    fileOrBlob: File | Blob;
+  }) {
     if (!this._initialized) {
       await this._init();
+    }
+
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to upload files to storage.');
     }
 
     /*
@@ -442,8 +464,12 @@ export class RoarAppkit {
     const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
     const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
 
+    const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
+
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
-    return uploadBytes(storageRef, fileOrBlob);
+
+    // Change uploadBytesResumable
+    return { uploadBytes: () => uploadBytes(storageRef, fileOrBlob), url: storageRef.toString() };
   }
 }
