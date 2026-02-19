@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes, getStorage } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
@@ -9,6 +9,7 @@ import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
+import { UserType } from '../../interfaces';
 
 interface DataFlags {
   user?: boolean;
@@ -145,6 +146,7 @@ export class RoarAppkit {
       testData: this.testData.run,
       demoData: this.demoData.run,
     });
+    console.log('runId:', this._runId);
     await this.user.init();
     this._initialized = true;
   }
@@ -410,11 +412,36 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  async uploadFileOrBlobToStorage(filePath: string, fileOrBlob: File | Blob) {
+  async uploadFileOrBlobToStorage(taskId: string, fileName: string, fileOrBlob: File | Blob) {
     if (!this._initialized) {
       await this._init();
     }
-    const storageRef = ref(this.firebaseProject!.storage, filePath);
+
+    /*
+      uncomment when ready to merge
+      if (!bucket || !filePath || !fileOrBlob) {
+        throw new Error('Bucket, file path, and file/blob are required');
+      }
+    */
+
+    const appIdParts = this.firebaseProject!.firebaseApp.name.split('-');
+    const bucketName = `gs://roar-assessment-recordings-${appIdParts.length === 3 ? 'prod' : appIdParts[3]}`;
+
+    const runId = this.run?.runRef?.id;
+    const assessmentUid = this.user?.assessmentUid;
+    const assessmentPid = this.user?.userType === UserType.guest ? assessmentUid : this.user?.assessmentPid;
+    const adminId = this._assignmentId;
+    const filePath = `${taskId}/${assessmentUid}/${assessmentPid}${adminId ? `/${adminId}` : ''}/${runId}/${fileName}`;
+
+    /*
+      console.log('runId:', runId);
+      console.log('assessment pid', assessmentPid);
+      console.log('assessment uid', assessmentUid);
+      console.log('admin id:', this._assignmentId);
+    */
+
+    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
+    const storageRef = ref(storageBucket, filePath);
     return uploadBytes(storageRef, fileOrBlob);
   }
 }
