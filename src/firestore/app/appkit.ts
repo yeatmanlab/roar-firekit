@@ -490,6 +490,8 @@ export class RoarAppkit {
       retries: 0,
     });
 
+    this.processUploadQueue();
+
     // Change uploadBytesResumable
     return { uploadBytes: () => uploadBytesResumable(storageRef, fileOrBlob), url: storageRef.toString() };
   }
@@ -508,10 +510,10 @@ export class RoarAppkit {
     activeTask.on(
       'state_changed',
       (snapshot) => {
-        // Upload progress can be handled here if needed
+        // TODO: Progress updates
       },
       (error) => {
-        // Handle error
+        // TODO: What to return for failed tasks
         const retryableErrors = [
           'retry-limit-exceeded',
           'unknown',
@@ -519,7 +521,7 @@ export class RoarAppkit {
           'cannot-slice-blob',
           'server-file-wrong-size',
         ];
-        if (nextTask.retries < 5 && retryableErrors.includes(error.code.split('/')[1])) {
+        if (nextTask.retries < 3 && retryableErrors.includes(error.code.split('/')[1])) {
           nextTask.retries++;
           nextTask.status = 'pending';
         } else {
@@ -530,6 +532,7 @@ export class RoarAppkit {
         this.processUploadQueue();
       },
       () => {
+        console.log('Upload complete for', nextTask.url);
         nextTask.status = 'completed';
         this._isQueueRunning = false;
         this.processUploadQueue();
