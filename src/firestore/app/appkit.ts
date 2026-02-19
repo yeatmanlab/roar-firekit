@@ -441,17 +441,7 @@ export class RoarAppkit {
     return `${taskId}/${uid}/${pid ? `${pid}/` : ''}${adminId ? `${adminId}/` : ''}${runId}/${fileName}`;
   }
 
-  async uploadFileOrBlobToStorage({
-    taskId,
-    fileName,
-    fileOrBlob,
-    assessmentPid,
-  }: {
-    taskId: string;
-    fileName: string;
-    fileOrBlob: File | Blob;
-    assessmentPid?: string;
-  }) {
+  async uploadFileOrBlobToStorage({ filePath, fileOrBlob }: { filePath: string; fileOrBlob: File | Blob }) {
     if (!this._initialized) {
       await this._init();
     }
@@ -465,8 +455,6 @@ export class RoarAppkit {
 
     const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
     const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
-
-    const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
