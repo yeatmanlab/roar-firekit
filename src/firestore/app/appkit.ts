@@ -438,7 +438,7 @@ export class RoarAppkit {
 
     const runId = this.run?.runRef?.id;
     const uid = this.user!.assessmentUid;
-    const administrationId = this._assignmentId;
+    const administrationId = this._assignmentId ?? 'guest-administration';
     let pid = '';
 
     if (this.user?.assessmentPid) {
@@ -449,9 +449,7 @@ export class RoarAppkit {
       pid = uid;
     }
 
-    return `${taskId}/${uid}/${pid}/${
-      administrationId ? `${administrationId}` : 'guest-administration'
-    }/${runId}/${fileName}`;
+    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${fileName}`;
   }
 
   /**
@@ -505,7 +503,8 @@ export class RoarAppkit {
       retries: 0,
     });
 
-    this.processUploadQueue();
+    // TODO: Re-enable when ready to test
+    // this.processUploadQueue();
 
     return { uploadBytes: () => uploadBytesResumable(storageRef, fileOrBlob), url: storageRef.toString() };
   }
