@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes, getStorage } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytes, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
@@ -9,7 +9,6 @@ import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
-import { UserType } from '../../interfaces';
 
 interface DataFlags {
   user?: boolean;
@@ -29,6 +28,14 @@ export interface AppkitInput {
   runId?: string;
   testData?: DataFlags;
   demoData?: DataFlags;
+}
+
+interface UploadTaskItem {
+  upload: () => UploadTask;
+  url: string;
+  status: 'pending' | 'uploading' | 'completed' | 'failed';
+  retries: number;
+  errMessage?: string;
 }
 
 /**
@@ -53,6 +60,8 @@ export class RoarAppkit {
   private _authenticated: boolean;
   private _initialized: boolean;
   private _started: boolean;
+  private _uploadQueue: Array<UploadTaskItem>;
+  private _isQueueRunning: boolean;
   /**
    * Create a RoarAppkit.
    *
@@ -102,6 +111,9 @@ export class RoarAppkit {
     this._authenticated = false;
     this._initialized = false;
     this._started = false;
+
+    this._uploadQueue = [];
+    this._isQueueRunning = false;
   }
 
   private async _init() {
@@ -412,6 +424,7 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
+  // TODO: Add documentation
   generateFilePath({ taskId, fileName, assessmentPid }: { taskId: string; fileName: string; assessmentPid?: string }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
@@ -435,6 +448,7 @@ export class RoarAppkit {
     }/${runId}/${fileName}`;
   }
 
+  // TODO: Add documentation
   async uploadFileOrBlobToStorage({
     taskId,
     fileName,
@@ -469,7 +483,57 @@ export class RoarAppkit {
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
 
+    this._uploadQueue.push({
+      upload: () => uploadBytesResumable(storageRef, fileOrBlob),
+      url: storageRef.toString(),
+      status: 'pending',
+      retries: 0,
+    });
+
     // Change uploadBytesResumable
-    return { uploadBytes: () => uploadBytes(storageRef, fileOrBlob), url: storageRef.toString() };
+    return { uploadBytes: () => uploadBytesResumable(storageRef, fileOrBlob), url: storageRef.toString() };
+  }
+
+  processUploadQueue() {
+    if (this._isQueueRunning) return;
+    // TODO: Unshift or keep all completed and filter as tasks switch? (mainly concerned about dashboard)
+    const nextTask = this._uploadQueue.find((task) => task.status === 'pending');
+    if (!nextTask) return;
+
+    this._isQueueRunning = true;
+    nextTask.status = 'uploading';
+
+    const activeTask = nextTask.upload();
+
+    activeTask.on(
+      'state_changed',
+      (snapshot) => {
+        // Upload progress can be handled here if needed
+      },
+      (error) => {
+        // Handle error
+        const retryableErrors = [
+          'retry-limit-exceeded',
+          'unknown',
+          'invalid-checksum',
+          'cannot-slice-blob',
+          'server-file-wrong-size',
+        ];
+        if (nextTask.retries < 5 && retryableErrors.includes(error.code.split('/')[1])) {
+          nextTask.retries++;
+          nextTask.status = 'pending';
+        } else {
+          nextTask.status = 'failed';
+          nextTask.errMessage = error.message;
+        }
+        this._isQueueRunning = false;
+        this.processUploadQueue();
+      },
+      () => {
+        nextTask.status = 'completed';
+        this._isQueueRunning = false;
+        this.processUploadQueue();
+      },
+    );
   }
 }
