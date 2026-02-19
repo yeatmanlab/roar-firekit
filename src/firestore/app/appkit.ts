@@ -412,7 +412,46 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  async uploadFileOrBlobToStorage(taskId: string, fileName: string, fileOrBlob: File | Blob) {
+  generateFilePath({
+    taskId,
+    fileName,
+    assessmentPid,
+    fullFilePath,
+  }: {
+    taskId: string;
+    fileName: string;
+    assessmentPid?: string;
+    fullFilePath?: string;
+  }) {
+    if (fullFilePath && fullFilePath.length > 0) {
+      return fullFilePath;
+    }
+
+    const runId = this.run?.runRef?.id;
+    const uid = this.user?.assessmentUid;
+    const adminId = this._assignmentId;
+    let pid = '';
+
+    if (assessmentPid && assessmentPid.length > 0) {
+      pid = assessmentPid;
+    } else {
+      pid = (this.user?.userType === UserType.guest ? uid : this.user?.assessmentPid) ?? '';
+    }
+
+    return `${taskId}/${uid}/${pid ? `${pid}/` : ''}${adminId ? `${adminId}/` : ''}${runId}/${fileName}`;
+  }
+
+  async uploadFileOrBlobToStorage({
+    taskId,
+    fileName,
+    fileOrBlob,
+    assessmentPid,
+  }: {
+    taskId: string;
+    fileName: string;
+    fileOrBlob: File | Blob;
+    assessmentPid?: string;
+  }) {
     if (!this._initialized) {
       await this._init();
     }
@@ -424,21 +463,10 @@ export class RoarAppkit {
       }
     */
 
-    const appIdParts = this.firebaseProject!.firebaseApp.name.split('-');
-    const bucketName = `gs://roar-assessment-recordings-${appIdParts.length === 3 ? 'prod' : appIdParts[3]}`;
+    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
+    const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
 
-    const runId = this.run?.runRef?.id;
-    const assessmentUid = this.user?.assessmentUid;
-    const assessmentPid = this.user?.userType === UserType.guest ? assessmentUid : this.user?.assessmentPid;
-    const adminId = this._assignmentId;
-    const filePath = `${taskId}/${assessmentUid}/${assessmentPid}${adminId ? `/${adminId}` : ''}/${runId}/${fileName}`;
-
-    /*
-      console.log('runId:', runId);
-      console.log('assessment pid', assessmentPid);
-      console.log('assessment uid', assessmentUid);
-      console.log('admin id:', this._assignmentId);
-    */
+    const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
