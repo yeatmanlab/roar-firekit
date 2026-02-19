@@ -424,7 +424,13 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  // TODO: Add documentation
+  /**
+   * Generates a standardized file path for recordings.
+   * @param {string} taskId - The task ID
+   * @param {string} fileName - The file name
+   * @param {string} [assessmentPid] - Optional assessmentPiD. Prioritizes assigned assessmentPid and defaults to assessmentUid
+   * @returns Standardized file path for recordings
+   */
   generateFilePath({ taskId, fileName, assessmentPid }: { taskId: string; fileName: string; assessmentPid?: string }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
@@ -448,7 +454,16 @@ export class RoarAppkit {
     }/${runId}/${fileName}`;
   }
 
-  // TODO: Add documentation
+  /**
+   * Upload recordings to GCP using Firebase SDK.
+   * The Firebase project and storage bucket are environment-specific.
+   * Bucket format: "roar-assessment-recordings-{environment}".
+   * @param {string} taskId - The task ID
+   * @param {string} fileName - The file name
+   * @param {string} [assessmentPid] - Optional assessmentPid.
+   * @param {File | Blob} fileOrBlob - The file or blob to upload
+   * @returns
+   */
   async uploadFileOrBlobToStorage({
     taskId,
     fileName,
@@ -492,10 +507,27 @@ export class RoarAppkit {
 
     this.processUploadQueue();
 
-    // Change uploadBytesResumable
     return { uploadBytes: () => uploadBytesResumable(storageRef, fileOrBlob), url: storageRef.toString() };
   }
 
+  /**
+   * Calculates exponential backoff delay with jitter for retry attempts.
+   * @param retryCount - Number of retry attempts made so far
+   * @param {number} [baseDelay=1000] - Base delay in milliseconds (default: 1000ms)
+   * @param {number} [maxDelay=30000] - Maximum delay in milliseconds (default: 30000ms)
+   * @returns Calculated delay in milliseconds
+   */
+  getBackoffDelay(retryCount: number, baseDelay = 1000, maxDelay = 30000) {
+    const exponential = baseDelay * Math.pow(2, retryCount);
+    const jitter = Math.random() * exponential;
+    return Math.min(exponential + jitter, maxDelay);
+  }
+
+  /**
+   * Goes through the queue of pending uploads and processes them one at a time.
+   * Retries failed uploads with exponential backoff.
+   * @returns void
+   */
   processUploadQueue() {
     if (this._isQueueRunning) return;
     // TODO: Unshift or keep all completed and filter as tasks switch? (mainly concerned about dashboard)
@@ -522,14 +554,19 @@ export class RoarAppkit {
           'server-file-wrong-size',
         ];
         if (nextTask.retries < 3 && retryableErrors.includes(error.code.split('/')[1])) {
+          const delay = this.getBackoffDelay(nextTask.retries);
           nextTask.retries++;
           nextTask.status = 'pending';
+
+          setTimeout(() => {
+            this.processUploadQueue();
+          }, delay);
         } else {
           nextTask.status = 'failed';
           nextTask.errMessage = error.message;
+          this._isQueueRunning = false;
+          this.processUploadQueue();
         }
-        this._isQueueRunning = false;
-        this.processUploadQueue();
       },
       () => {
         console.log('Upload complete for', nextTask.url);
