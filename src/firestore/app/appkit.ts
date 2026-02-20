@@ -35,7 +35,7 @@ interface UploadTaskItem {
   url: string;
   status: 'pending' | 'uploading' | 'completed' | 'failed';
   retries: number;
-  errMessage?: string;
+  errCode?: string;
 }
 
 /**
@@ -460,6 +460,7 @@ export class RoarAppkit {
    * @param {string} fileName - The file name
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
+   * @param {Record<string, string>} [customMetadata] - Optional metadata to attach to the file (see SettableMetadata interface in Firebase docs)
    * @returns
    */
   async uploadFileOrBlobToStorage({
@@ -467,11 +468,13 @@ export class RoarAppkit {
     fileName,
     assessmentPid,
     fileOrBlob,
+    customMetadata,
   }: {
     taskId: string;
     fileName: string;
     assessmentPid?: string;
     fileOrBlob: File | Blob;
+    customMetadata?: Record<string, string>;
   }) {
     if (!this._initialized) {
       await this._init();
@@ -497,16 +500,15 @@ export class RoarAppkit {
     const storageRef = ref(storageBucket, filePath);
 
     this._uploadQueue.push({
-      upload: () => uploadBytesResumable(storageRef, fileOrBlob),
+      upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
       url: storageRef.toString(),
       status: 'pending',
       retries: 0,
     });
 
-    // TODO: Re-enable when ready to test
-    // this.processUploadQueue();
+    this.processUploadQueue();
 
-    return { uploadBytes: () => uploadBytesResumable(storageRef, fileOrBlob), url: storageRef.toString() };
+    return storageRef.toString();
   }
 
   /**
@@ -537,22 +539,24 @@ export class RoarAppkit {
     nextTask.status = 'uploading';
 
     const activeTask = nextTask.upload();
+    console.log('activeTask', activeTask);
 
     activeTask.on(
       'state_changed',
       (snapshot) => {
         // TODO: Progress updates
+        console.log('snapshot', snapshot);
       },
       (error) => {
-        // TODO: What to return for failed tasks
+        // TODO: Update codes: https://firebase.google.com/docs/reference/js/storage.md#storageerrorcode
         const retryableErrors = [
-          'retry-limit-exceeded',
+          'internal-error',
           'unknown',
           'invalid-checksum',
           'cannot-slice-blob',
           'server-file-wrong-size',
         ];
-        if (nextTask.retries < 3 && retryableErrors.includes(error.code.split('/')[1])) {
+        if (nextTask.retries < 3 && retryableErrors.includes(error.code)) {
           const delay = this.getBackoffDelay(nextTask.retries);
           nextTask.retries++;
           nextTask.status = 'pending';
@@ -562,7 +566,8 @@ export class RoarAppkit {
           }, delay);
         } else {
           nextTask.status = 'failed';
-          nextTask.errMessage = error.message;
+          nextTask.errCode = error.code;
+          console.error('Upload failed for', nextTask.url, error);
           this._isQueueRunning = false;
           this.processUploadQueue();
         }
