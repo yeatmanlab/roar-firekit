@@ -1,7 +1,21 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
-import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
+import {
+  doc,
+  updateDoc,
+  arrayRemove,
+  arrayUnion,
+  collectionGroup,
+  query,
+  where,
+  getDocs,
+  collection,
+  DocumentSnapshot,
+  DocumentReference,
+  QuerySnapshot,
+  DocumentData,
+} from 'firebase/firestore';
+import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
@@ -30,11 +44,14 @@ export interface AppkitInput {
   demoData?: DataFlags;
 }
 
+type UploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
 interface UploadTaskItem {
   upload: () => UploadTask;
   url: string;
-  status: 'pending' | 'uploading' | 'completed' | 'failed';
+  status: UploadStatus;
   retries: number;
+  runId: string;
+  taskId: string;
   errCode?: string;
 }
 
@@ -461,7 +478,7 @@ export class RoarAppkit {
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
    * @param {Record<string, string>} [customMetadata] - Optional metadata to attach to the file (see SettableMetadata interface in Firebase docs)
-   * @returns
+   * @returns url of the uploaded file
    */
   async uploadFileOrBlobToStorage({
     taskId,
@@ -498,17 +515,19 @@ export class RoarAppkit {
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
+    const storageUrl = storageRef.toString();
 
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
-      url: storageRef.toString(),
+      runId: filePath.split('/')[4],
+      taskId,
+      url: storageUrl,
       status: 'pending',
       retries: 0,
     });
 
-    this.processUploadQueue();
-
-    return storageRef.toString();
+    await this.processUploadQueue();
+    return storageUrl;
   }
 
   /**
@@ -525,11 +544,112 @@ export class RoarAppkit {
   }
 
   /**
+   * Finds the trial document that corresponds to video file url
+   * RAN stores it as top-level uploadUrl field
+   * Readaloud stores stimulus objects with video_url in historyOfResults array
+   * @param taskId - The ID of the task.
+   * @param runId - The ID of the run.
+   * @param url - The upload URL to search for.
+   * @returns A promise that resolves to an object containing the trial document and its index, or null if not found.
+   */
+  async findTrial({ taskId, runId, url }: { taskId: string; runId: string; url: string }) {
+    const runQuery = query(collectionGroup(this.firebaseProject!.db, 'runs'), where('id', '==', runId));
+    const runSnapshots = await getDocs(runQuery);
+
+    if (runSnapshots.empty) {
+      console.error('Run not found for upload:', runId);
+      return null;
+    }
+
+    let trial: DocumentSnapshot<DocumentData> | null = null;
+    let trialIndex = 0;
+
+    const trialQuery = collection(runSnapshots.docs[0].ref, 'trials');
+    const trialSnapshots = await getDocs(trialQuery);
+
+    if (trialSnapshots.empty) {
+      console.error('No trials found for run', runId);
+      return null;
+    }
+
+    if (taskId === 'ran') {
+      trial = trialSnapshots.docs.find((doc) => doc.data().uploadUrl === url) || null;
+    } else if (taskId === 'roar-readaloud') {
+      const matchingTrial = trialSnapshots.docs.find((doc) => {
+        const videoMappings = doc.data().historyOfResults.map((result: any) => result.video_url);
+        if (videoMappings.includes(url)) {
+          trialIndex = videoMappings.indexOf(url);
+          return true;
+        }
+      });
+
+      trial = matchingTrial || null;
+    }
+    return { trial, trialIndex };
+  }
+
+  /**
+   * Updates the trial document with the upload status
+   * Overwrites video url (used to match trials) with null if upload fails
+   * @param nextTask - The upload task item to update
+   * @param trial - The trial document to update
+   * @param trialIndex - The index of the trial in the upload status array
+   * @param status - The upload status
+   * @param errCode - The error code if the upload failed
+   */
+  updateTrialStatus({
+    nextTask,
+    trial,
+    trialIndex,
+    status,
+    errCode,
+  }: {
+    nextTask: UploadTaskItem;
+    trial: DocumentSnapshot<DocumentData> | null;
+    trialIndex: number;
+    status: UploadStatus;
+    errCode?: string;
+  }) {
+    if (!trial || !trialIndex) return;
+
+    nextTask.status = status;
+    nextTask.errCode = errCode;
+
+    // TODO: Should we be setting errCode to null or just not setting it for success cases?
+    updateDoc(trial.ref, {
+      [`uploadStatus.${trialIndex}`]: {
+        status,
+        errCode: errCode ?? null,
+      },
+    });
+
+    if (status === 'completed') {
+      console.log('Upload completed for', nextTask.url);
+    } else if (status === 'failed') {
+      console.error('Upload failed for', nextTask.url, errCode);
+      if (nextTask.taskId === 'ran') {
+        updateDoc(trial.ref, {
+          uploadUrl: null,
+        });
+      } else if (nextTask.taskId === 'roar-readaloud') {
+        const historyOfResults = trial.data()?.historyOfResults;
+        historyOfResults[trialIndex].video_url = null;
+        updateDoc(trial.ref, {
+          historyOfResults,
+        });
+      }
+    }
+
+    this._isQueueRunning = false;
+    this.processUploadQueue();
+  }
+
+  /**
    * Goes through the queue of pending uploads and processes them one at a time.
    * Retries failed uploads with exponential backoff.
    * @returns void
    */
-  processUploadQueue() {
+  async processUploadQueue() {
     if (this._isQueueRunning) return;
     // TODO: Unshift or keep all completed and filter as tasks switch? (mainly concerned about dashboard)
     const nextTask = this._uploadQueue.find((task) => task.status === 'pending');
@@ -538,7 +658,18 @@ export class RoarAppkit {
     this._isQueueRunning = true;
     nextTask.status = 'uploading';
 
+    const activeTrial = await this.findTrial(nextTask);
     const activeTask = nextTask.upload();
+
+    if (!activeTrial || !activeTrial.trial) {
+      console.error('Trial not found for upload:', nextTask.url);
+      this._isQueueRunning = false;
+      return;
+    }
+
+    const doUploadTrialStatus = (status: UploadStatus, errCode?: string) =>
+      this.updateTrialStatus({ nextTask, status, errCode, ...activeTrial });
+
     console.log('activeTask', activeTask);
 
     activeTask.on(
@@ -547,7 +678,7 @@ export class RoarAppkit {
         // TODO: Progress updates
         console.log('snapshot', snapshot);
       },
-      (error) => {
+      async (error) => {
         // TODO: Update codes: https://firebase.google.com/docs/reference/js/storage.md#storageerrorcode
         const retryableErrors = [
           'internal-error',
@@ -565,18 +696,11 @@ export class RoarAppkit {
             this.processUploadQueue();
           }, delay);
         } else {
-          nextTask.status = 'failed';
-          nextTask.errCode = error.code;
-          console.error('Upload failed for', nextTask.url, error);
-          this._isQueueRunning = false;
-          this.processUploadQueue();
+          doUploadTrialStatus('failed', error.code);
         }
       },
       () => {
-        console.log('Upload complete for', nextTask.url);
-        nextTask.status = 'completed';
-        this._isQueueRunning = false;
-        this.processUploadQueue();
+        doUploadTrialStatus('completed');
       },
     );
   }
