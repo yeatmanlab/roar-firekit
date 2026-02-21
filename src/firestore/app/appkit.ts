@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import {
-  doc,
   updateDoc,
   arrayRemove,
   arrayUnion,
@@ -11,8 +10,6 @@ import {
   getDocs,
   collection,
   DocumentSnapshot,
-  DocumentReference,
-  QuerySnapshot,
   DocumentData,
 } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
@@ -53,6 +50,13 @@ interface UploadTaskItem {
   runId: string;
   taskId: string;
   errCode?: string;
+}
+// readaloud only
+interface ResultHistoryItem {
+  ability: number;
+  stim: string;
+  time: number;
+  video_url: string;
 }
 
 /**
@@ -576,7 +580,7 @@ export class RoarAppkit {
       trial = trialSnapshots.docs.find((doc) => doc.data().uploadUrl === url) || null;
     } else if (taskId === 'roar-readaloud') {
       const matchingTrial = trialSnapshots.docs.find((doc) => {
-        const videoMappings = doc.data().historyOfResults.map((result: any) => result.video_url);
+        const videoMappings = doc.data().historyOfResults.map((result: ResultHistoryItem) => result.video_url);
         if (videoMappings.includes(url)) {
           trialIndex = videoMappings.indexOf(url);
           return true;
