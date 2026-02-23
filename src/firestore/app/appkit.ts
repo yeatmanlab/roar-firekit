@@ -73,7 +73,6 @@ export class RoarAppkit {
   private _started: boolean;
   private _uploadQueue: Array<UploadTaskItem>;
   private _isQueueRunning: boolean;
-  private _testIndex: number;
   /**
    * Create a RoarAppkit.
    *
@@ -126,7 +125,6 @@ export class RoarAppkit {
 
     this._uploadQueue = [];
     this._isQueueRunning = false;
-    this._testIndex = 0;
   }
 
   private async _init() {
@@ -500,12 +498,9 @@ export class RoarAppkit {
       throw new Error('Current trial reference not found for upload.');
     }
 
-    /*
-      uncomment when ready to merge
-      if (!taskId || !filename || !fileOrBlob) {
-        throw new Error('Task ID, filename, and file/blob are required');
-      }
-    */
+    if (!taskId || !filename || !fileOrBlob) {
+      throw new Error('Task ID, filename, and file/blob are required');
+    }
 
     const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
     const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
@@ -525,7 +520,6 @@ export class RoarAppkit {
       status: 'pending',
       retries: 0,
     });
-    this._testIndex++;
 
     await this.processUploadQueue();
   }
