@@ -445,6 +445,11 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
+  generateUploadBucket() {
+    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
+    return `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
+  }
+
   /**
    * Generates a standardized file path for recordings.
    * @param {string} taskId - The task ID
@@ -512,12 +517,9 @@ export class RoarAppkit {
       }
     */
 
-    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
-    const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
-
     const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
 
-    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
+    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, this.generateUploadBucket());
     const storageRef = ref(storageBucket, filePath);
     const storageUrl = storageRef.toString();
 
