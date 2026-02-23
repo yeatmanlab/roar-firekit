@@ -470,7 +470,6 @@ export class RoarAppkit {
    * Upload recordings to GCP using Firebase SDK.
    * The Firebase project and storage bucket are environment-specific.
    * Bucket format: "roar-assessment-recordings-{environment}".
-   * @param {string} taskId - The task ID
    * @param {string} fileName - The file name
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
@@ -478,13 +477,11 @@ export class RoarAppkit {
    * @returns url of the uploaded file
    */
   async uploadFileOrBlobToStorage({
-    taskId,
     fileName,
     assessmentPid,
     fileOrBlob,
     customMetadata,
   }: {
-    taskId: string;
     fileName: string;
     assessmentPid?: string;
     fileOrBlob: File | Blob;
@@ -509,7 +506,7 @@ export class RoarAppkit {
       }
     */
 
-    const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
+    const filePath = this.generateFilePath({ taskId: this.run?.task.taskId, fileName, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, this.generateUploadBucket());
     const storageRef = ref(storageBucket, filePath);
@@ -519,7 +516,7 @@ export class RoarAppkit {
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
       trialRef: this.run._currentTrialRef,
-      taskId,
+      taskId: this.run.task.taskId,
       url: storageUrl,
       status: 'pending',
       retries: 0,
@@ -600,7 +597,7 @@ export class RoarAppkit {
     status: UploadStatus;
     errCode?: string;
   }) {
-    if (!nextTask.trialRef || !stimulusIndex) return;
+    if (!nextTask.trialRef || stimulusIndex == null) return;
 
     nextTask.status = status;
     nextTask.errCode = errCode;
