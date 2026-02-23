@@ -37,7 +37,7 @@ interface UploadTaskItem {
   status: UploadStatus;
   retries: number;
   taskId: string;
-  fileName: string;
+  filename: string;
   trialRef: DocumentReference<DocumentData> | null;
   errCode?: string;
 }
@@ -442,11 +442,11 @@ export class RoarAppkit {
   /**
    * Generates a standardized file path for recordings.
    * @param {string} taskId - The task ID
-   * @param {string} fileName - The file name
+   * @param {string} filename - The file name
    * @param {string} [assessmentPid] - Optional assessmentPiD. Prioritizes assigned assessmentPid and defaults to assessmentUid
    * @returns Standardized file path for recordings
    */
-  generateFilePath({ taskId, fileName, assessmentPid }: { taskId: string; fileName: string; assessmentPid?: string }) {
+  generateFilePath({ taskId, filename, assessmentPid }: { taskId: string; filename: string; assessmentPid?: string }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
     }
@@ -464,7 +464,7 @@ export class RoarAppkit {
       pid = uid;
     }
 
-    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${fileName}`;
+    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${filename}`;
   }
 
   /**
@@ -472,7 +472,7 @@ export class RoarAppkit {
    * The Firebase project and storage bucket are environment-specific.
    * Bucket format: "roar-assessment-recordings-{environment}".
    * @param {string} taskId - task id
-   * @param {string} fileName - The file name
+   * @param {string} filename - The file name
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
    * @param {Record<string, string>} [customMetadata] - Optional metadata to attach to the file (see SettableMetadata interface in Firebase docs)
@@ -480,13 +480,13 @@ export class RoarAppkit {
    */
   async uploadFileOrBlobToStorage({
     taskId,
-    fileName,
+    filename,
     assessmentPid,
     fileOrBlob,
     customMetadata,
   }: {
     taskId: string;
-    fileName: string;
+    filename: string;
     assessmentPid?: string;
     fileOrBlob: File | Blob;
     customMetadata?: Record<string, string>;
@@ -510,7 +510,7 @@ export class RoarAppkit {
       }
     */
 
-    const filePath = this.generateFilePath({ taskId, fileName, assessmentPid });
+    const filePath = this.generateFilePath({ taskId, filename, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, this.generateUploadBucket());
     const storageRef = ref(storageBucket, filePath);
@@ -521,7 +521,7 @@ export class RoarAppkit {
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
       trialRef: this.run._currentTrialRef,
       taskId: taskId,
-      fileName,
+      filename,
       url: storageUrl,
       status: 'pending',
       retries: 0,
@@ -619,7 +619,7 @@ export class RoarAppkit {
       if (nextTask.taskId === 'roav-ran') {
         await updateDoc(nextTask.trialRef, {
           uploadUrl: nextTask.url,
-          recordedVideo: nextTask.fileName,
+          recordedVideo: nextTask.filename,
         });
       }
     } else if (status === 'failed') {
