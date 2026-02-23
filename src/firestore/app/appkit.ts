@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
-import { updateDoc, arrayRemove, arrayUnion, DocumentData, DocumentReference, getDoc } from 'firebase/firestore';
+import { updateDoc, arrayRemove, arrayUnion, DocumentData, DocumentReference, getDoc, doc } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
@@ -73,6 +73,7 @@ export class RoarAppkit {
   private _started: boolean;
   private _uploadQueue: Array<UploadTaskItem>;
   private _isQueueRunning: boolean;
+  private _testIndex: number;
   /**
    * Create a RoarAppkit.
    *
@@ -125,6 +126,7 @@ export class RoarAppkit {
 
     this._uploadQueue = [];
     this._isQueueRunning = false;
+    this._testIndex = 0;
   }
 
   private async _init() {
@@ -434,11 +436,6 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  generateUploadBucket() {
-    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
-    return `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
-  }
-
   /**
    * Generates a standardized file path for recordings.
    * @param {string} taskId - The task ID
@@ -505,42 +502,32 @@ export class RoarAppkit {
 
     /*
       uncomment when ready to merge
-      if (!bucket || !filePath || !fileOrBlob) {
-        throw new Error('Bucket, file path, and file/blob are required');
+      if (!taskId || !filename || !fileOrBlob) {
+        throw new Error('Task ID, filename, and file/blob are required');
       }
     */
 
+    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
+    const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
     const filePath = this.generateFilePath({ taskId, filename, assessmentPid });
 
-    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, this.generateUploadBucket());
+    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
-    const storageUrl = storageRef.toString();
 
-    // TODO: Better handling of trial ref type
+    const trialRef = doc(this.firebaseProject!.db, this.run._currentTrialRef.path);
+
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
-      trialRef: this.run._currentTrialRef,
+      trialRef: trialRef,
       taskId: taskId,
       filename,
-      url: storageUrl,
+      url: storageRef.toString(),
       status: 'pending',
       retries: 0,
     });
+    this._testIndex++;
 
     await this.processUploadQueue();
-  }
-
-  /**
-   * Calculates exponential backoff delay with jitter for retry attempts.
-   * @param retryCount - Number of retry attempts made so far
-   * @param {number} [baseDelay=1000] - Base delay in milliseconds (default: 1000ms)
-   * @param {number} [maxDelay=30000] - Maximum delay in milliseconds (default: 30000ms)
-   * @returns Calculated delay in milliseconds
-   */
-  getBackoffDelay(retryCount: number, baseDelay = 1000, maxDelay = 30000) {
-    const exponential = baseDelay * Math.pow(2, retryCount);
-    const jitter = Math.random() * exponential;
-    return Math.min(exponential + jitter, maxDelay);
   }
 
   /**
@@ -627,6 +614,7 @@ export class RoarAppkit {
       if (nextTask.taskId === 'roav-ran') {
         await updateDoc(nextTask.trialRef, {
           uploadUrl: null,
+          recordedVideo: null,
         });
       } else if (nextTask.taskId === 'roar-readaloud') {
         const historyOfResults = (await getDoc(nextTask.trialRef)).data()?.historyOfResults;
@@ -648,7 +636,6 @@ export class RoarAppkit {
    */
   async processUploadQueue() {
     if (this._isQueueRunning) return;
-    // TODO: Unshift or keep all completed and filter as tasks switch? (mainly concerned about dashboard)
     const nextTask = this._uploadQueue.find((task) => task.status === 'pending');
     if (!nextTask) return;
 
@@ -659,45 +646,22 @@ export class RoarAppkit {
     const stimulusIndex = await this.findStimulusIndex(nextTask);
 
     if (stimulusIndex == null) {
-      console.error('Trial not found for upload:', nextTask.url);
+      nextTask.status = 'failed';
       this._isQueueRunning = false;
-      return;
+      throw new Error('Trial not found for upload: ' + nextTask.url);
     }
 
     const doUploadTrialStatus = async (status: UploadStatus, errCode?: string) =>
       await this.updateTrialStatus({ nextTask, status, errCode, stimulusIndex });
 
-    console.log('activeTask', activeTask);
-
     activeTask.on(
       'state_changed',
-      (snapshot) => {
-        // TODO: Progress updates
-        console.log('snapshot', snapshot);
-      },
+      null,
       async (error) => {
-        // TODO: Update codes: https://firebase.google.com/docs/reference/js/storage.md#storageerrorcode
-        const retryableErrors = [
-          'internal-error',
-          'unknown',
-          'invalid-checksum',
-          'cannot-slice-blob',
-          'server-file-wrong-size',
-        ];
-        if (nextTask.retries < 3 && retryableErrors.includes(error.code)) {
-          const delay = this.getBackoffDelay(nextTask.retries);
-          nextTask.retries++;
-          nextTask.status = 'pending';
-
-          setTimeout(() => {
-            this.processUploadQueue();
-          }, delay);
-        } else {
-          await doUploadTrialStatus('failed', error.code);
-        }
+        // TODO: Retry
+        await doUploadTrialStatus('failed', error?.code);
       },
       async () => {
-        console.log('completed');
         await doUploadTrialStatus('completed');
       },
     );
