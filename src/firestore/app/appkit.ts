@@ -606,7 +606,7 @@ export class RoarAppkit {
     nextTask.errCode = errCode;
 
     // TODO: Should we be setting errCode to null or just not setting it for success cases?
-    updateDoc(nextTask.trialRef, {
+    await updateDoc(nextTask.trialRef, {
       [`uploadStatus.${stimulusIndex}`]: {
         status,
         errCode: errCode ?? null,
@@ -616,27 +616,27 @@ export class RoarAppkit {
     if (status === 'completed') {
       console.log('Upload completed for', nextTask.url);
       if (nextTask.taskId === 'ran') {
-        updateDoc(nextTask.trialRef, {
+        await updateDoc(nextTask.trialRef, {
           uploadUrl: nextTask.url,
         });
       }
     } else if (status === 'failed') {
       console.error('Upload failed for', nextTask.url, errCode);
       if (nextTask.taskId === 'ran') {
-        updateDoc(nextTask.trialRef, {
+        await updateDoc(nextTask.trialRef, {
           uploadUrl: null,
         });
       } else if (nextTask.taskId === 'roar-readaloud') {
         const historyOfResults = (await getDoc(nextTask.trialRef)).data()?.historyOfResults;
         historyOfResults[stimulusIndex].video_url = null;
-        updateDoc(nextTask.trialRef, {
+        await updateDoc(nextTask.trialRef, {
           historyOfResults,
         });
       }
     }
 
     this._isQueueRunning = false;
-    this.processUploadQueue();
+    await this.processUploadQueue();
   }
 
   /**
@@ -691,12 +691,12 @@ export class RoarAppkit {
             this.processUploadQueue();
           }, delay);
         } else {
-          doUploadTrialStatus('failed', error.code);
+          await doUploadTrialStatus('failed', error.code);
         }
       },
-      () => {
+      async () => {
         console.log('completed');
-        doUploadTrialStatus('completed');
+        await doUploadTrialStatus('completed');
       },
     );
   }
