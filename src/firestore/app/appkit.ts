@@ -1,17 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
-import {
-  updateDoc,
-  arrayRemove,
-  arrayUnion,
-  collectionGroup,
-  query,
-  where,
-  getDocs,
-  collection,
-  DocumentSnapshot,
-  DocumentData,
-} from 'firebase/firestore';
+import { updateDoc, arrayRemove, arrayUnion, DocumentData, DocumentReference, getDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
@@ -47,8 +36,8 @@ interface UploadTaskItem {
   url: string;
   status: UploadStatus;
   retries: number;
-  runId: string;
   taskId: string;
+  trialRef: DocumentReference<DocumentData> | null;
   errCode?: string;
 }
 // readaloud only
@@ -179,7 +168,6 @@ export class RoarAppkit {
       testData: this.testData.run,
       demoData: this.demoData.run,
     });
-    console.log('runId:', this._runId);
     await this.user.init();
     this._initialized = true;
   }
@@ -510,6 +498,10 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to upload files to storage.');
     }
 
+    if (!this.run?._currentTrialRef) {
+      throw new Error('Current trial reference not found for upload.');
+    }
+
     /*
       uncomment when ready to merge
       if (!bucket || !filePath || !fileOrBlob) {
@@ -523,9 +515,10 @@ export class RoarAppkit {
     const storageRef = ref(storageBucket, filePath);
     const storageUrl = storageRef.toString();
 
+    // TODO: Better handling of trial ref type
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
-      runId: filePath.split('/')[4],
+      trialRef: this.run._currentTrialRef,
       taskId,
       url: storageUrl,
       status: 'pending',
@@ -552,78 +545,69 @@ export class RoarAppkit {
   /**
    * Finds the trial document that corresponds to video file url
    * RAN stores it as top-level uploadUrl field
-   * Readaloud stores stimulus objects with video_url in historyOfResults array
+   * Readaloud stores them in stimulus objects in historyOfResults array
+   * @param trialRef - The reference to the trial document.
    * @param taskId - The ID of the task.
-   * @param runId - The ID of the run.
    * @param url - The upload URL to search for.
    * @returns A promise that resolves to an object containing the trial document and its index, or null if not found.
    */
-  async findTrial({ taskId, runId, url }: { taskId: string; runId: string; url: string }) {
-    const runQuery = query(collectionGroup(this.firebaseProject!.db, 'runs'), where('id', '==', runId));
-    const runSnapshots = await getDocs(runQuery);
-
-    if (runSnapshots.empty) {
-      console.error('Run not found for upload:', runId);
+  async findStimulusIndex({
+    trialRef,
+    taskId,
+    url,
+  }: {
+    trialRef: DocumentReference<DocumentData> | null;
+    taskId: string;
+    url: string;
+  }) {
+    if (!trialRef) {
+      console.error('Trial reference not found for upload:', url);
       return null;
     }
 
-    let trial: DocumentSnapshot<DocumentData> | null = null;
-    let trialIndex = 0;
+    let stimulusIndex = 0;
+    if (taskId === 'roar-readaloud') {
+      const trialSnapshot = await getDoc(trialRef);
+      stimulusIndex = trialSnapshot
+        .data()
+        ?.historyOfResults?.findIndex((result: ResultHistoryItem) => result.video_url === url);
 
-    const trialQuery = collection(runSnapshots.docs[0].ref, 'trials');
-    const trialSnapshots = await getDocs(trialQuery);
-
-    if (trialSnapshots.empty) {
-      console.error('No trials found for run', runId);
-      return null;
+      if (stimulusIndex === -1) {
+        console.error('Trial not found for upload:', url);
+        return null;
+      }
     }
 
-    if (taskId === 'ran') {
-      trial = trialSnapshots.docs.find((doc) => doc.data().uploadUrl === url) || null;
-    } else if (taskId === 'roar-readaloud') {
-      const matchingTrial = trialSnapshots.docs.find((doc) => {
-        const videoMappings = doc.data().historyOfResults.map((result: ResultHistoryItem) => result.video_url);
-        if (videoMappings.includes(url)) {
-          trialIndex = videoMappings.indexOf(url);
-          return true;
-        }
-      });
-
-      trial = matchingTrial || null;
-    }
-    return { trial, trialIndex };
+    return stimulusIndex;
   }
 
   /**
    * Updates the trial document with the upload status
    * Overwrites video url (used to match trials) with null if upload fails
    * @param nextTask - The upload task item to update
-   * @param trial - The trial document to update
    * @param trialIndex - The index of the trial in the upload status array
    * @param status - The upload status
    * @param errCode - The error code if the upload failed
    */
-  updateTrialStatus({
+  async updateTrialStatus({
     nextTask,
-    trial,
-    trialIndex,
+    stimulusIndex,
     status,
     errCode,
   }: {
     nextTask: UploadTaskItem;
-    trial: DocumentSnapshot<DocumentData> | null;
-    trialIndex: number;
+    stimulusIndex: number;
     status: UploadStatus;
     errCode?: string;
   }) {
-    if (!trial || !trialIndex) return;
+    if (!nextTask.trialRef || !stimulusIndex) return;
 
     nextTask.status = status;
     nextTask.errCode = errCode;
 
     // TODO: Should we be setting errCode to null or just not setting it for success cases?
-    updateDoc(trial.ref, {
-      [`uploadStatus.${trialIndex}`]: {
+    updateDoc(nextTask.trialRef, {
+      [`uploadStatus.${stimulusIndex}`]: {
         status,
         errCode: errCode ?? null,
       },
@@ -634,13 +618,13 @@ export class RoarAppkit {
     } else if (status === 'failed') {
       console.error('Upload failed for', nextTask.url, errCode);
       if (nextTask.taskId === 'ran') {
-        updateDoc(trial.ref, {
+        updateDoc(nextTask.trialRef, {
           uploadUrl: null,
         });
       } else if (nextTask.taskId === 'roar-readaloud') {
-        const historyOfResults = trial.data()?.historyOfResults;
-        historyOfResults[trialIndex].video_url = null;
-        updateDoc(trial.ref, {
+        const historyOfResults = (await getDoc(nextTask.trialRef)).data()?.historyOfResults;
+        historyOfResults[stimulusIndex].video_url = null;
+        updateDoc(nextTask.trialRef, {
           historyOfResults,
         });
       }
@@ -664,17 +648,17 @@ export class RoarAppkit {
     this._isQueueRunning = true;
     nextTask.status = 'uploading';
 
-    const activeTrial = await this.findTrial(nextTask);
     const activeTask = nextTask.upload();
+    const stimulusIndex = await this.findStimulusIndex(nextTask);
 
-    if (!activeTrial || !activeTrial.trial) {
+    if (stimulusIndex == null) {
       console.error('Trial not found for upload:', nextTask.url);
       this._isQueueRunning = false;
       return;
     }
 
     const doUploadTrialStatus = (status: UploadStatus, errCode?: string) =>
-      this.updateTrialStatus({ nextTask, status, errCode, ...activeTrial });
+      this.updateTrialStatus({ nextTask, status, errCode, stimulusIndex });
 
     console.log('activeTask', activeTask);
 
@@ -706,6 +690,7 @@ export class RoarAppkit {
         }
       },
       () => {
+        console.log('completed');
         doUploadTrialStatus('completed');
       },
     );
