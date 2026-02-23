@@ -615,6 +615,11 @@ export class RoarAppkit {
 
     if (status === 'completed') {
       console.log('Upload completed for', nextTask.url);
+      if (nextTask.taskId === 'ran') {
+        updateDoc(nextTask.trialRef, {
+          uploadUrl: nextTask.url,
+        });
+      }
     } else if (status === 'failed') {
       console.error('Upload failed for', nextTask.url, errCode);
       if (nextTask.taskId === 'ran') {
@@ -657,8 +662,8 @@ export class RoarAppkit {
       return;
     }
 
-    const doUploadTrialStatus = (status: UploadStatus, errCode?: string) =>
-      this.updateTrialStatus({ nextTask, status, errCode, stimulusIndex });
+    const doUploadTrialStatus = async (status: UploadStatus, errCode?: string) =>
+      await this.updateTrialStatus({ nextTask, status, errCode, stimulusIndex });
 
     console.log('activeTask', activeTask);
 
