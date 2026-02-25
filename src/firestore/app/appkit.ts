@@ -466,7 +466,6 @@ export class RoarAppkit {
    * Upload recordings to GCP using Firebase SDK.
    * The Firebase project and storage bucket are environment-specific.
    * Bucket format: "roar-assessment-recordings-{environment}".
-   * @param {string} taskId - task id
    * @param {string} filename - The file name
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
@@ -474,13 +473,11 @@ export class RoarAppkit {
    * @returns url of the uploaded file
    */
   async uploadFileOrBlobToStorage({
-    taskId,
     filename,
     assessmentPid,
     fileOrBlob,
     customMetadata,
   }: {
-    taskId: string;
     filename: string;
     assessmentPid?: string;
     fileOrBlob: File | Blob;
@@ -498,13 +495,13 @@ export class RoarAppkit {
       throw new Error('Current trial reference not found for upload.');
     }
 
-    if (!taskId || !filename || !fileOrBlob) {
-      throw new Error('Task ID, filename, and file/blob are required');
+    if (!filename || !fileOrBlob) {
+      throw new Error('filename, and file/blob are required');
     }
 
     const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
     const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
-    const filePath = this.generateFilePath({ taskId, filename, assessmentPid });
+    const filePath = this.generateFilePath({ taskId: this.run?.task.taskId, filename, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
@@ -514,7 +511,7 @@ export class RoarAppkit {
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
       trialRef: trialRef,
-      taskId: taskId,
+      taskId: this.run?.task?.taskId,
       filename,
       url: storageRef.toString(),
       status: 'pending',
