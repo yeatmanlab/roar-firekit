@@ -149,7 +149,6 @@ export class RoarRun {
   scores: RunScores;
   runInteractionIncrements: InteractionSummary<boolean>;
   trialInteractions: InteractionSummary<number[]>;
-  _currentTrialRef: DocumentReference<DocumentData> | null;
   /** Create a ROAR run
    * @param {RunInput} input
    * @param {RoarAppUser} input.user - The user running the task
@@ -178,7 +177,6 @@ export class RoarRun {
     this.assignmentId = assignmentId;
     this.testData = testData;
     this.demoData = demoData;
-    this._currentTrialRef = null;
 
     if (runId) {
       this.runRef = doc(this.user.userRef, 'runs', runId);
@@ -497,7 +495,6 @@ export class RoarRun {
       }
 
       const trialRef = doc(collection(this.runRef, 'trials'));
-      this._currentTrialRef = trialRef;
 
       return setDoc(trialRef, {
         ...convertTrialToFirestore(trialData),
