@@ -428,7 +428,7 @@ export class RoarAppkit {
    * Generates a standardized file path for recordings.
    * @param {string} taskId - The task ID
    * @param {string} filename - The file name
-   * @param {string} [assessmentPid] - Optional assessmentPiD. Prioritizes assigned assessmentPid and defaults to assessmentUid
+   * @param {string} [assessmentPid] - Optional assessmentPid. Prioritizes assigned assessmentPid and defaults to assessmentUid
    * @returns Standardized file path for recordings
    */
   generateFilePath({ taskId, filename, assessmentPid }: { taskId: string; filename: string; assessmentPid?: string }) {
@@ -487,7 +487,7 @@ export class RoarAppkit {
 
     const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
     const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
-    const filePath = this.generateFilePath({ taskId: this.run?.task?.taskId, filename, assessmentPid });
+    const filePath = this.generateFilePath({ taskId: this.run.task.taskId, filename, assessmentPid });
 
     const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
     const storageRef = ref(storageBucket, filePath);
@@ -520,16 +520,18 @@ export class RoarAppkit {
 
     activeTask.on(
       'state_changed',
-      null,
+      undefined,
       (error) => {
         // TODO: Retry
         console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
         nextTask.status = 'failed';
+        this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
       },
       () => {
         nextTask.status = 'completed';
+        this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
       },
