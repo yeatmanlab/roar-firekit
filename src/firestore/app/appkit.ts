@@ -436,20 +436,11 @@ export class RoarAppkit {
 
   /**
    * Generates a standardized file path for recordings.
-   * @param {string} taskId - The task ID
    * @param {string} filename - The file name
    * @param {string} [assessmentPid] - Optional assessmentPid. Prioritizes assigned assessmentPid and defaults to assessmentUid
    * @returns Standardized file path for recordings
    */
-  private generateFilePath({
-    taskId,
-    filename,
-    assessmentPid,
-  }: {
-    taskId: string;
-    filename: string;
-    assessmentPid?: string;
-  }) {
+  private generateFilePath({ filename, assessmentPid }: { filename: string; assessmentPid?: string }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
     } else if (!this.run) {
@@ -457,6 +448,7 @@ export class RoarAppkit {
     }
 
     const runId = this.run?.runRef?.id;
+    const taskId = this.run?.task?.taskId;
     const uid = this.user!.assessmentUid;
     const administrationId = this._assignmentId ?? 'guest-administration';
     let pid = '';
@@ -505,7 +497,7 @@ export class RoarAppkit {
       throw new Error('filename, and file/blob are required');
     }
 
-    const filePath = this.generateFilePath({ taskId: this.run.task.taskId, filename, assessmentPid });
+    const filePath = this.generateFilePath({ filename, assessmentPid });
     const storageRef = ref(this._storageBucket, filePath);
 
     this._uploadQueue.push({
