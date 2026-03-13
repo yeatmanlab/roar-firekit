@@ -63,7 +63,6 @@ export class RoarAppkit {
   private _initialized: boolean;
   private _started: boolean;
   private _uploadQueue: Array<UploadTaskItem>;
-  private _isQueueRunning: boolean;
   private _storageBucket: FirebaseStorage;
   /**
    * Create a RoarAppkit.
@@ -116,7 +115,6 @@ export class RoarAppkit {
     this._started = false;
 
     this._uploadQueue = [];
-    this._isQueueRunning = false;
 
     const storageBucketKey = _camelCase(this.firebaseProject?.firebaseApp.options.projectId);
     if (storageBucketKey && storageBucketKey in BUCKET_URLS) {
@@ -526,11 +524,11 @@ export class RoarAppkit {
    * @returns void
    */
   private processUploadQueue() {
-    if (this._isQueueRunning) return;
+    const totalUploadingTasks = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
+    if (totalUploadingTasks >= 3) return;
     const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
     if (!nextTask) return;
 
-    this._isQueueRunning = true;
     nextTask.status = UploadStatusEnum.UPLOADING;
 
     const activeTask = nextTask.upload();
@@ -543,13 +541,11 @@ export class RoarAppkit {
         console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
         nextTask.status = UploadStatusEnum.FAILED;
         if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
-        this._isQueueRunning = false;
         this.processUploadQueue();
       },
       () => {
         nextTask.status = UploadStatusEnum.COMPLETED;
         if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
-        this._isQueueRunning = false;
         this.processUploadQueue();
       },
     );

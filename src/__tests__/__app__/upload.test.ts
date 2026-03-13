@@ -68,7 +68,6 @@ function createMockAppkit(overrides: Record<string, any> = {}): RoarAppkit {
   (appkit as any)._initialized = true;
   (appkit as any)._authenticated = true;
   (appkit as any)._uploadQueue = [];
-  (appkit as any)._isQueueRunning = false;
 
   // Apply any overrides
   Object.entries(overrides).forEach(([key, value]) => {
@@ -285,5 +284,43 @@ describe('uploadFileOrBlobToStorage', () => {
 
     // Only the pending task should be processed and removed from the queue
     expect((appkit as any)._uploadQueue.length).toBe(2);
+  });
+
+  it('does not process more than 3 concurrent uploads', async () => {
+    // Force the queue to not run so we can verify the task was added to the queue
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    processQueueSpy.mockImplementation(() => {});
+
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test1.webm',
+      fileOrBlob: new Blob(['test1']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test3.webm',
+      fileOrBlob: new Blob(['test3']),
+    });
+
+    (appkit as any)._uploadQueue[0].status = UploadStatusEnum.UPLOADING;
+    (appkit as any)._uploadQueue[1].status = UploadStatusEnum.UPLOADING;
+    (appkit as any)._uploadQueue[2].status = UploadStatusEnum.UPLOADING;
+
+    expect((appkit as any)._uploadQueue.length).toBe(3);
+
+    // Restore the processQueueSpy to allow the queue to process
+    processQueueSpy.mockRestore();
+
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test4.webm',
+      fileOrBlob: new Blob(['test4']),
+    });
+
+    // All tasks should remain in queue
+    expect((appkit as any)._uploadQueue.length).toBe(4);
+    // The fourth task should remain pending since max concurrent uploads is 3
+    expect((appkit as any)._uploadQueue[3].status).toBe(UploadStatusEnum.PENDING);
   });
 });
