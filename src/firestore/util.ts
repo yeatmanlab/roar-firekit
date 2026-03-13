@@ -23,6 +23,7 @@ import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
 import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
+import _replace from 'lodash/replace';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
 import { OrgListKey, OrgLists } from '../interfaces';
@@ -523,4 +524,23 @@ export const singularizeFirestoreCollection = (plural: string) => {
   if (singular) return singular;
 
   throw new Error(`There is no Firestore collection ${plural}`);
+};
+
+export const sanitizeInput = (input: string): string => {
+  // 1. Remove CR, LF, separators, and forbidden characters
+  let sanitized = _replace(input, /[\r\n\s\v\f?*[\]#&=]+/g, '');
+
+  // 2. Truncate to 1024 bytes safely
+  const encoder = new TextEncoder();
+  let encoded = encoder.encode(sanitized);
+  if (encoded.length > 1024) {
+    encoded = encoded.slice(0, 1024);
+    sanitized = new TextDecoder().decode(encoded);
+  }
+
+  if (sanitized.length === 0) {
+    throw new Error('Input must be at least 1 character long after sanitization.');
+  }
+
+  return sanitized;
 };

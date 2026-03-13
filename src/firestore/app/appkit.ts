@@ -7,7 +7,7 @@ import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from 
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
-import { FirebaseConfig, initializeFirebaseProject } from '../util';
+import { FirebaseConfig, initializeFirebaseProject, sanitizeInput } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
 import { BUCKET_URLS } from '../../constants/bucket-urls';
@@ -456,12 +456,12 @@ export class RoarAppkit {
     if (this.user?.assessmentPid) {
       pid = this.user.assessmentPid;
     } else if (assessmentPid && assessmentPid.length > 0) {
-      pid = assessmentPid;
+      pid = sanitizeInput(assessmentPid);
     } else {
       pid = uid;
     }
 
-    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${filename}`;
+    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${sanitizeInput(filename)}`;
   }
 
   /**

@@ -5,7 +5,6 @@ import { BUCKET_URLS } from '../../constants/bucket-urls';
 import { UploadStatusEnum } from '../../constants/upload-status';
 // Mock Firebase modules before importing RoarAppkit
 vi.mock('firebase/storage', async () => {
-  const actual = await vi.importActual('firebase/storage');
   return {
     ref: vi.fn((storage, path) => ({
       path,
