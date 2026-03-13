@@ -3,6 +3,8 @@ import { describe, expect, it, vi, beforeEach, MockInstance } from 'vitest';
 import { RoarAppkit } from '../../firestore/app/appkit';
 import { BUCKET_URLS } from '../../constants/bucket-urls';
 import { UploadStatusEnum } from '../../constants/upload-status';
+import { createMockAppkit } from '../__mocks__/createMockAppkit';
+
 // Mock Firebase modules before importing RoarAppkit
 vi.mock('firebase/storage', async () => {
   return {
@@ -43,39 +45,6 @@ const mockRun = {
   },
 };
 
-const mockFirebaseProject = {
-  firebaseApp: {
-    options: {
-      projectId: 'gse-roar-assessment-dev',
-    },
-  },
-  auth: {},
-};
-
-/**
- * Helper to create a RoarAppkit instance with mocked internal state.
- * Uses the real class but sets up the necessary properties for testing.
- */
-function createMockAppkit(overrides: Record<string, any> = {}): RoarAppkit {
-  const appkit = new RoarAppkit({
-    firebaseProject: mockFirebaseProject as any,
-    userInfo: { assessmentUid: 'test-uid' } as any,
-    taskInfo: { taskId: 'test-task' } as any,
-  });
-
-  // Set default test state
-  (appkit as any)._initialized = true;
-  (appkit as any)._authenticated = true;
-  (appkit as any)._uploadQueue = [];
-
-  // Apply any overrides
-  Object.entries(overrides).forEach(([key, value]) => {
-    (appkit as any)[key] = value;
-  });
-
-  return appkit;
-}
-
 describe('uploadFileOrBlobToStorage', () => {
   let appkit: RoarAppkit;
   let processQueueSpy: MockInstance;
@@ -85,7 +54,6 @@ describe('uploadFileOrBlobToStorage', () => {
     appkit = createMockAppkit({
       user: mockUser,
       run: mockRun,
-      firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
     processQueueSpy = vi.spyOn(appkit as any, 'processUploadQueue');
@@ -170,7 +138,6 @@ describe('uploadFileOrBlobToStorage', () => {
     const localAppKit = createMockAppkit({
       user: mockUserWithoutPid,
       run: mockRun,
-      firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
 
@@ -196,7 +163,6 @@ describe('uploadFileOrBlobToStorage', () => {
     const localAppKit = createMockAppkit({
       user: mockUserWithoutPid,
       run: mockRun,
-      firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
 
@@ -274,7 +240,6 @@ describe('uploadFileOrBlobToStorage', () => {
     const localAppKit = createMockAppkit({
       user: mockUserWithoutPid,
       run: mockRun,
-      firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
 
@@ -293,7 +258,6 @@ describe('uploadFileOrBlobToStorage', () => {
     const localAppKit = createMockAppkit({
       user: mockUserWithoutPid,
       run: mockRun,
-      firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
 

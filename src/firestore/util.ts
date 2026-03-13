@@ -527,7 +527,7 @@ export const singularizeFirestoreCollection = (plural: string) => {
 };
 
 export const validateFileExtension = (filename: string): void => {
-  const ext = path.extname(filename);
+  const ext = path.extname(filename).toLowerCase();
   const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
 
   if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
