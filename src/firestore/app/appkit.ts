@@ -7,7 +7,7 @@ import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from 
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
-import { FirebaseConfig, initializeFirebaseProject, sanitizeInput } from '../util';
+import { FirebaseConfig, initializeFirebaseProject, validateFileExtension, sanitizeInput } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
 import { BUCKET_URLS } from '../../constants/bucket-urls';
@@ -461,7 +461,9 @@ export class RoarAppkit {
       pid = uid;
     }
 
-    return `${taskId}/${uid}/${pid}/${administrationId}/${runId}/${sanitizeInput(filename)}`;
+    validateFileExtension(filename);
+
+    return [taskId, uid, pid, administrationId, runId, filename].map((segment) => sanitizeInput(segment)).join('/');
   }
 
   /**

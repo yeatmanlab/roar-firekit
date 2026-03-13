@@ -217,6 +217,104 @@ describe('uploadFileOrBlobToStorage', () => {
     );
   });
 
+  it('sanitizes filename with periods and slashes', async () => {
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: './../../etc/passwd?.mp3',
+      fileOrBlob: new Blob(['test']),
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/etcpasswd.mp3`,
+    );
+  });
+
+  it('sanitizes filename with carriage returns and line feeds', async () => {
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: '.\r\n..\r\nbad[file]*.php.ogg',
+      fileOrBlob: new Blob(['test']),
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/badfile.php.ogg`,
+    );
+  });
+
+  it('sanitizes filename with special characters', async () => {
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: '.\\..\\b=ad&[file]*.php.wav',
+      fileOrBlob: new Blob(['test']),
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/badfile.php.wav`,
+    );
+  });
+
+  it('sanitizes filename with consecutive periods', async () => {
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: '/var/log/....app?debug#1.webm',
+      fileOrBlob: new Blob(['test']),
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/varlogappdebug1.webm`,
+    );
+  });
+
+  it('rejects filename with incompatible file extension', async () => {
+    await expect(() =>
+      appkit.uploadFileOrBlobToStorage({
+        filename: '/var/log/.app?debug#1.txt',
+        fileOrBlob: new Blob(['test']),
+      }),
+    ).rejects.toThrow('Unsupported file type: ".txt". Allowed: .webm, .mp4, .wav, .ogg, .mkv, .mp3');
+  });
+
+  it('sanitizes assessmentPid and keeps dashes', async () => {
+    const localAppKit = createMockAppkit({
+      user: mockUserWithoutPid,
+      run: mockRun,
+      firebaseProject: mockFirebaseProject,
+      _assignmentId: 'assignment-123',
+    });
+
+    const result = await localAppKit.uploadFileOrBlobToStorage({
+      filename: 'x.wav',
+      fileOrBlob: new Blob(['test']),
+      assessmentPid: '//.x-a-s.ss',
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/x-a-s.ss/assignment-123/test-run-id/x.wav`,
+    );
+  });
+
+  it('sanitizes assessmentPid and throws error if empty', async () => {
+    const localAppKit = createMockAppkit({
+      user: mockUserWithoutPid,
+      run: mockRun,
+      firebaseProject: mockFirebaseProject,
+      _assignmentId: 'assignment-123',
+    });
+
+    await expect(() =>
+      localAppKit.uploadFileOrBlobToStorage({
+        filename: 'x.wav',
+        fileOrBlob: new Blob(['test']),
+        assessmentPid: './##..\\',
+      }),
+    ).rejects.toThrow('Input must be at least 1 character long after sanitization.');
+  });
+
+  it('sanitizes filename and truncates to 1024 characters if original filename is longer', async () => {
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: '/\\/?/...' + 'a'.repeat(1030) + '\n.mp4',
+      fileOrBlob: new Blob(['test']),
+    });
+    const newFilename = result.split('/').pop();
+    expect(newFilename?.length).toBe(1024);
+  });
+
   it('adds multiple tasks and processes them in order', async () => {
     // Force the queue to pause
     // eslint-disable-next-line @typescript-eslint/no-empty-function

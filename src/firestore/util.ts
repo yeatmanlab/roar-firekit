@@ -23,10 +23,10 @@ import _isEqual from 'lodash/isEqual';
 import _isPlainObject from 'lodash/isPlainObject';
 import _mergeWith from 'lodash/mergeWith';
 import _remove from 'lodash/remove';
-import _replace from 'lodash/replace';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
 import { OrgListKey, OrgLists } from '../interfaces';
+import path from 'path';
 
 /** Remove null attributes from an object
  * @function
@@ -526,11 +526,24 @@ export const singularizeFirestoreCollection = (plural: string) => {
   throw new Error(`There is no Firestore collection ${plural}`);
 };
 
-export const sanitizeInput = (input: string): string => {
-  // 1. Remove CR, LF, separators, and forbidden characters
-  let sanitized = _replace(input, /[\r\n\s\v\f?*[\]#&=]+/g, '');
+export const validateFileExtension = (filename: string): void => {
+  const ext = path.extname(filename);
+  const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
 
-  // 2. Truncate to 1024 bytes safely
+  if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
+    throw new Error(`Unsupported file type: "${ext || 'none'}". Allowed: ${[...ALLOWED_EXTENSIONS].join(', ')}`);
+  }
+};
+
+export const sanitizeInput = (input: string): string => {
+  let sanitized = input
+    .replace(/[\r\n]/g, '') // Remove CR/LF
+    .replace(/[/\\]\.(?=[a-zA-Z])/g, '') // Remove periods after slash and before letter
+    .replace(/[/\\]+/g, '') // Remove all remaining slashes
+    .replace(/[?*[\]#&=\s\v\f]+/g, '') // Remove forbidden characters
+    .replace(/\.{2,}/g, ''); // Remove consecutive periods
+
+  // Truncate to 1024 bytes safely
   const encoder = new TextEncoder();
   let encoded = encoder.encode(sanitized);
   if (encoded.length > 1024) {
