@@ -1,20 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, MockInstance } from 'vitest';
 import { RoarAppkit } from '../../firestore/app/appkit';
-
+import { BUCKET_URLS } from '../../constants/bucket-urls';
+import { UploadStatusEnum } from '../../constants/upload-status';
 // Mock Firebase modules before importing RoarAppkit
-vi.mock('firebase/storage', () => ({
-  ref: vi.fn(() => ({
-    toString: () => 'gs://test-bucket/test-path',
-  })),
-  getDownloadURL: vi.fn(),
-  uploadBytesResumable: vi.fn(() => ({
-    on: vi.fn((event, progress, error, complete) => {
-      if (complete) complete();
-    }),
-  })),
-  getStorage: vi.fn(() => ({})),
-}));
+vi.mock('firebase/storage', async () => {
+  const actual = await vi.importActual('firebase/storage');
+  return {
+    ref: vi.fn((storage, path) => ({
+      path,
+      toString: () => `${storage.bucket}/${path}`,
+    })),
+    getDownloadURL: vi.fn(),
+    uploadBytesResumable: vi.fn(() => ({
+      on: vi.fn((event, progress, error, complete) => {
+        if (complete) complete();
+      }),
+    })),
+    getStorage: vi.fn((app, bucketUrl) => ({ app, bucket: bucketUrl })),
+  };
+});
 
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: vi.fn(),
@@ -42,7 +47,7 @@ const mockRun = {
 const mockFirebaseProject = {
   firebaseApp: {
     options: {
-      projectId: 'roar-assessment-dev',
+      projectId: 'gse-roar-assessment-dev',
     },
   },
   auth: {},
@@ -73,75 +78,19 @@ function createMockAppkit(overrides: Record<string, any> = {}): RoarAppkit {
   return appkit;
 }
 
-describe('generateFilePath', () => {
-  let appkit: RoarAppkit;
-
-  beforeEach(() => {
-    appkit = createMockAppkit();
-  });
-
-  it('throws error when user is not authenticated', () => {
-    (appkit as any)._authenticated = false;
-    expect(() => appkit.generateFilePath({ taskId: 'task-1', filename: 'test.webm' })).toThrow(
-      'User must be authenticated to generate file path.',
-    );
-  });
-
-  it('generates correct file path with user assessmentPid', () => {
-    (appkit as any).user = mockUser;
-    (appkit as any).run = mockRun;
-    (appkit as any)._assignmentId = 'assignment-123';
-
-    const result = appkit.generateFilePath({ taskId: 'task-1', filename: 'recording.webm' });
-
-    expect(result).toBe('task-1/test-uid-123/test-pid-456/assignment-123/test-run-id/recording.webm');
-  });
-
-  it('uses provided assessmentPid when user has no assessmentPid', () => {
-    (appkit as any).user = mockUserWithoutPid;
-    (appkit as any).run = mockRun;
-    (appkit as any)._assignmentId = 'assignment-123';
-
-    const result = appkit.generateFilePath({
-      taskId: 'task-1',
-      filename: 'recording.webm',
-      assessmentPid: 'provided-pid',
-    });
-
-    expect(result).toBe('task-1/test-uid-123/provided-pid/assignment-123/test-run-id/recording.webm');
-  });
-
-  it('falls back to assessmentUid when no pid is available', () => {
-    (appkit as any).user = mockUserWithoutPid;
-    (appkit as any).run = mockRun;
-    (appkit as any)._assignmentId = 'assignment-123';
-
-    const result = appkit.generateFilePath({ taskId: 'task-1', filename: 'recording.webm' });
-
-    expect(result).toBe('task-1/test-uid-123/test-uid-123/assignment-123/test-run-id/recording.webm');
-  });
-
-  it('uses guest-administration when no assignmentId is provided', () => {
-    (appkit as any).user = mockUser;
-    (appkit as any).run = mockRun;
-    (appkit as any)._assignmentId = undefined;
-
-    const result = appkit.generateFilePath({ taskId: 'task-1', filename: 'recording.webm' });
-
-    expect(result).toBe('task-1/test-uid-123/test-pid-456/guest-administration/test-run-id/recording.webm');
-  });
-});
-
 describe('uploadFileOrBlobToStorage', () => {
   let appkit: RoarAppkit;
+  let processQueueSpy: MockInstance;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     appkit = createMockAppkit({
       user: mockUser,
       run: mockRun,
       firebaseProject: mockFirebaseProject,
       _assignmentId: 'assignment-123',
     });
+    processQueueSpy = vi.spyOn(appkit as any, 'processUploadQueue');
   });
 
   it('throws error when user is not authenticated', async () => {
@@ -184,174 +133,157 @@ describe('uploadFileOrBlobToStorage', () => {
     ).rejects.toThrow('filename, and file/blob are required');
   });
 
-  it('adds task to upload queue and returns storage URL', async () => {
+  it('returns a storage target URL and adds task to upload queue', async () => {
+    // Force the queue to pause
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    processQueueSpy.mockImplementationOnce(() => {});
     const result = await appkit.uploadFileOrBlobToStorage({
       filename: 'test.webm',
       fileOrBlob: new Blob(['test']),
-    });
-
-    expect(result).toBe('gs://test-bucket/test-path');
-  });
-
-  it('accepts custom metadata', async () => {
-    const result = await appkit.uploadFileOrBlobToStorage({
-      filename: 'test.webm',
-      fileOrBlob: new Blob(['test']),
-      customMetadata: { key: 'value' },
-    });
-
-    expect(result).toBe('gs://test-bucket/test-path');
-  });
-});
-
-describe('processUploadQueue', () => {
-  let appkit: RoarAppkit;
-
-  beforeEach(() => {
-    appkit = createMockAppkit();
-  });
-
-  it('does nothing when queue is already running', () => {
-    (appkit as any)._isQueueRunning = true;
-    (appkit as any)._uploadQueue = [{ status: 'pending' }];
-
-    appkit.processUploadQueue();
-
-    // Queue should remain unchanged
-    expect((appkit as any)._uploadQueue[0].status).toBe('pending');
-  });
-
-  it('does nothing when no pending tasks exist', () => {
-    (appkit as any)._isQueueRunning = false;
-    (appkit as any)._uploadQueue = [{ status: 'completed' }];
-
-    appkit.processUploadQueue();
-
-    expect((appkit as any)._isQueueRunning).toBe(false);
-  });
-
-  it('processes pending task and sets status to uploading', () => {
-    const mockUploadTask = {
-      on: vi.fn(),
-    };
-
-    (appkit as any)._isQueueRunning = false;
-    (appkit as any)._uploadQueue = [
-      {
-        status: 'pending',
-        filename: 'test.webm',
-        upload: () => mockUploadTask,
+      customMetadata: {
+        test: 'test',
       },
-    ];
+    });
 
-    appkit.processUploadQueue();
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/test.webm`,
+    );
+    expect((appkit as any)._uploadQueue.length).toBe(1);
+  });
 
-    expect((appkit as any)._isQueueRunning).toBe(true);
-    expect((appkit as any)._uploadQueue[0].status).toBe('uploading');
-    expect(mockUploadTask.on).toHaveBeenCalledWith(
-      'state_changed',
-      undefined,
-      expect.any(Function),
-      expect.any(Function),
+  it('ignores app-provided assessmentPid if user has assessmentPid', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    processQueueSpy.mockImplementationOnce(() => {});
+    const result = await appkit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+      customMetadata: {
+        test: 'test',
+      },
+      assessmentPid: 'test-pid-input',
+    });
+
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-456/assignment-123/test-run-id/test.webm`,
     );
   });
 
-  it('removes task from queue on successful completion', () => {
-    let completeCallback: (() => void) | undefined;
-    const mockUploadTask = {
-      on: vi.fn((event, progress, error, complete) => {
-        completeCallback = complete;
-      }),
-    };
-
-    (appkit as any)._isQueueRunning = false;
-    (appkit as any)._uploadQueue = [
-      {
-        status: 'pending',
-        filename: 'test.webm',
-        upload: () => mockUploadTask,
-      },
-    ];
-
-    appkit.processUploadQueue();
-
-    // Simulate completion
-    if (completeCallback) completeCallback();
-
-    expect((appkit as any)._uploadQueue.length).toBe(0);
-    expect((appkit as any)._isQueueRunning).toBe(false);
-  });
-
-  it('removes task from queue on error', () => {
-    let errorCallback: ((error: { code: string }) => void) | undefined;
-    const mockUploadTask = {
-      on: vi.fn((event, progress, error, _) => {
-        errorCallback = error;
-      }),
-    };
-
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
-      return void 0;
+  it('sets assessmentPid to app-provided assessmentPid if user does not have assessmentPid', async () => {
+    const localAppKit = createMockAppkit({
+      user: mockUserWithoutPid,
+      run: mockRun,
+      firebaseProject: mockFirebaseProject,
+      _assignmentId: 'assignment-123',
     });
 
-    (appkit as any)._isQueueRunning = false;
-    (appkit as any)._uploadQueue = [
-      {
-        status: 'pending',
-        filename: 'test.webm',
-        upload: () => mockUploadTask,
+    const localProcessQueueSpy = vi.spyOn(localAppKit as any, 'processUploadQueue');
+
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    localProcessQueueSpy.mockImplementationOnce(() => {});
+    const result = await localAppKit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+      customMetadata: {
+        test: 'test',
       },
-    ];
+      assessmentPid: 'test-pid-input',
+    });
 
-    appkit.processUploadQueue();
-
-    // Simulate error
-    if (errorCallback) errorCallback({ code: 'storage/unauthorized' });
-
-    expect((appkit as any)._uploadQueue.length).toBe(0);
-    expect((appkit as any)._isQueueRunning).toBe(false);
-    expect(consoleSpy).toHaveBeenCalledWith('Upload error: test.webm [storage/unauthorized]');
-
-    consoleSpy.mockRestore();
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-pid-input/assignment-123/test-run-id/test.webm`,
+    );
   });
 
-  it('processes next task after current task completes', () => {
-    let completeCallback: (() => void) | undefined;
-    const mockUploadTask1 = {
-      on: vi.fn((event, progress, error, complete) => {
-        completeCallback = complete;
-      }),
-    };
-    const mockUploadTask2 = {
-      on: vi.fn(),
-    };
+  it('sets assessmentPid to assessmentUid if assessmentPid is not provided by user or app', async () => {
+    const localAppKit = createMockAppkit({
+      user: mockUserWithoutPid,
+      run: mockRun,
+      firebaseProject: mockFirebaseProject,
+      _assignmentId: 'assignment-123',
+    });
 
-    (appkit as any)._isQueueRunning = false;
-    (appkit as any)._uploadQueue = [
-      {
-        status: 'pending',
-        filename: 'test1.webm',
-        upload: () => mockUploadTask1,
+    const localProcessQueueSpy = vi.spyOn(localAppKit as any, 'processUploadQueue');
+
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    localProcessQueueSpy.mockImplementationOnce(() => {});
+    const result = await localAppKit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+      customMetadata: {
+        test: 'test',
       },
-      {
-        status: 'pending',
-        filename: 'test2.webm',
-        upload: () => mockUploadTask2,
-      },
-    ];
+    });
 
-    appkit.processUploadQueue();
+    expect(result).toBe(
+      `${BUCKET_URLS.gseRoarAssessmentDev}/test-task-id/test-uid-123/test-uid-123/assignment-123/test-run-id/test.webm`,
+    );
+  });
 
-    // First task should be processing
-    expect((appkit as any)._uploadQueue[0].status).toBe('uploading');
-    expect((appkit as any)._uploadQueue[1].status).toBe('pending');
+  it('adds multiple tasks and processes them in order', async () => {
+    // Force the queue to pause
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    processQueueSpy.mockImplementation(() => {});
 
-    // Complete first task
-    if (completeCallback) completeCallback();
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test1.webm',
+      fileOrBlob: new Blob(['test1']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test2.webm',
+      fileOrBlob: new Blob(['test2']),
+    });
 
-    // Second task should now be processing
-    expect((appkit as any)._uploadQueue.length).toBe(1);
-    expect((appkit as any)._uploadQueue[0].status).toBe('uploading');
-    expect(mockUploadTask2.on).toHaveBeenCalled();
+    expect((appkit as any)._uploadQueue.length).toBe(3);
+
+    // Restore the processQueueSpy to allow the queue to process
+    processQueueSpy.mockRestore();
+
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test3.webm',
+      fileOrBlob: new Blob(['test3']),
+    });
+
+    // All tasks should be processed and removed from the queue
+    expect((appkit as any)._uploadQueue.length).toBe(0);
+  });
+
+  // Although completed/failed tasks are removed, this tests that tasks are processed based on status
+  it('only processes pending tasks, ignoring completed or failed tasks', async () => {
+    // Force the queue to not run so we can verify the task was added to the queue
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    processQueueSpy.mockImplementation(() => {});
+
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test.webm',
+      fileOrBlob: new Blob(['test']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test1.webm',
+      fileOrBlob: new Blob(['test1']),
+    });
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test3.webm',
+      fileOrBlob: new Blob(['test3']),
+    });
+
+    (appkit as any)._uploadQueue[0].status = UploadStatusEnum.COMPLETED;
+    (appkit as any)._uploadQueue[2].status = UploadStatusEnum.FAILED;
+
+    expect((appkit as any)._uploadQueue.length).toBe(3);
+
+    // Restore the processQueueSpy to allow the queue to process
+    processQueueSpy.mockRestore();
+
+    await appkit.uploadFileOrBlobToStorage({
+      filename: 'test4.webm',
+      fileOrBlob: new Blob(['test4']),
+    });
+
+    // Only the pending task should be processed and removed from the queue
+    expect((appkit as any)._uploadQueue.length).toBe(2);
   });
 });

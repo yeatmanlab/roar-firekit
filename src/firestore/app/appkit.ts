@@ -443,7 +443,15 @@ export class RoarAppkit {
    * @param {string} [assessmentPid] - Optional assessmentPid. Prioritizes assigned assessmentPid and defaults to assessmentUid
    * @returns Standardized file path for recordings
    */
-  generateFilePath({ taskId, filename, assessmentPid }: { taskId: string; filename: string; assessmentPid?: string }) {
+  private generateFilePath({
+    taskId,
+    filename,
+    assessmentPid,
+  }: {
+    taskId: string;
+    filename: string;
+    assessmentPid?: string;
+  }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
     } else if (!this.run) {
@@ -526,6 +534,7 @@ export class RoarAppkit {
     nextTask.status = UploadStatusEnum.UPLOADING;
 
     const activeTask = nextTask.upload();
+    const activeTaskIndex = this._uploadQueue.indexOf(nextTask);
 
     activeTask.on(
       'state_changed',
@@ -533,13 +542,13 @@ export class RoarAppkit {
       (error) => {
         console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
         nextTask.status = UploadStatusEnum.FAILED;
-        this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
+        if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
       },
       () => {
         nextTask.status = UploadStatusEnum.COMPLETED;
-        this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
+        if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
       },
