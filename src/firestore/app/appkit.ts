@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask, FirebaseStorage } from 'firebase/storage';
+import _camelCase from 'lodash/camelCase';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
@@ -9,6 +10,9 @@ import { FirebaseProject, OrgLists } from '../../interfaces';
 import { FirebaseConfig, initializeFirebaseProject } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
+import { BUCKET_URLS } from '../../constants/bucket-urls';
+import type { UploadStatus } from '../../constants/upload-status';
+import { UploadStatusEnum } from '../../constants/upload-status';
 
 interface DataFlags {
   user?: boolean;
@@ -30,13 +34,10 @@ export interface AppkitInput {
   demoData?: DataFlags;
 }
 
-type UploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
 interface UploadTaskItem {
   upload: () => UploadTask;
   status: UploadStatus;
-  retries: number;
   filename: string;
-  errCode?: string;
 }
 
 /**
@@ -63,6 +64,7 @@ export class RoarAppkit {
   private _started: boolean;
   private _uploadQueue: Array<UploadTaskItem>;
   private _isQueueRunning: boolean;
+  private _storageBucket: FirebaseStorage;
   /**
    * Create a RoarAppkit.
    *
@@ -115,6 +117,16 @@ export class RoarAppkit {
 
     this._uploadQueue = [];
     this._isQueueRunning = false;
+
+    const storageBucketKey = _camelCase(this.firebaseProject?.firebaseApp.options.projectId);
+    if (storageBucketKey && storageBucketKey in BUCKET_URLS) {
+      this._storageBucket = getStorage(
+        this.firebaseProject!.firebaseApp,
+        BUCKET_URLS[storageBucketKey as keyof typeof BUCKET_URLS],
+      );
+    } else {
+      throw new Error('Storage bucket not found for project ID: ' + storageBucketKey);
+    }
   }
 
   private async _init() {
@@ -434,6 +446,8 @@ export class RoarAppkit {
   generateFilePath({ taskId, filename, assessmentPid }: { taskId: string; filename: string; assessmentPid?: string }) {
     if (!this.authenticated) {
       throw new Error('User must be authenticated to generate file path.');
+    } else if (!this.run) {
+      throw new Error('Run must be started in order to generate a file path.');
     }
 
     const runId = this.run?.runRef?.id;
@@ -460,7 +474,7 @@ export class RoarAppkit {
    * @param {string} [assessmentPid] - Optional assessmentPid.
    * @param {File | Blob} fileOrBlob - The file or blob to upload
    * @param {Record<string, string>} [customMetadata] - Optional metadata to attach to the file (see SettableMetadata interface in Firebase docs)
-   * @returns url of the uploaded file
+   * @returns target storage url
    */
   async uploadFileOrBlobToStorage({
     filename,
@@ -485,18 +499,13 @@ export class RoarAppkit {
       throw new Error('filename, and file/blob are required');
     }
 
-    const appIdParts = this.firebaseProject!.firebaseApp.options.projectId?.split('-');
-    const bucketName = `gs://roar-assessment-recordings-${appIdParts?.length === 3 ? 'prod' : appIdParts?.[3]}`;
     const filePath = this.generateFilePath({ taskId: this.run.task.taskId, filename, assessmentPid });
-
-    const storageBucket = getStorage(this.firebaseProject!.firebaseApp, bucketName);
-    const storageRef = ref(storageBucket, filePath);
+    const storageRef = ref(this._storageBucket, filePath);
 
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
       filename,
-      status: 'pending',
-      retries: 0,
+      status: UploadStatusEnum.PENDING,
     });
 
     this.processUploadQueue();
@@ -508,13 +517,13 @@ export class RoarAppkit {
    * Goes through the queue of pending uploads and processes them one at a time.
    * @returns void
    */
-  processUploadQueue() {
+  private processUploadQueue() {
     if (this._isQueueRunning) return;
-    const nextTask = this._uploadQueue.find((task) => task.status === 'pending');
+    const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
     if (!nextTask) return;
 
     this._isQueueRunning = true;
-    nextTask.status = 'uploading';
+    nextTask.status = UploadStatusEnum.UPLOADING;
 
     const activeTask = nextTask.upload();
 
@@ -522,15 +531,14 @@ export class RoarAppkit {
       'state_changed',
       undefined,
       (error) => {
-        // TODO: Retry
         console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
-        nextTask.status = 'failed';
+        nextTask.status = UploadStatusEnum.FAILED;
         this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
       },
       () => {
-        nextTask.status = 'completed';
+        nextTask.status = UploadStatusEnum.COMPLETED;
         this._uploadQueue.splice(this._uploadQueue.indexOf(nextTask), 1);
         this._isQueueRunning = false;
         this.processUploadQueue();
