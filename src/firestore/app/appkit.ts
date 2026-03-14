@@ -532,39 +532,35 @@ export class RoarAppkit {
   }
 
   /**
-   * Processes the upload queue, starting pending uploads up to the concurrency limit of 3.
+   * Processes the next pending upload if under the concurrency limit of 3.
    * Called after enqueuing a new upload and after each upload completes or fails.
    */
   private processUploadQueue() {
-    let uploadingCount = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
-    let nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
+    const uploadingCount = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
+    if (uploadingCount >= 3) return;
 
-    while (uploadingCount < 3 && nextTask) {
-      nextTask.status = UploadStatusEnum.UPLOADING;
-      const task = nextTask;
-      const activeTask = task.upload();
+    const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
+    if (!nextTask) return;
 
-      activeTask.on(
-        'state_changed',
-        undefined,
-        (error) => {
-          console.error(`Upload error: ${task.filename} [${error?.code}]`);
-          task.status = UploadStatusEnum.FAILED;
-          const idx = this._uploadQueue.indexOf(task);
-          if (idx !== -1) this._uploadQueue.splice(idx, 1);
-          this.processUploadQueue();
-        },
-        () => {
-          task.status = UploadStatusEnum.COMPLETED;
-          const idx = this._uploadQueue.indexOf(task);
-          if (idx !== -1) this._uploadQueue.splice(idx, 1);
-          this.processUploadQueue();
-        },
-      );
+    nextTask.status = UploadStatusEnum.UPLOADING;
+    const activeTask = nextTask.upload();
 
-      // Update loop state to start additional uploads up to the concurrency limit
-      uploadingCount++;
-      nextTask = this._uploadQueue.find((t) => t.status === UploadStatusEnum.PENDING);
-    }
+    activeTask.on(
+      'state_changed',
+      undefined,
+      (error) => {
+        console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
+        nextTask.status = UploadStatusEnum.FAILED;
+        const idx = this._uploadQueue.indexOf(nextTask);
+        if (idx !== -1) this._uploadQueue.splice(idx, 1);
+        this.processUploadQueue();
+      },
+      () => {
+        nextTask.status = UploadStatusEnum.COMPLETED;
+        const idx = this._uploadQueue.indexOf(nextTask);
+        if (idx !== -1) this._uploadQueue.splice(idx, 1);
+        this.processUploadQueue();
+      },
+    );
   }
 }
