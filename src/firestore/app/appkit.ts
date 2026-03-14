@@ -517,10 +517,6 @@ export class RoarAppkit {
       throw new Error('filename, and file/blob are required');
     }
 
-    if (!this._storageBucket) {
-      throw new Error('Storage bucket not initialized. Ensure the app is initialized before uploading.');
-    }
-
     const filePath = this.generateFilePath({ filename, assessmentPid });
     const storageRef = ref(this._storageBucket, filePath);
 
@@ -566,6 +562,7 @@ export class RoarAppkit {
         },
       );
 
+      // Update loop state to start additional uploads up to the concurrency limit
       uploadingCount++;
       nextTask = this._uploadQueue.find((t) => t.status === UploadStatusEnum.PENDING);
     }
