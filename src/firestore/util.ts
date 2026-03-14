@@ -26,7 +26,6 @@ import _remove from 'lodash/remove';
 import { markRaw } from 'vue';
 import { str as crc32 } from 'crc-32';
 import { OrgListKey, OrgLists } from '../interfaces';
-import path from 'path';
 
 /** Remove null attributes from an object
  * @function
@@ -526,9 +525,11 @@ export const singularizeFirestoreCollection = (plural: string) => {
   throw new Error(`There is no Firestore collection ${plural}`);
 };
 
+const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
+
 export const validateFileExtension = (filename: string): void => {
-  const ext = path.extname(filename).toLowerCase();
-  const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
+  const lastDotIndex = filename.lastIndexOf('.');
+  const ext = lastDotIndex !== -1 ? filename.slice(lastDotIndex).toLowerCase() : '';
 
   if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
     throw new Error(`Unsupported file type: "${ext || 'none'}". Allowed: ${[...ALLOWED_EXTENSIONS].join(', ')}`);
