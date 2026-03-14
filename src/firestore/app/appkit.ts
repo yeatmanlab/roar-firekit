@@ -63,7 +63,7 @@ export class RoarAppkit {
   private _initialized: boolean;
   private _started: boolean;
   private _uploadQueue: Array<UploadTaskItem>;
-  private _storageBucket: FirebaseStorage;
+  private _storageBucket?: FirebaseStorage;
   /**
    * Create a RoarAppkit.
    *
@@ -116,6 +116,21 @@ export class RoarAppkit {
 
     this._uploadQueue = [];
 
+    // Initialize storage bucket eagerly if firebaseProject is available.
+    // When firebaseConfig is provided instead, initialization is deferred to _init().
+    if (this.firebaseProject) {
+      this._initStorageBucket();
+    }
+  }
+
+  /**
+   * Initializes the storage bucket for recording uploads.
+   * Resolves the bucket URL from the Firebase project ID using the BUCKET_URLS constant map.
+   * @throws {Error} If the project ID does not map to a known storage bucket.
+   */
+  private _initStorageBucket() {
+    if (this._storageBucket) return;
+
     const storageBucketKey = _camelCase(this.firebaseProject?.firebaseApp.options.projectId);
     if (storageBucketKey && storageBucketKey in BUCKET_URLS) {
       this._storageBucket = getStorage(
@@ -131,6 +146,9 @@ export class RoarAppkit {
     if (this.firebaseConfig) {
       this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
     }
+
+    // Initialize storage bucket if not already done (deferred from constructor when firebaseConfig path is used)
+    this._initStorageBucket();
 
     onAuthStateChanged(this.firebaseProject!.auth, (user) => {
       this._authenticated = Boolean(user);
@@ -456,7 +474,7 @@ export class RoarAppkit {
     if (this.user?.assessmentPid) {
       pid = this.user.assessmentPid;
     } else if (assessmentPid && assessmentPid.length > 0) {
-      pid = sanitizeInput(assessmentPid);
+      pid = assessmentPid;
     } else {
       pid = uid;
     }
@@ -499,6 +517,10 @@ export class RoarAppkit {
       throw new Error('filename, and file/blob are required');
     }
 
+    if (!this._storageBucket) {
+      throw new Error('Storage bucket not initialized. Ensure the app is initialized before uploading.');
+    }
+
     const filePath = this.generateFilePath({ filename, assessmentPid });
     const storageRef = ref(this._storageBucket, filePath);
 
@@ -514,34 +536,38 @@ export class RoarAppkit {
   }
 
   /**
-   * Goes through the queue of pending uploads and processes them one at a time.
-   * @returns void
+   * Processes the upload queue, starting pending uploads up to the concurrency limit of 3.
+   * Called after enqueuing a new upload and after each upload completes or fails.
    */
   private processUploadQueue() {
-    const totalUploadingTasks = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
-    if (totalUploadingTasks >= 3) return;
-    const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
-    if (!nextTask) return;
+    let uploadingCount = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
+    let nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
 
-    nextTask.status = UploadStatusEnum.UPLOADING;
+    while (uploadingCount < 3 && nextTask) {
+      nextTask.status = UploadStatusEnum.UPLOADING;
+      const task = nextTask;
+      const activeTask = task.upload();
 
-    const activeTask = nextTask.upload();
-    const activeTaskIndex = this._uploadQueue.indexOf(nextTask);
+      activeTask.on(
+        'state_changed',
+        undefined,
+        (error) => {
+          console.error(`Upload error: ${task.filename} [${error?.code}]`);
+          task.status = UploadStatusEnum.FAILED;
+          const idx = this._uploadQueue.indexOf(task);
+          if (idx !== -1) this._uploadQueue.splice(idx, 1);
+          this.processUploadQueue();
+        },
+        () => {
+          task.status = UploadStatusEnum.COMPLETED;
+          const idx = this._uploadQueue.indexOf(task);
+          if (idx !== -1) this._uploadQueue.splice(idx, 1);
+          this.processUploadQueue();
+        },
+      );
 
-    activeTask.on(
-      'state_changed',
-      undefined,
-      (error) => {
-        console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
-        nextTask.status = UploadStatusEnum.FAILED;
-        if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
-        this.processUploadQueue();
-      },
-      () => {
-        nextTask.status = UploadStatusEnum.COMPLETED;
-        if (activeTaskIndex !== -1) this._uploadQueue.splice(activeTaskIndex, 1);
-        this.processUploadQueue();
-      },
-    );
+      uploadingCount++;
+      nextTask = this._uploadQueue.find((t) => t.status === UploadStatusEnum.PENDING);
+    }
   }
 }
