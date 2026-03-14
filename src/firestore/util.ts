@@ -528,8 +528,11 @@ export const singularizeFirestoreCollection = (plural: string) => {
 const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
 
 export const validateFileExtension = (filename: string): void => {
-  const lastDotIndex = filename.lastIndexOf('.');
-  const ext = lastDotIndex !== -1 ? filename.slice(lastDotIndex).toLowerCase() : '';
+  // Derive extension from the basename (after the last '/' or '\') and
+  // ignore a leading dot in the basename (to match path.extname semantics).
+  const base = filename.split(/[/\\]/).pop() || '';
+  const dotIndex = base.lastIndexOf('.');
+  const ext = dotIndex > 0 ? base.slice(dotIndex).toLowerCase() : '';
 
   if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
     throw new Error(`Unsupported file type: "${ext || 'none'}". Allowed: ${[...ALLOWED_EXTENSIONS].join(', ')}`);
