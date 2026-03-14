@@ -518,7 +518,9 @@ export class RoarAppkit {
     }
 
     const filePath = this.generateFilePath({ filename, assessmentPid });
-    const storageRef = ref(this._storageBucket, filePath);
+    // Safe: _storageBucket is guaranteed to be set by _initStorageBucket(), called either
+    // in the constructor (firebaseProject path) or in _init() above (firebaseConfig path).
+    const storageRef = ref(this._storageBucket!, filePath);
 
     this._uploadQueue.push({
       upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
