@@ -538,13 +538,13 @@ export class RoarAppkit {
    * Called after enqueuing a new upload and after each upload completes or fails.
    */
   private processUploadQueue() {
-    const uploadingCount = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
-    if (uploadingCount >= 3) return;
-
+    const totalUploadingTasks = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
+    if (totalUploadingTasks >= 3) return;
     const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
     if (!nextTask) return;
 
     nextTask.status = UploadStatusEnum.UPLOADING;
+
     const activeTask = nextTask.upload();
 
     activeTask.on(
