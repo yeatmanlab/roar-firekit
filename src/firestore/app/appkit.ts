@@ -1,14 +1,18 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { onAuthStateChanged } from 'firebase/auth';
 import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
+import { ref, getDownloadURL, uploadBytesResumable, getStorage, UploadTask, FirebaseStorage } from 'firebase/storage';
+import _camelCase from 'lodash/camelCase';
 import { ComputedScores, RawScores, RoarRun, InteractionEvent, TrialData } from './run';
 import { TaskVariantInfo, RoarTaskVariant } from './task';
 import { UserInfo, UserUpdateInput, RoarAppUser } from './user';
 import { FirebaseProject, OrgLists } from '../../interfaces';
-import { FirebaseConfig, initializeFirebaseProject } from '../util';
+import { FirebaseConfig, initializeFirebaseProject, validateFileExtension, sanitizeInput } from '../util';
 import Ajv2020, { JSONSchemaType } from 'ajv/dist/2020';
 import ajvErrors from 'ajv-errors';
+import { BUCKET_URLS } from '../../constants/bucket-urls';
+import type { UploadStatus } from '../../constants/upload-status';
+import { UploadStatusEnum } from '../../constants/upload-status';
 
 interface DataFlags {
   user?: boolean;
@@ -28,6 +32,12 @@ export interface AppkitInput {
   runId?: string;
   testData?: DataFlags;
   demoData?: DataFlags;
+}
+
+interface UploadTaskItem {
+  upload: () => UploadTask;
+  status: UploadStatus;
+  filename: string;
 }
 
 /**
@@ -52,6 +62,8 @@ export class RoarAppkit {
   private _authenticated: boolean;
   private _initialized: boolean;
   private _started: boolean;
+  private _uploadQueue: Array<UploadTaskItem>;
+  private _storageBucket?: FirebaseStorage;
   /**
    * Create a RoarAppkit.
    *
@@ -101,12 +113,42 @@ export class RoarAppkit {
     this._authenticated = false;
     this._initialized = false;
     this._started = false;
+
+    this._uploadQueue = [];
+
+    // Initialize storage bucket eagerly if firebaseProject is available.
+    // When firebaseConfig is provided instead, initialization is deferred to _init().
+    if (this.firebaseProject) {
+      this._initStorageBucket();
+    }
+  }
+
+  /**
+   * Initializes the storage bucket for recording uploads.
+   * Resolves the bucket URL from the Firebase project ID using the BUCKET_URLS constant map.
+   * @throws {Error} If the project ID does not map to a known storage bucket.
+   */
+  private _initStorageBucket() {
+    if (this._storageBucket) return;
+
+    const storageBucketKey = _camelCase(this.firebaseProject?.firebaseApp.options.projectId);
+    if (storageBucketKey && storageBucketKey in BUCKET_URLS) {
+      this._storageBucket = getStorage(
+        this.firebaseProject!.firebaseApp,
+        BUCKET_URLS[storageBucketKey as keyof typeof BUCKET_URLS],
+      );
+    } else {
+      throw new Error('Storage bucket not found for project ID: ' + storageBucketKey);
+    }
   }
 
   private async _init() {
     if (this.firebaseConfig) {
       this.firebaseProject = await initializeFirebaseProject(this.firebaseConfig, 'assessmentApp');
     }
+
+    // Initialize storage bucket if not already done (deferred from constructor when firebaseConfig path is used)
+    this._initStorageBucket();
 
     onAuthStateChanged(this.firebaseProject!.auth, (user) => {
       this._authenticated = Boolean(user);
@@ -410,11 +452,117 @@ export class RoarAppkit {
     return getDownloadURL(storageRef);
   }
 
-  async uploadFileOrBlobToStorage(filePath: string, fileOrBlob: File | Blob) {
+  /**
+   * Generates a standardized file path for recordings.
+   * @param {string} filename - The file name
+   * @param {string} [assessmentPid] - Optional assessmentPid. Prioritizes assigned assessmentPid and defaults to assessmentUid
+   * @returns Standardized file path for recordings
+   */
+  private generateFilePath({ filename, assessmentPid }: { filename: string; assessmentPid?: string }) {
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to generate file path.');
+    } else if (!this.run) {
+      throw new Error('Run must be started in order to generate a file path.');
+    }
+
+    const runId = this.run?.runRef?.id;
+    const taskId = this.run?.task?.taskId;
+    const uid = this.user!.assessmentUid;
+    const administrationId = this._assignmentId ?? 'guest-administration';
+    let pid = '';
+
+    if (this.user?.assessmentPid) {
+      pid = this.user.assessmentPid;
+    } else if (assessmentPid && assessmentPid.length > 0) {
+      pid = assessmentPid;
+    } else {
+      pid = uid;
+    }
+
+    validateFileExtension(filename);
+
+    return [taskId, uid, pid, administrationId, runId, filename].map((segment) => sanitizeInput(segment)).join('/');
+  }
+
+  /**
+   * Upload recordings to GCP using Firebase SDK.
+   * The Firebase project and storage bucket are environment-specific.
+   * Bucket format: "roar-assessment-recordings-{environment}".
+   * @param {string} filename - The file name
+   * @param {string} [assessmentPid] - Optional assessmentPid.
+   * @param {File | Blob} fileOrBlob - The file or blob to upload
+   * @param {Record<string, string>} [customMetadata] - Optional metadata to attach to the file (see SettableMetadata interface in Firebase docs)
+   * @returns target storage url
+   */
+  async uploadFileOrBlobToStorage({
+    filename,
+    assessmentPid,
+    fileOrBlob,
+    customMetadata,
+  }: {
+    filename: string;
+    assessmentPid?: string;
+    fileOrBlob: File | Blob;
+    customMetadata?: Record<string, string>;
+  }) {
     if (!this._initialized) {
       await this._init();
     }
-    const storageRef = ref(this.firebaseProject!.storage, filePath);
-    return uploadBytes(storageRef, fileOrBlob);
+
+    if (!this.authenticated) {
+      throw new Error('User must be authenticated to upload files to storage.');
+    } else if (!this.run) {
+      throw new Error('No active run found.');
+    } else if (!filename || !fileOrBlob) {
+      throw new Error('filename, and file/blob are required');
+    }
+
+    const filePath = this.generateFilePath({ filename, assessmentPid });
+    // Safe: _storageBucket is guaranteed to be set by _initStorageBucket(), called either
+    // in the constructor (firebaseProject path) or in _init() above (firebaseConfig path).
+    const storageRef = ref(this._storageBucket!, filePath);
+
+    this._uploadQueue.push({
+      upload: () => uploadBytesResumable(storageRef, fileOrBlob, { customMetadata }),
+      filename,
+      status: UploadStatusEnum.PENDING,
+    });
+
+    this.processUploadQueue();
+
+    return storageRef.toString();
+  }
+
+  /**
+   * Processes the next pending upload if under the concurrency limit of 3.
+   * Called after enqueuing a new upload and after each upload completes or fails.
+   */
+  private processUploadQueue() {
+    const totalUploadingTasks = this._uploadQueue.filter((task) => task.status === UploadStatusEnum.UPLOADING).length;
+    if (totalUploadingTasks >= 3) return;
+    const nextTask = this._uploadQueue.find((task) => task.status === UploadStatusEnum.PENDING);
+    if (!nextTask) return;
+
+    nextTask.status = UploadStatusEnum.UPLOADING;
+
+    const activeTask = nextTask.upload();
+
+    activeTask.on(
+      'state_changed',
+      undefined,
+      (error) => {
+        console.error(`Upload error: ${nextTask.filename} [${error?.code}]`);
+        nextTask.status = UploadStatusEnum.FAILED;
+        const idx = this._uploadQueue.indexOf(nextTask);
+        if (idx !== -1) this._uploadQueue.splice(idx, 1);
+        this.processUploadQueue();
+      },
+      () => {
+        nextTask.status = UploadStatusEnum.COMPLETED;
+        const idx = this._uploadQueue.indexOf(nextTask);
+        if (idx !== -1) this._uploadQueue.splice(idx, 1);
+        this.processUploadQueue();
+      },
+    );
   }
 }

@@ -524,3 +524,40 @@ export const singularizeFirestoreCollection = (plural: string) => {
 
   throw new Error(`There is no Firestore collection ${plural}`);
 };
+
+const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
+
+export const validateFileExtension = (filename: string): void => {
+  // Derive extension from the basename (after the last '/' or '\') and
+  // ignore a leading dot in the basename (to match path.extname semantics).
+  const base = filename.split(/[/\\]/).pop() || '';
+  const dotIndex = base.lastIndexOf('.');
+  const ext = dotIndex > 0 ? base.slice(dotIndex).toLowerCase() : '';
+
+  if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
+    throw new Error(`Unsupported file type: "${ext || 'none'}". Allowed: ${[...ALLOWED_EXTENSIONS].join(', ')}`);
+  }
+};
+
+export const sanitizeInput = (input: string): string => {
+  let sanitized = input
+    .replace(/[\r\n]/g, '') // Remove CR/LF
+    .replace(/[/\\]\.(?=[a-zA-Z])/g, '') // Remove periods after slash and before letter
+    .replace(/[/\\]+/g, '') // Remove all remaining slashes
+    .replace(/[?*[\]#&=\s\v\f]+/g, '') // Remove forbidden characters
+    .replace(/\.{2,}/g, ''); // Remove consecutive periods
+
+  // Truncate to 1024 bytes safely
+  const encoder = new TextEncoder();
+  let encoded = encoder.encode(sanitized);
+  if (encoded.length > 1024) {
+    encoded = encoded.slice(0, 1024);
+    sanitized = new TextDecoder().decode(encoded);
+  }
+
+  if (sanitized.length === 0) {
+    throw new Error('Input must be at least 1 character long after sanitization.');
+  }
+
+  return sanitized;
+};
