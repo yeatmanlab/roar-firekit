@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
 
       - name: Get the new version
         id: get_new_version
