@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Blob } from 'node:buffer';
 import { describe, expect, it, vi, beforeEach, MockInstance } from 'vitest';
 import { RoarAppkit } from '../../firestore/app/appkit';
 import { BUCKET_URLS } from '../../constants/bucket-urls';
