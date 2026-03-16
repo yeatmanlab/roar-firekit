@@ -5,7 +5,6 @@ import { BUCKET_URLS } from '../../constants/bucket-urls';
 import { UploadStatusEnum } from '../../constants/upload-status';
 import { createMockAppkit } from '../__mocks__/createMockAppkit';
 
-// Mock Firebase modules before importing RoarAppkit
 vi.mock('firebase/storage', async () => {
   return {
     ref: vi.fn((storage, path) => ({
@@ -87,7 +86,7 @@ describe('uploadFileOrBlobToStorage', () => {
         filename: '',
         fileOrBlob: new Blob(['test']),
       }),
-    ).rejects.toThrow('filename, and file/blob are required');
+    ).rejects.toThrow('Both filename and file/blob are required');
   });
 
   it('throws error when fileOrBlob is missing', async () => {
@@ -96,7 +95,7 @@ describe('uploadFileOrBlobToStorage', () => {
         filename: 'test.webm',
         fileOrBlob: null as any,
       }),
-    ).rejects.toThrow('filename, and file/blob are required');
+    ).rejects.toThrow('Both filename and file/blob are required');
   });
 
   it('returns a storage target URL and adds task to upload queue', async () => {
@@ -228,7 +227,7 @@ describe('uploadFileOrBlobToStorage', () => {
   });
 
   it('rejects filename with incompatible file extension', async () => {
-    await expect(() =>
+    await expect(
       appkit.uploadFileOrBlobToStorage({
         filename: '/var/log/.app?debug#1.txt',
         fileOrBlob: new Blob(['test']),
@@ -261,7 +260,7 @@ describe('uploadFileOrBlobToStorage', () => {
       _assignmentId: 'assignment-123',
     });
 
-    await expect(() =>
+    await expect(
       localAppKit.uploadFileOrBlobToStorage({
         filename: 'x.wav',
         fileOrBlob: new Blob(['test']),

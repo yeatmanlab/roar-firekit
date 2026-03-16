@@ -131,7 +131,12 @@ export class RoarAppkit {
   private _initStorageBucket() {
     if (this._storageBucket) return;
 
-    const storageBucketKey = _camelCase(this.firebaseProject?.firebaseApp.options.projectId);
+    // projectId is optional in the FirebaseOptions interface
+    const projectId = this.firebaseProject?.firebaseApp.options.projectId;
+    if (!projectId) {
+      throw new Error('Project ID is required to initialize storage bucket');
+    }
+    const storageBucketKey = _camelCase(projectId);
     if (storageBucketKey && storageBucketKey in BUCKET_URLS) {
       this._storageBucket = getStorage(
         this.firebaseProject!.firebaseApp,
@@ -465,8 +470,8 @@ export class RoarAppkit {
       throw new Error('Run must be started in order to generate a file path.');
     }
 
-    const runId = this.run?.runRef?.id;
-    const taskId = this.run?.task?.taskId;
+    const runId = this.run.runRef.id;
+    const taskId = this.run.task.taskId;
     const uid = this.user!.assessmentUid;
     const administrationId = this._assignmentId ?? 'guest-administration';
     let pid = '';
@@ -513,8 +518,8 @@ export class RoarAppkit {
       throw new Error('User must be authenticated to upload files to storage.');
     } else if (!this.run) {
       throw new Error('No active run found.');
-    } else if (!filename || !fileOrBlob) {
-      throw new Error('filename, and file/blob are required');
+    } else if (!filename || filename.trim().length === 0 || !fileOrBlob) {
+      throw new Error('Both filename and file/blob are required');
     }
 
     const filePath = this.generateFilePath({ filename, assessmentPid });
