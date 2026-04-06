@@ -2495,6 +2495,16 @@ export class RoarFirekit {
     });
   }
 
+  /**
+   * Add multiple students to an existing family account.
+   *
+   * @param caretakerEmail The email address of the parent/caretaker.
+   * @param caretakerUserData The parent/caretaker user data including name and legal consent information.
+   * @param children An array of child data objects containing email, password, and user data.
+   * @param consentData The consent document information including name, text, and version.
+   * @param isTestData Whether this is test data. Defaults to false.
+   * @throws {Error} If the cloud function call fails or returns an error status.
+   */
   async addStudentsToFamily(
     caretakerEmail: string,
     caretakerUserData: CreateParentInput,
@@ -2535,13 +2545,17 @@ export class RoarFirekit {
     });
 
     const cloudAddStudents = httpsCallable(this.admin!.functions, 'addStudentsToExistingFamily');
-    await cloudAddStudents({
-      caretakerEmail,
-      caretakerUserData,
-      children: formattedChildren,
-      consentData,
-      isTestData,
-    });
+    try {
+      await cloudAddStudents({
+        caretakerEmail,
+        caretakerUserData,
+        children: formattedChildren,
+        consentData,
+        isTestData,
+      });
+    } catch (error) {
+      throw new Error(`Failed to add students to family: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async createStudentWithUsernamePassword(username: string, password: string, userData: CreateUserInput) {
