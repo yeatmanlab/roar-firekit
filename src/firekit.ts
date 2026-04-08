@@ -2495,6 +2495,69 @@ export class RoarFirekit {
     });
   }
 
+  /**
+   * Add multiple students to an existing family account.
+   *
+   * @param caretakerEmail The email address of the parent/caretaker.
+   * @param caretakerUserData The parent/caretaker user data including name and legal consent information.
+   * @param children An array of child data objects containing email, password, and user data.
+   * @param consentData The consent document information including name, text, and version.
+   * @param isTestData Whether this is test data. Defaults to false.
+   * @throws {Error} If the cloud function call fails or returns an error status.
+   */
+  async addStudentsToFamily(
+    caretakerEmail: string,
+    caretakerUserData: CreateParentInput,
+    children: ChildData[],
+    consentData: { name: string; text: string; version: string },
+    isTestData = false,
+  ) {
+    const formattedChildren = children.map((child) => {
+      const returnChild = {
+        email: child.email,
+        password: child.password,
+      };
+      const emailCheckSum = crc32String(child.email!);
+      const pidParts: string[] = [];
+      pidParts.push(emailCheckSum);
+      _set(returnChild, 'userData.assessmentPid', pidParts.join('-'));
+
+      _set(returnChild, 'userData.username', child.email.split('@')[0]);
+      if (_get(child, 'userData.activationCode'))
+        _set(returnChild, 'userData.activationCode', child.userData.activationCode);
+      if (_get(child, 'userData.name')) _set(returnChild, 'userData.name', child.userData.name);
+      if (_get(child, 'userData.gender')) _set(returnChild, 'userData.studentData.gender', child.userData.gender);
+      if (_get(child, 'userData.grade')) _set(returnChild, 'userData.studentData.grade', child.userData.grade);
+      if (_get(child, 'userData.dob')) _set(returnChild, 'userData.studentData.dob', child.userData.dob);
+      if (_get(child, 'userData.state_id')) _set(returnChild, 'userData.studentData.state_id', child.userData.state_id);
+      if (_get(child, 'userData.hispanic_ethnicity'))
+        _set(returnChild, 'userData.studentData.hispanic_ethnicity', child.userData.hispanic_ethnicity);
+      if (_get(child, 'userData.ell_status'))
+        _set(returnChild, 'userData.studentData.ell_status', child.userData.ell_status);
+      if (_get(child, 'userData.iep_status'))
+        _set(returnChild, 'userData.studentData.iep_status', child.userData.iep_status);
+      if (_get(child, 'userData.frl_status'))
+        _set(returnChild, 'userData.studentData.frl_status', child.userData.frl_status);
+      if (_get(child, 'userData.race')) _set(returnChild, 'userData.studentData.race', child.userData.race);
+      if (_get(child, 'userData.home_language'))
+        _set(returnChild, 'userData.studentData.home_language', child.userData.home_language);
+      return returnChild;
+    });
+
+    const cloudAddStudents = httpsCallable(this.admin!.functions, 'addStudentsToExistingFamily');
+    try {
+      await cloudAddStudents({
+        caretakerEmail,
+        caretakerUserData,
+        children: formattedChildren,
+        consentData,
+        isTestData,
+      });
+    } catch (error) {
+      throw new Error(`Failed to add students to family: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async createStudentWithUsernamePassword(username: string, password: string, userData: CreateUserInput) {
     this._verifyAuthentication();
     this._verifyAdmin();
