@@ -525,7 +525,7 @@ export const singularizeFirestoreCollection = (plural: string) => {
   throw new Error(`There is no Firestore collection ${plural}`);
 };
 
-const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3']);
+const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.wav', '.ogg', '.mkv', '.mp3', '.json']);
 
 export const validateFileExtension = (filename: string): void => {
   // Derive extension from the basename (after the last '/' or '\') and
