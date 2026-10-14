@@ -1986,10 +1986,20 @@ export class RoarFirekit {
     await runTransaction(this.admin!.db, async (transaction) => {
       const administrationDocRef = doc(this.admin!.db, 'administrations', administrationId);
       const subcollections = ['stats', 'assigningOrgs', 'readOrgs'];
+
+      // Retrieve administration document prior to handling subcollections.
+      const docSnap = await transaction.get(administrationDocRef);
+
+      // Collect subcollection snapshots
+      const subcollectionSnapshots = [];
       for (const subcollection of subcollections) {
         const subcollectionRef = collection(this.admin!.db, 'administrations', administrationId, subcollection);
         const subcollectionSnapshot = await getDocs(subcollectionRef);
+        subcollectionSnapshots.push(subcollectionSnapshot);
+      }
 
+      // Delete documents in each subcollection
+      for (const subcollectionSnapshot of subcollectionSnapshots) {
         subcollectionSnapshot.forEach((doc) => {
           if (doc.exists()) {
             transaction.delete(doc.ref);
@@ -1997,9 +2007,8 @@ export class RoarFirekit {
         });
       }
 
-      const docSnap = await transaction.get(administrationDocRef);
+      // Delete the administration doc
       if (docSnap.exists()) {
-        // Delete the administration doc
         transaction.delete(administrationDocRef);
       }
     });
