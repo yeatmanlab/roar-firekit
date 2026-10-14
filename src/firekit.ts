@@ -1991,7 +1991,7 @@ export class RoarFirekit {
       const docSnap = await transaction.get(administrationDocRef);
 
       // Collect subcollection snapshots
-      let subcollectionSnapshots = [];
+      const subcollectionSnapshots = [];
       for (const subcollection of subcollections) {
         const subcollectionRef = collection(this.admin!.db, 'administrations', administrationId, subcollection);
         const subcollectionSnapshot = await getDocs(subcollectionRef);
